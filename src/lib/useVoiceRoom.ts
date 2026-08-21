@@ -305,9 +305,11 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
         let changed = false;
         const next = { ...prev };
         Object.keys(next).forEach((id) => {
+          const current = next[id];
+          if (!current) return;
           const speaking = speakingIds.includes(id);
-          if (next[id].speaking !== speaking) {
-            next[id] = { ...next[id], speaking };
+          if (current.speaking !== speaking) {
+            next[id] = { ...current, speaking };
             changed = true;
           }
         });
