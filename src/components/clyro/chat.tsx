@@ -23,8 +23,8 @@ export function ChatPanel({
   placeholder,
 }: {
   scopeKey: string;
-  channelId?: string;
-  conversationId?: string;
+  channelId?: string | undefined;
+  conversationId?: string | undefined;
   header: ReactNode;
   placeholder: string;
 }) {
