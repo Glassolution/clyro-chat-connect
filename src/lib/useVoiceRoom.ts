@@ -386,6 +386,7 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     try {
       const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const track = display.getVideoTracks()[0];
+      if (!track) return;
       track.onended = () => {
         removeExtraTrack("screen");
         setSharingScreen(false);
