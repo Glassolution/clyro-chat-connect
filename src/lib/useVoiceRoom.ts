@@ -293,7 +293,7 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
         analyser.getByteTimeDomainData(buffer);
         let sum = 0;
         for (let i = 0; i < buffer.length; i += 1) {
-          const v = (buffer[i] - 128) / 128;
+          const v = ((buffer[i] ?? 128) - 128) / 128;
           sum += v * v;
         }
         const rms = Math.sqrt(sum / buffer.length);
