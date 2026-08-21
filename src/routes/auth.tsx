@@ -70,7 +70,7 @@ function AuthPage() {
       toast.error(error.message);
       return;
     }
-    toast.success("Conta criada. Confirme seu e-mail se pedirmos.");
+    toast.success("Conta criada. Bem-vindo ao Clyro!");
   };
 
   const google = async () => {
