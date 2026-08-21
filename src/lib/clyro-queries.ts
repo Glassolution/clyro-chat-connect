@@ -128,7 +128,10 @@ export function useVoiceStates() {
   });
 }
 
-export function useMessages(scope: { channelId?: string; conversationId?: string }) {
+export function useMessages(scope: {
+  channelId?: string | undefined;
+  conversationId?: string | undefined;
+}) {
   const key = scope.channelId ?? scope.conversationId ?? null;
   return useQuery({
     enabled: !!key,
