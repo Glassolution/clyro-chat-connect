@@ -44,6 +44,9 @@
   --color-panel: var(--panel);
   --color-panel-foreground: var(--panel-foreground);
   --color-surface: var(--surface);
+  --color-stage: var(--stage);
+  --color-stage-foreground: var(--stage-foreground);
+  --color-speaking: var(--online);
   --color-online: var(--online);
   --color-idle: var(--idle);
   --color-dnd: var(--dnd);
