@@ -37,9 +37,11 @@ export function ClyroWordmark({ className }: { className?: string }) {
 export function StatusDot({
   status,
   className,
+  style,
 }: {
   status: PresenceStatus | undefined;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const color =
     status === "online"
@@ -51,10 +53,12 @@ export function StatusDot({
           : "bg-offline";
   return (
     <span
+      style={style}
       className={cn(
-        "rounded-full ring-2 ring-[var(--color-surface)]",
+        "block shrink-0 rounded-full ring-2 ring-panel",
         color,
-        className ?? "h-3 w-3",
+        !style && "h-3 w-3",
+        className,
       )}
     />
   );
@@ -74,6 +78,7 @@ export function UserAvatar({
   className?: string;
 }) {
   const name = profile?.display_name || profile?.username || "?";
+  const dotSize = Math.max(8, Math.round(size * 0.3));
   return (
     <span className={cn("relative inline-flex shrink-0", className)} style={{ width: size, height: size }}>
       <span
@@ -92,7 +97,8 @@ export function UserAvatar({
       {showStatus && (
         <StatusDot
           status={profile?.status}
-          className="absolute -bottom-0.5 -right-0.5 h-3 w-3"
+          className="absolute bottom-0 right-0 translate-x-[15%] translate-y-[15%]"
+          style={{ width: dotSize, height: dotSize }}
         />
       )}
     </span>
