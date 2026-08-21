@@ -409,6 +409,7 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     try {
       const cam = await navigator.mediaDevices.getUserMedia({ video: true });
       const track = cam.getVideoTracks()[0];
+      if (!track) return;
       await addExtraTrack("camera", track);
       setCameraOn(true);
     } catch {
