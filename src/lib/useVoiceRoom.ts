@@ -49,6 +49,10 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
   const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
+  const mutedRef = useRef(false);
+  const deafenedRef = useRef(false);
+  const preDeafenMuteRef = useRef(false);
+  const speakingSinceRef = useRef<Map<string, number>>(new Map());
 
   const send = useCallback((event: string, payload: SignalPayload) => {
     void channelRef.current?.send({ type: "broadcast", event, payload });
@@ -191,6 +195,9 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
         return;
       }
       localStreamRef.current = stream;
+      stream.getAudioTracks().forEach((t) => {
+        t.enabled = !mutedRef.current && !deafenedRef.current;
+      });
       setLocalStream(stream);
       attachAnalyser("__self", stream);
 
@@ -277,8 +284,6 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
       setScreenStream(null);
       setSharingScreen(false);
       setCameraOn(false);
-      setMuted(false);
-      setDeafened(false);
     };
   }, [roomKey, selfId, createPeer, removePeer, send, attachAnalyser]);
 
@@ -286,28 +291,53 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
   useEffect(() => {
     if (!roomKey) return;
     const buffer = new Uint8Array(256);
+    const START = 0.035;
+    const STOP = 0.018;
+    const HOLD_MS = 320;
+
+    const level = (analyser: AnalyserNode) => {
+      analyser.getByteTimeDomainData(buffer);
+      let sum = 0;
+      for (let i = 0; i < buffer.length; i += 1) {
+        const v = ((buffer[i] ?? 128) - 128) / 128;
+        sum += v * v;
+      }
+      return Math.sqrt(sum / buffer.length);
+    };
+
+    const isSpeaking = (id: string, rms: number, wasSpeaking: boolean) => {
+      const now = Date.now();
+      if (rms > START) {
+        speakingSinceRef.current.set(id, now);
+        return true;
+      }
+      if (wasSpeaking && rms > STOP) return true;
+      const last = speakingSinceRef.current.get(id) ?? 0;
+      return wasSpeaking && now - last < HOLD_MS;
+    };
+
+    let selfSpeaking = false;
+
     const loop = () => {
-      let selfLevel = 0;
-      const speakingIds: string[] = [];
+      const remote = new Map<string, number>();
       analysersRef.current.forEach((analyser, id) => {
-        analyser.getByteTimeDomainData(buffer);
-        let sum = 0;
-        for (let i = 0; i < buffer.length; i += 1) {
-          const v = ((buffer[i] ?? 128) - 128) / 128;
-          sum += v * v;
+        const rms = level(analyser);
+        if (id === "__self") {
+          selfSpeaking = !mutedRef.current && isSpeaking("__self", rms, selfSpeaking);
+          setLocalSpeaking(selfSpeaking);
+        } else {
+          remote.set(id, rms);
         }
-        const rms = Math.sqrt(sum / buffer.length);
-        if (id === "__self") selfLevel = rms;
-        else if (rms > 0.045) speakingIds.push(id);
       });
-      setLocalSpeaking(selfLevel > 0.045 && !muted);
+
       setPeers((prev) => {
         let changed = false;
         const next = { ...prev };
         Object.keys(next).forEach((id) => {
           const current = next[id];
           if (!current) return;
-          const speaking = speakingIds.includes(id);
+          const rms = remote.get(id) ?? 0;
+          const speaking = deafenedRef.current ? false : isSpeaking(id, rms, current.speaking);
           if (current.speaking !== speaking) {
             next[id] = { ...current, speaking };
             changed = true;
@@ -315,37 +345,50 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
         });
         return changed ? next : prev;
       });
-      rafRef.current = window.setTimeout(loop, 220) as unknown as number;
+
+      rafRef.current = window.setTimeout(loop, 90) as unknown as number;
     };
     loop();
     return () => {
       if (rafRef.current) window.clearTimeout(rafRef.current);
+      setLocalSpeaking(false);
     };
-  }, [roomKey, muted]);
+  }, [roomKey]);
 
   // ---- controls -----------------------------------------------------------
-  const toggleMute = useCallback(() => {
-    setMuted((prev) => {
-      const next = !prev;
-      localStreamRef.current?.getAudioTracks().forEach((t) => {
-        t.enabled = !next;
-      });
-      return next;
+  const applyAudioEnabled = useCallback(() => {
+    localStreamRef.current?.getAudioTracks().forEach((t) => {
+      t.enabled = !mutedRef.current && !deafenedRef.current;
     });
   }, []);
 
+  const toggleMute = useCallback(() => {
+    const next = !mutedRef.current;
+    mutedRef.current = next;
+    setMuted(next);
+    if (!next && deafenedRef.current) {
+      deafenedRef.current = false;
+      setDeafened(false);
+    }
+    applyAudioEnabled();
+    if (next) setLocalSpeaking(false);
+  }, [applyAudioEnabled]);
+
   const toggleDeafen = useCallback(() => {
-    setDeafened((prev) => {
-      const next = !prev;
-      if (next) {
-        localStreamRef.current?.getAudioTracks().forEach((t) => {
-          t.enabled = false;
-        });
-        setMuted(true);
-      }
-      return next;
-    });
-  }, []);
+    const next = !deafenedRef.current;
+    deafenedRef.current = next;
+    setDeafened(next);
+    if (next) {
+      preDeafenMuteRef.current = mutedRef.current;
+      mutedRef.current = true;
+      setMuted(true);
+      setLocalSpeaking(false);
+    } else {
+      mutedRef.current = preDeafenMuteRef.current;
+      setMuted(preDeafenMuteRef.current);
+    }
+    applyAudioEnabled();
+  }, [applyAudioEnabled]);
 
   const addExtraTrack = useCallback(async (key: string, track: MediaStreamTrack) => {
     extraTrackRef.current.set(key, track);
