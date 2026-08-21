@@ -69,28 +69,22 @@ export function ServerRail({
   const joinServer = async () => {
     if (!code.trim()) return;
     setBusy(true);
-    const { data } = await supabase
-      .from("servers")
-      .select("id")
-      .eq("invite_code", code.trim().toLowerCase())
-      .maybeSingle();
-    if (!data) {
-      setBusy(false);
-      toast.error("Convite inválido.");
+    const { data, error } = await supabase.rpc("join_server_by_invite", {
+      _code: code.trim(),
+    });
+    setBusy(false);
+    if (error) {
+      toast.error("Não foi possível entrar.");
       return;
     }
-    const { error } = await supabase
-      .from("server_members")
-      .insert({ server_id: data.id, user_id: userId });
-    setBusy(false);
-    if (error && !error.message.includes("duplicate")) {
-      toast.error("Não foi possível entrar.");
+    if (!data) {
+      toast.error("Convite inválido.");
       return;
     }
     setCode("");
     setOpen(false);
     onChanged();
-    onSelectServer(data.id);
+    onSelectServer(data);
     toast.success("Você entrou no servidor.");
   };
 

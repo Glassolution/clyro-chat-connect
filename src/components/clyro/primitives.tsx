@@ -2,17 +2,25 @@ import { cn } from "@/lib/utils";
 import type { PresenceStatus, Profile } from "@/lib/clyro-types";
 import { initialsOf } from "@/lib/clyro-types";
 
-export function ClyroMark({ className }: { className?: string }) {
+export function ClyroMark({
+  className,
+  glyphClassName,
+}: {
+  className?: string;
+  glyphClassName?: string;
+}) {
   return (
-    <svg viewBox="0 0 32 32" className={cn("h-6 w-6", className)} aria-hidden="true">
+    <svg viewBox="0 0 32 32" className={cn("h-6 w-6 text-white", className)} aria-hidden="true">
       <path
         d="M8 4h16a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H12l-7 5.5V24a5 5 0 0 1-1-3V9a5 5 0 0 1 4-5Z"
         fill="currentColor"
       />
-      <rect x="8.1" y="10.2" width="4.6" height="1.5" rx="0.75" fill="var(--color-surface)" />
-      <rect x="9.7" y="8.6" width="1.5" height="4.6" rx="0.75" fill="var(--color-surface)" />
-      <rect x="15.2" y="12.4" width="2.9" height="7" rx="1.45" fill="var(--color-surface)" />
-      <rect x="20.6" y="12.4" width="2.9" height="7" rx="1.45" fill="var(--color-surface)" />
+      <g className={cn("text-rail", glyphClassName)} fill="currentColor">
+        <rect x="8.1" y="10.2" width="4.6" height="1.5" rx="0.75" />
+        <rect x="9.7" y="8.6" width="1.5" height="4.6" rx="0.75" />
+        <rect x="15.2" y="12.4" width="2.9" height="7" rx="1.45" />
+        <rect x="20.6" y="12.4" width="2.9" height="7" rx="1.45" />
+      </g>
     </svg>
   );
 }

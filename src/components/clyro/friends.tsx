@@ -38,11 +38,17 @@ export function FriendsPanel({ onOpenDM }: { onOpenDM: (friendId: string) => voi
   const addFriend = async () => {
     const handle = username.trim().replace(/^@/, "").toLowerCase();
     if (!handle || !user) return;
-    const { data } = await supabase
+    const { data: matches } = await supabase
       .from("profiles")
-      .select("id")
-      .eq("username", handle)
-      .maybeSingle();
+      .select("id, username, display_name")
+      .or(
+        `username.eq.${handle},username.ilike.${handle}%,display_name.ilike.${handle}`,
+      )
+      .limit(5);
+    const data =
+      matches?.find((p) => p.username.toLowerCase() === handle) ??
+      matches?.find((p) => (p.display_name ?? "").toLowerCase() === handle) ??
+      matches?.[0];
     if (!data) {
       toast.error("Usuário não encontrado.");
       return;

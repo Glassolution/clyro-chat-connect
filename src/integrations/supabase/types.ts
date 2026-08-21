@@ -321,6 +321,7 @@ export type Database = {
         Args: { _server_id: string; _user_id: string }
         Returns: boolean
       }
+      join_server_by_invite: { Args: { _code: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
