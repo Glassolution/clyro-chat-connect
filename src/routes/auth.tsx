@@ -38,7 +38,7 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) void navigate({ to: "/" });
+    if (!loading && user) void navigate({ to: "/app" });
   }, [loading, user, navigate]);
 
   const signIn = async () => {
@@ -58,7 +58,7 @@ function AuthPage() {
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}/app`,
         data: {
           username: username.trim().toLowerCase().replace(/\s+/g, ""),
           display_name: username.trim(),
@@ -75,7 +75,7 @@ function AuthPage() {
 
   const google = async () => {
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: `${window.location.origin}/app`,
     });
     if (result.error) toast.error("Não foi possível entrar com o Google.");
   };
@@ -101,7 +101,13 @@ function AuthPage() {
 
           <TabsContent value="signin" className="space-y-3 pt-5">
             <Field id="email" label="E-mail" value={email} onChange={setEmail} type="email" />
-            <Field id="password" label="Senha" value={password} onChange={setPassword} type="password" />
+            <Field
+              id="password"
+              label="Senha"
+              value={password}
+              onChange={setPassword}
+              type="password"
+            />
             <Button className="w-full" onClick={() => void signIn()} disabled={busy}>
               Entrar
             </Button>
@@ -110,7 +116,13 @@ function AuthPage() {
           <TabsContent value="signup" className="space-y-3 pt-5">
             <Field id="username" label="Nome de usuário" value={username} onChange={setUsername} />
             <Field id="email-up" label="E-mail" value={email} onChange={setEmail} type="email" />
-            <Field id="password-up" label="Senha" value={password} onChange={setPassword} type="password" />
+            <Field
+              id="password-up"
+              label="Senha"
+              value={password}
+              onChange={setPassword}
+              type="password"
+            />
             <Button className="w-full" onClick={() => void signUp()} disabled={busy}>
               Criar conta
             </Button>

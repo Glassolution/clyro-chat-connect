@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Hash, Volume2, Plus, Copy, MonitorUp, MicOff } from "lucide-react";
+import { Hash, Volume2, Plus, Copy, MonitorUp, MicOff, HeadphoneOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,8 @@ export function ServerSidebar({
   channels,
   selection,
   onSelect,
-  onJoinVoice,
+  onOpenVoice,
+  onSelectProfile,
   activeVoiceChannelId,
   footer,
 }: {
@@ -31,7 +32,8 @@ export function ServerSidebar({
   channels: Channel[];
   selection: Selection;
   onSelect: (selection: Selection) => void;
-  onJoinVoice: (channel: Channel) => void;
+  onOpenVoice: (channel: Channel) => void;
+  onSelectProfile: (userId: string) => void;
   activeVoiceChannelId: string | null;
   footer: React.ReactNode;
 }) {
@@ -78,42 +80,86 @@ export function ServerSidebar({
       </header>
 
       <div className="flex-1 overflow-y-auto clyro-scroll px-2 py-3">
-        <Group label="Canais de texto" onAdd={() => { setKind("text"); setOpen(true); }}>
+        <Group
+          label="Canais de texto"
+          onAdd={() => {
+            setKind("text");
+            setOpen(true);
+          }}
+        >
           {textChannels.map((channel) => (
             <ChannelButton
               key={channel.id}
               icon={<Hash size={15} />}
               name={channel.name}
               active={selection.kind === "channel" && selection.channelId === channel.id}
-              onClick={() => onSelect({ kind: "channel", serverId: server.id, channelId: channel.id })}
+              onClick={() =>
+                onSelect({ kind: "channel", serverId: server.id, channelId: channel.id })
+              }
             />
           ))}
         </Group>
 
-        <Group label="Canais de voz" onAdd={() => { setKind("voice"); setOpen(true); }}>
+        <Group
+          label="Canais de voz"
+          onAdd={() => {
+            setKind("voice");
+            setOpen(true);
+          }}
+        >
           {voiceChannels.map((channel) => {
+            // voice_states é legível por todos, então quem está de fora da call
+            // enxerga a mesma lista de quem está dentro.
             const members = voiceStates.filter((v) => v.channel_id === channel.id);
+            const connected = activeVoiceChannelId === channel.id;
             return (
               <div key={channel.id}>
                 <ChannelButton
-                  icon={<Volume2 size={15} />}
+                  icon={<Volume2 size={15} className={cn(members.length > 0 && "text-online")} />}
                   name={channel.name}
-                  active={activeVoiceChannelId === channel.id}
-                  onClick={() => onJoinVoice(channel)}
+                  active={selection.kind === "voice" && selection.channelId === channel.id}
+                  onClick={() => onOpenVoice(channel)}
+                  trailing={
+                    members.length > 0 ? (
+                      <span className="text-[10px] tabular-nums text-muted-foreground">
+                        {members.length}
+                      </span>
+                    ) : null
+                  }
                 />
-                <ul className="ml-6 space-y-1 py-1">
-                  {members.map((member) => {
-                    const profile = profiles?.get(member.user_id);
-                    return (
-                      <li key={member.user_id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <UserAvatar profile={profile} size={20} showStatus={false} />
-                        <span className="truncate">{profile?.display_name || profile?.username}</span>
-                        {member.muted && <MicOff size={11} />}
-                        {member.sharing_screen && <MonitorUp size={11} />}
-                      </li>
-                    );
-                  })}
-                </ul>
+                {members.length > 0 && (
+                  <ul className="ml-4 space-y-0.5 border-l border-border py-1 pl-2">
+                    {members.map((member) => {
+                      const profile = profiles?.get(member.user_id);
+                      return (
+                        <li key={member.user_id} className="clyro-fade-in">
+                          <button
+                            type="button"
+                            onClick={() => onSelectProfile(member.user_id)}
+                            title="Ver perfil"
+                            className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-accent"
+                          >
+                            <UserAvatar profile={profile} size={20} showStatus={false} />
+                            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                              {profile?.display_name || profile?.username || "Participante"}
+                            </span>
+                            <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
+                              {member.sharing_screen && <MonitorUp size={11} />}
+                              {member.deafened ? (
+                                <HeadphoneOff size={11} className="text-destructive" />
+                              ) : (
+                                member.muted && <MicOff size={11} className="text-destructive" />
+                              )}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {connected && members.length === 0 && (
+                  <p className="ml-6 py-1 text-[11px] text-muted-foreground">Conectando…</p>
+                )}
               </div>
             );
           })}
@@ -164,7 +210,9 @@ function Group({
   return (
     <section className="mb-4">
       <div className="flex items-center justify-between px-2 pb-1">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
         <button
           type="button"
           onClick={onAdd}
@@ -184,23 +232,26 @@ function ChannelButton({
   name,
   active,
   onClick,
+  trailing,
 }: {
   icon: React.ReactNode;
   name: string;
   active: boolean;
   onClick: () => void;
+  trailing?: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground transition hover:bg-accent hover:text-foreground",
+        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
         active && "bg-accent text-foreground",
       )}
     >
       {icon}
-      <span className="truncate">{name}</span>
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      {trailing}
     </button>
   );
 }

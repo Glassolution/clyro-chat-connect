@@ -3,15 +3,6 @@ import { Mic, MicOff, Headphones, HeadphoneOff, Settings, LogOut } from "lucide-
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +13,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { STATUS_LABEL, type PresenceStatus } from "@/lib/clyro-types";
 import { StatusDot, UserAvatar } from "./primitives";
+import { SettingsDialog } from "./settings-dialog";
 
 export function UserBar({
   muted,
@@ -38,29 +30,15 @@ export function UserBar({
 }) {
   const { profile, signOut, refreshProfile } = useAuth();
   const [open, setOpen] = useState(false);
-  const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
-  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? "");
-  const [activity, setActivity] = useState(profile?.activity ?? "");
 
   const setStatus = async (status: PresenceStatus) => {
     if (!profile) return;
-    await supabase.from("profiles").update({ status }).eq("id", profile.id);
+    const { error } = await supabase.from("profiles").update({ status }).eq("id", profile.id);
+    if (error) {
+      toast.error("Não foi possível mudar seu status.");
+      return;
+    }
     await refreshProfile();
-  };
-
-  const saveProfile = async () => {
-    if (!profile) return;
-    await supabase
-      .from("profiles")
-      .update({
-        display_name: displayName.trim() || profile.username,
-        avatar_url: avatarUrl.trim() || null,
-        activity: activity.trim() || null,
-      })
-      .eq("id", profile.id);
-    await refreshProfile();
-    setOpen(false);
-    toast.success("Perfil atualizado.");
   };
 
   return (
@@ -92,7 +70,7 @@ export function UserBar({
           ))}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setOpen(true)}>
-            <Settings size={14} /> Editar perfil
+            <Settings size={14} /> Configurações
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => void signOut()}>
             <LogOut size={14} /> Sair
@@ -119,43 +97,7 @@ export function UserBar({
         {deafened ? <HeadphoneOff size={16} /> : <Headphones size={16} />}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Seu perfil</DialogTitle>
-            <DialogDescription>
-              @{profile?.username} — compartilhe esse nome de usuário para receber pedidos de amizade.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="display-name">Nome de exibição</Label>
-              <Input id="display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="avatar">URL do avatar</Label>
-              <Input
-                id="avatar"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="https://…"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="activity">Atividade atual</Label>
-              <Input
-                id="activity"
-                value={activity}
-                onChange={(e) => setActivity(e.target.value)}
-                placeholder="Codando o Clyro"
-              />
-            </div>
-            <Button className="w-full" onClick={() => void saveProfile()}>
-              Salvar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <SettingsDialog open={open} onOpenChange={setOpen} />
     </div>
   );
 }

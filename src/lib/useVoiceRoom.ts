@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { audioConstraints, useAudioSettings } from "@/lib/audio-settings";
 
 /**
  * Mesh WebRTC room over Lovable Cloud realtime broadcast signalling.
@@ -53,6 +54,20 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
   const deafenedRef = useRef(false);
   const preDeafenMuteRef = useRef(false);
   const speakingSinceRef = useRef<Map<string, number>>(new Map());
+
+  const audioSettings = useAudioSettings();
+  const audioSettingsRef = useRef(audioSettings);
+  audioSettingsRef.current = audioSettings;
+
+  // Aplica a supressão de ruído (e companhia) na faixa que já está no ar, sem
+  // reabrir o microfone nem derrubar a chamada.
+  useEffect(() => {
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (!track) return;
+    void track.applyConstraints(audioConstraints(audioSettings)).catch(() => {
+      // Nem todo dispositivo aceita trocar em tempo real; vale na próxima captura.
+    });
+  }, [audioSettings]);
 
   const send = useCallback((event: string, payload: SignalPayload) => {
     void channelRef.current?.send({ type: "broadcast", event, payload });
@@ -141,7 +156,11 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
           makingOfferRef.current.set(peerId, true);
           await pc.setLocalDescription();
           if (pc.localDescription) {
-            send("signal", { from: selfId ?? "", to: peerId, description: pc.localDescription.toJSON() });
+            send("signal", {
+              from: selfId ?? "",
+              to: peerId,
+              description: pc.localDescription.toJSON(),
+            });
           }
         } catch {
           /* ignore */
@@ -183,7 +202,9 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
+          // Lido do ref para que mudar a preferência não derrube a call inteira;
+          // trocas em chamada são aplicadas pelo efeito de applyConstraints.
+          audio: audioConstraints(audioSettingsRef.current),
           video: false,
         });
       } catch {
@@ -240,7 +261,11 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
             if (data.description.type === "offer") {
               await pc.setLocalDescription();
               if (pc.localDescription) {
-                send("signal", { from: selfId, to: peerId, description: pc.localDescription.toJSON() });
+                send("signal", {
+                  from: selfId,
+                  to: peerId,
+                  description: pc.localDescription.toJSON(),
+                });
               }
             }
           } else if (data.candidate) {
