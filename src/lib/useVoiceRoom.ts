@@ -256,12 +256,25 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
           if (!pcsRef.current.has(id) && selfId < id) createPeer(id);
         });
         pcsRef.current.forEach((_pc, id) => {
-      if (!ids.includes(id)) removePeer(id);
+          if (!ids.includes(id)) removePeer(id);
         });
+        setSharingPeers((prev) => prev.filter((id) => ids.includes(id)));
         // Quem entra depois precisa saber que já existe uma transmissão no ar.
         if (sharingScreenRef.current) {
           send("screen-share", { from: selfId, sharing: true });
         }
+      });
+
+      // Aviso de "estou compartilhando tela" para a interface destacar o tile.
+      channel.on("broadcast", { event: "screen-share" }, ({ payload }) => {
+        const data = payload as { from: string; sharing: boolean };
+        if (!data || data.from === selfId) return;
+        setSharingPeers((prev) => {
+          const has = prev.includes(data.from);
+          if (data.sharing && !has) return [...prev, data.from];
+          if (!data.sharing && has) return prev.filter((id) => id !== data.from);
+          return prev;
+        });
       });
 
       channel.on("broadcast", { event: "signal" }, async ({ payload }) => {
