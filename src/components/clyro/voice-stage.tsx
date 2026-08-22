@@ -28,6 +28,8 @@ export type VoiceControls = {
   muted: boolean;
   deafened: boolean;
   sharingScreen: boolean;
+  /** Ids dos participantes transmitindo a tela agora. */
+  sharingPeers: string[];
   cameraOn: boolean;
   connecting: boolean;
   error: string | null;
