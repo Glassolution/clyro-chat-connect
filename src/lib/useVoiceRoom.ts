@@ -347,6 +347,8 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
       extraTrackRef.current.clear();
       setScreenStream(null);
       setSharingScreen(false);
+      sharingScreenRef.current = false;
+      setSharingPeers([]);
       setCameraOn(false);
     };
   }, [roomKey, selfId, createPeer, removePeer, send, attachAnalyser]);
