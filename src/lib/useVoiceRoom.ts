@@ -69,9 +69,28 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     });
   }, [audioSettings]);
 
-  const send = useCallback((event: string, payload: SignalPayload) => {
+  const send = useCallback((event: string, payload: object) => {
     void channelRef.current?.send({ type: "broadcast", event, payload });
   }, []);
+
+  /**
+   * Sobe o teto de bitrate da trilha de vídeo recém-adicionada. Sem isso o
+   * WebRTC negocia um bitrate conservador e a tela compartilhada fica borrada.
+   */
+  const boostSender = (pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: number) => {
+    const sender = pc.getSenders().find((s) => s.track === track);
+    if (!sender) return;
+    const params = sender.getParameters();
+    if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+    params.encodings = params.encodings.map((e) => ({
+      ...e,
+      maxBitrate,
+      scaleResolutionDownBy: 1,
+    }));
+    void sender.setParameters(params).catch(() => {
+      /* alguns navegadores recusam; segue com o bitrate padrão */
+    });
+  };
 
   const attachAnalyser = useCallback((id: string, stream: MediaStream) => {
     try {
