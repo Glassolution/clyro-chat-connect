@@ -61,6 +61,8 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --shadow-panel: 0 1px 2px oklch(0 0 0 / 0.4), 0 8px 24px oklch(0 0 0 / 0.35);
   --shadow-float: 0 12px 40px oklch(0 0 0 / 0.5);
+  /* Curva única de todo o movimento do produto. */
+  --ease-clyro: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root {
@@ -147,6 +149,10 @@
     border-color: var(--color-border);
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -169,4 +175,113 @@
 
 @utility speaking-ring {
   box-shadow: 0 0 0 2px var(--color-online);
+}
+
+/*
+ * Movimento — discreto e sempre na mesma curva. Entradas curtas (150–450ms),
+ * deslocamentos pequenos: a interface acomoda, não salta.
+ */
+@keyframes clyro-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes clyro-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes clyro-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+@utility clyro-fade-in {
+  animation: clyro-fade 0.28s var(--ease-clyro) both;
+}
+
+@utility clyro-enter {
+  animation: clyro-fade-up 0.42s var(--ease-clyro) both;
+}
+
+@utility clyro-pop-in {
+  animation: clyro-pop 0.22s var(--ease-clyro) both;
+}
+
+/* Voz: um pulso curto ao desmutar e um anel que respira em quem está falando. */
+@keyframes clyro-unmute-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-online) 70%, transparent);
+    transform: scale(0.92);
+  }
+  60% {
+    transform: scale(1.06);
+  }
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+    transform: scale(1);
+  }
+}
+
+@keyframes clyro-mute-drop {
+  from {
+    transform: scale(1.08);
+  }
+}
+
+@utility clyro-unmute {
+  animation: clyro-unmute-pulse 0.5s var(--ease-clyro);
+}
+
+@utility clyro-mute {
+  animation: clyro-mute-drop 0.24s var(--ease-clyro);
+}
+
+@keyframes clyro-speaking {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--color-online);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--color-online) 55%, transparent);
+  }
+}
+
+@utility speaking-pulse {
+  animation: clyro-speaking 1.4s ease-in-out infinite;
+}
+
+/* Revelação na rolagem: começa deslocado e o observador adiciona .is-revealed. */
+@utility clyro-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.6s var(--ease-clyro),
+    transform 0.6s var(--ease-clyro);
+
+  &.is-revealed {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .clyro-reveal {
+    opacity: 1;
+    transform: none;
+  }
 }

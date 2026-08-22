@@ -17,7 +17,9 @@ export function useProfiles() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, username, display_name, avatar_url, status, activity");
+        // Ver a nota em useAuth: select("*") tolera a migração de personalização
+        // ainda não aplicada.
+        .select("*");
       if (error) throw error;
       const map = new Map<string, Profile>();
       (data ?? []).forEach((p) => map.set(p.id, p as Profile));
@@ -89,13 +91,14 @@ export function useConversations(userId: string | undefined) {
       if (ids.length === 0) return [] as Conversation[];
       const [{ data: convs }, { data: members }] = await Promise.all([
         supabase.from("conversations").select("id, is_group, name, created_by").in("id", ids),
-        supabase.from("conversation_members").select("conversation_id, user_id").in("conversation_id", ids),
+        supabase
+          .from("conversation_members")
+          .select("conversation_id, user_id")
+          .in("conversation_id", ids),
       ]);
       return (convs ?? []).map((c) => ({
         ...c,
-        member_ids: (members ?? [])
-          .filter((m) => m.conversation_id === c.id)
-          .map((m) => m.user_id),
+        member_ids: (members ?? []).filter((m) => m.conversation_id === c.id).map((m) => m.user_id),
       })) as Conversation[];
     },
   });
@@ -181,12 +184,80 @@ export function useRealtimeSync(userId: string | undefined) {
         void qc.invalidateQueries({ queryKey: ["servers", userId] });
         void qc.invalidateQueries({ queryKey: ["server-members"] });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "conversation_members" }, () => {
-        void qc.invalidateQueries({ queryKey: ["conversations", userId] });
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversation_members" },
+        () => {
+          void qc.invalidateQueries({ queryKey: ["conversations", userId] });
+        },
+      )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
   }, [qc, userId]);
+}
+
+export type DiscoverServer = {
+  id: string;
+  name: string;
+  icon_url: string | null;
+  description: string | null;
+  member_count: number;
+  is_member: boolean;
+};
+
+/**
+ * Lista os servidores públicos com mais gente. Depende da função
+ * `discover_servers` (migração 20260821190000) — os tipos gerados ainda não a
+ * conhecem, por isso o cast na chamada.
+ */
+export function useDiscoverServers(search: string) {
+  return useQuery({
+    queryKey: ["discover-servers", search],
+    // Função ausente devolve 404: insistir não resolve e só deixa o painel travado.
+    retry: 1,
+    queryFn: async () => {
+      // O cast é no client inteiro, não no método: destacar `rpc` da instância
+      // perde o `this` e a chamada quebra dentro do supabase-js.
+      const client = supabase as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ data: DiscoverServer[] | null; error: { message: string } | null }>;
+      };
+      const { data, error } = await client.rpc("discover_servers", {
+        _search: search,
+        _limit: 48,
+      });
+      if (error) throw new Error(error.message);
+      return (data ?? []).map((server) => ({
+        ...server,
+        member_count: Number(server.member_count),
+      }));
+    },
+  });
+}
+
+/**
+ * Servidores que você e a outra pessoa têm em comum. A política de
+ * server_members já limita a leitura aos servidores dos quais você participa,
+ * então basta filtrar pelo outro usuário.
+ */
+export function useMutualServers(otherUserId: string | undefined) {
+  return useQuery({
+    enabled: !!otherUserId,
+    queryKey: ["mutual-servers", otherUserId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("server_members")
+        .select("servers(id, name, icon_url, owner_id, invite_code)")
+        .eq("user_id", otherUserId as string);
+      if (error) throw error;
+      return (data ?? [])
+        .map((row) => (row as { servers: Server | null }).servers)
+        .filter((s): s is Server => !!s)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+  });
 }

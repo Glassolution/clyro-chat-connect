@@ -11,6 +11,12 @@ export type Profile = {
   avatar_url: string | null;
   status: PresenceStatus;
   activity: string | null;
+  created_at: string;
+  /** Campos de personalização — opcionais até a migração 20260821200000 rodar. */
+  bio?: string | null;
+  pronouns?: string | null;
+  banner_color?: string | null;
+  banner_url?: string | null;
 };
 
 type AuthContextValue = {
@@ -33,7 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = useCallback(async (id: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("id, username, display_name, avatar_url, status, activity")
+      // select("*") para o app não quebrar caso a migração de personalização
+      // ainda não tenha rodado — os campos novos chegam quando existirem.
+      .select("*")
       .eq("id", id)
       .maybeSingle();
     if (data) setProfile(data as Profile);

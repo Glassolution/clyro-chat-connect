@@ -54,8 +54,10 @@ export type VoiceState = {
 
 export type Selection =
   | { kind: "friends" }
+  | { kind: "discover" }
   | { kind: "dm"; conversationId: string }
-  | { kind: "channel"; serverId: string; channelId: string };
+  | { kind: "channel"; serverId: string; channelId: string }
+  | { kind: "voice"; serverId: string; channelId: string };
 
 export const STATUS_LABEL: Record<PresenceStatus, string> = {
   online: "Online",

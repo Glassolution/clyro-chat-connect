@@ -35,3 +35,24 @@ export function StreamAudio({ stream, deafened }: { stream: MediaStream; deafene
   }, [deafened]);
   return <audio ref={ref} autoPlay />;
 }
+
+/**
+ * Áudio dos participantes, montado fora do palco de voz. Enquanto você estiver
+ * na call o som continua mesmo navegando para outro canal — se ficasse dentro
+ * dos tiles, sair da tela da chamada derrubaria o áudio junto.
+ */
+export function VoiceAudio({
+  peers,
+  deafened,
+}: {
+  peers: { id: string; stream: MediaStream }[];
+  deafened: boolean;
+}) {
+  return (
+    <>
+      {peers.map((peer) => (
+        <StreamAudio key={peer.id} stream={peer.stream} deafened={deafened} />
+      ))}
+    </>
+  );
+}
