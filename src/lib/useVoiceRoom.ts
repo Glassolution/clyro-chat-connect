@@ -54,6 +54,9 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
   const deafenedRef = useRef(false);
   const preDeafenMuteRef = useRef(false);
   const speakingSinceRef = useRef<Map<string, number>>(new Map());
+  const sharingScreenRef = useRef(false);
+  // Quem está compartilhando tela agora, para a interface destacar a transmissão.
+  const [sharingPeers, setSharingPeers] = useState<string[]>([]);
 
   const audioSettings = useAudioSettings();
   const audioSettingsRef = useRef(audioSettings);
