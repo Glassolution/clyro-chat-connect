@@ -456,16 +456,20 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     applyAudioEnabled();
   }, [applyAudioEnabled]);
 
-  const addExtraTrack = useCallback(async (key: string, track: MediaStreamTrack) => {
-    extraTrackRef.current.set(key, track);
-    pcsRef.current.forEach((pc) => {
-      try {
-        pc.addTrack(track);
-      } catch {
-        /* already added */
-      }
-    });
-  }, []);
+  const addExtraTrack = useCallback(
+    async (key: string, track: MediaStreamTrack, maxBitrate?: number) => {
+      extraTrackRef.current.set(key, track);
+      pcsRef.current.forEach((pc) => {
+        try {
+          pc.addTrack(track);
+          if (maxBitrate && track.kind === "video") boostSender(pc, track, maxBitrate);
+        } catch {
+          /* already added */
+        }
+      });
+    },
+    [],
+  );
 
   const removeExtraTrack = useCallback((key: string) => {
     const track = extraTrackRef.current.get(key);
@@ -485,29 +489,58 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     extraTrackRef.current.delete(key);
   }, []);
 
+  const stopSharing = useCallback(() => {
+    removeExtraTrack("screen");
+    removeExtraTrack("screen-audio");
+    setSharingScreen(false);
+    sharingScreenRef.current = false;
+    setScreenStream(null);
+    send("screen-share", { from: selfId ?? "", sharing: false });
+  }, [removeExtraTrack, send, selfId]);
+
   const toggleScreen = useCallback(async () => {
     if (sharingScreen) {
-      removeExtraTrack("screen");
-      setSharingScreen(false);
-      setScreenStream(null);
+      stopSharing();
       return;
     }
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      // Áudio da tela sem o processamento de voz (eco/ruído), para música e
+      // vídeos chegarem limpos; vídeo em Full HD e taxa de quadros alta.
+      const display = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30, max: 60 },
+        },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
       const track = display.getVideoTracks()[0];
-      if (!track) return;
-      track.onended = () => {
-        removeExtraTrack("screen");
-        setSharingScreen(false);
-        setScreenStream(null);
-      };
-      await addExtraTrack("screen", track);
+      if (!track) {
+        display.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      // "detail" prioriza nitidez (texto legível) em vez de fluidez.
+      track.contentHint = "detail";
+      track.onended = stopSharing;
+      const audioTrack = display.getAudioTracks()[0];
+      if (audioTrack) {
+        // Se o som da aba parar (troca de aba, por exemplo), o vídeo continua.
+        audioTrack.onended = () => removeExtraTrack("screen-audio");
+        await addExtraTrack("screen-audio", audioTrack);
+      }
+      await addExtraTrack("screen", track, 8_000_000);
       setScreenStream(display);
       setSharingScreen(true);
+      sharingScreenRef.current = true;
+      send("screen-share", { from: selfId ?? "", sharing: true });
     } catch {
       /* user cancelled */
     }
-  }, [sharingScreen, addExtraTrack, removeExtraTrack]);
+  }, [sharingScreen, addExtraTrack, removeExtraTrack, stopSharing, send, selfId]);
 
   const toggleCamera = useCallback(async () => {
     if (cameraOn) {
@@ -516,10 +549,13 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
       return;
     }
     try {
-      const cam = await navigator.mediaDevices.getUserMedia({ video: true });
+      const cam = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
       const track = cam.getVideoTracks()[0];
       if (!track) return;
-      await addExtraTrack("camera", track);
+      track.contentHint = "motion";
+      await addExtraTrack("camera", track, 2_500_000);
       setCameraOn(true);
     } catch {
       setError("Não conseguimos acessar sua câmera.");
@@ -534,6 +570,7 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     muted,
     deafened,
     sharingScreen,
+    sharingPeers,
     cameraOn,
     connecting,
     error,
