@@ -54,6 +54,9 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
   const deafenedRef = useRef(false);
   const preDeafenMuteRef = useRef(false);
   const speakingSinceRef = useRef<Map<string, number>>(new Map());
+  const sharingScreenRef = useRef(false);
+  // Quem está compartilhando tela agora, para a interface destacar a transmissão.
+  const [sharingPeers, setSharingPeers] = useState<string[]>([]);
 
   const audioSettings = useAudioSettings();
   const audioSettingsRef = useRef(audioSettings);
@@ -69,9 +72,28 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     });
   }, [audioSettings]);
 
-  const send = useCallback((event: string, payload: SignalPayload) => {
+  const send = useCallback((event: string, payload: object) => {
     void channelRef.current?.send({ type: "broadcast", event, payload });
   }, []);
+
+  /**
+   * Sobe o teto de bitrate da trilha de vídeo recém-adicionada. Sem isso o
+   * WebRTC negocia um bitrate conservador e a tela compartilhada fica borrada.
+   */
+  const boostSender = (pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: number) => {
+    const sender = pc.getSenders().find((s) => s.track === track);
+    if (!sender) return;
+    const params = sender.getParameters();
+    if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+    params.encodings = params.encodings.map((e) => ({
+      ...e,
+      maxBitrate,
+      scaleResolutionDownBy: 1,
+    }));
+    void sender.setParameters(params).catch(() => {
+      /* alguns navegadores recusam; segue com o bitrate padrão */
+    });
+  };
 
   const attachAnalyser = useCallback((id: string, stream: MediaStream) => {
     try {
@@ -236,6 +258,23 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
         pcsRef.current.forEach((_pc, id) => {
           if (!ids.includes(id)) removePeer(id);
         });
+        setSharingPeers((prev) => prev.filter((id) => ids.includes(id)));
+        // Quem entra depois precisa saber que já existe uma transmissão no ar.
+        if (sharingScreenRef.current) {
+          send("screen-share", { from: selfId, sharing: true });
+        }
+      });
+
+      // Aviso de "estou compartilhando tela" para a interface destacar o tile.
+      channel.on("broadcast", { event: "screen-share" }, ({ payload }) => {
+        const data = payload as { from: string; sharing: boolean };
+        if (!data || data.from === selfId) return;
+        setSharingPeers((prev) => {
+          const has = prev.includes(data.from);
+          if (data.sharing && !has) return [...prev, data.from];
+          if (!data.sharing && has) return prev.filter((id) => id !== data.from);
+          return prev;
+        });
       });
 
       channel.on("broadcast", { event: "signal" }, async ({ payload }) => {
@@ -308,6 +347,8 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
       extraTrackRef.current.clear();
       setScreenStream(null);
       setSharingScreen(false);
+      sharingScreenRef.current = false;
+      setSharingPeers([]);
       setCameraOn(false);
     };
   }, [roomKey, selfId, createPeer, removePeer, send, attachAnalyser]);
@@ -415,16 +456,20 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     applyAudioEnabled();
   }, [applyAudioEnabled]);
 
-  const addExtraTrack = useCallback(async (key: string, track: MediaStreamTrack) => {
-    extraTrackRef.current.set(key, track);
-    pcsRef.current.forEach((pc) => {
-      try {
-        pc.addTrack(track);
-      } catch {
-        /* already added */
-      }
-    });
-  }, []);
+  const addExtraTrack = useCallback(
+    async (key: string, track: MediaStreamTrack, maxBitrate?: number) => {
+      extraTrackRef.current.set(key, track);
+      pcsRef.current.forEach((pc) => {
+        try {
+          pc.addTrack(track);
+          if (maxBitrate && track.kind === "video") boostSender(pc, track, maxBitrate);
+        } catch {
+          /* already added */
+        }
+      });
+    },
+    [],
+  );
 
   const removeExtraTrack = useCallback((key: string) => {
     const track = extraTrackRef.current.get(key);
@@ -444,29 +489,58 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     extraTrackRef.current.delete(key);
   }, []);
 
+  const stopSharing = useCallback(() => {
+    removeExtraTrack("screen");
+    removeExtraTrack("screen-audio");
+    setSharingScreen(false);
+    sharingScreenRef.current = false;
+    setScreenStream(null);
+    send("screen-share", { from: selfId ?? "", sharing: false });
+  }, [removeExtraTrack, send, selfId]);
+
   const toggleScreen = useCallback(async () => {
     if (sharingScreen) {
-      removeExtraTrack("screen");
-      setSharingScreen(false);
-      setScreenStream(null);
+      stopSharing();
       return;
     }
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      // Áudio da tela sem o processamento de voz (eco/ruído), para música e
+      // vídeos chegarem limpos; vídeo em Full HD e taxa de quadros alta.
+      const display = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30, max: 60 },
+        },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
       const track = display.getVideoTracks()[0];
-      if (!track) return;
-      track.onended = () => {
-        removeExtraTrack("screen");
-        setSharingScreen(false);
-        setScreenStream(null);
-      };
-      await addExtraTrack("screen", track);
+      if (!track) {
+        display.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      // "detail" prioriza nitidez (texto legível) em vez de fluidez.
+      track.contentHint = "detail";
+      track.onended = stopSharing;
+      const audioTrack = display.getAudioTracks()[0];
+      if (audioTrack) {
+        // Se o som da aba parar (troca de aba, por exemplo), o vídeo continua.
+        audioTrack.onended = () => removeExtraTrack("screen-audio");
+        await addExtraTrack("screen-audio", audioTrack);
+      }
+      await addExtraTrack("screen", track, 8_000_000);
       setScreenStream(display);
       setSharingScreen(true);
+      sharingScreenRef.current = true;
+      send("screen-share", { from: selfId ?? "", sharing: true });
     } catch {
       /* user cancelled */
     }
-  }, [sharingScreen, addExtraTrack, removeExtraTrack]);
+  }, [sharingScreen, addExtraTrack, removeExtraTrack, stopSharing, send, selfId]);
 
   const toggleCamera = useCallback(async () => {
     if (cameraOn) {
@@ -475,10 +549,13 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
       return;
     }
     try {
-      const cam = await navigator.mediaDevices.getUserMedia({ video: true });
+      const cam = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
       const track = cam.getVideoTracks()[0];
       if (!track) return;
-      await addExtraTrack("camera", track);
+      track.contentHint = "motion";
+      await addExtraTrack("camera", track, 2_500_000);
       setCameraOn(true);
     } catch {
       setError("Não conseguimos acessar sua câmera.");
@@ -493,6 +570,7 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     muted,
     deafened,
     sharingScreen,
+    sharingPeers,
     cameraOn,
     connecting,
     error,

@@ -28,6 +28,8 @@ export type VoiceControls = {
   muted: boolean;
   deafened: boolean;
   sharingScreen: boolean;
+  /** Ids dos participantes transmitindo a tela agora. */
+  sharingPeers: string[];
   cameraOn: boolean;
   connecting: boolean;
   error: string | null;
@@ -200,6 +202,9 @@ function ConnectedStage({
   const timer = useCallTimer(!rtc.connecting);
   const total = rtc.peers.length + 1;
   const [pinned, setPinned] = useState<string | null>(null);
+  // Expansão automática quando alguém começa a transmitir: se a pessoa parou,
+  // só desfaz o pin que ela mesma criou (pin manual continua valendo).
+  const autoPinnedRef = useRef<string | null>(null);
 
   const tiles: StageTile[] = [
     {
@@ -220,7 +225,7 @@ function ConnectedStage({
         speaking: peer.speaking,
         muted: false,
         stream: peer.hasVideo ? peer.stream : null,
-        badge: null,
+        badge: rtc.sharingPeers.includes(peer.id) ? "Compartilhando tela" : null,
       };
     }),
   ];
@@ -228,6 +233,21 @@ function ConnectedStage({
   // Se quem estava expandido saiu da call, a tela volta sozinha para a grade.
   const expandedId = tiles.some((tile) => tile.id === pinned) ? pinned : null;
   const setExpandedId = setPinned;
+
+  useEffect(() => {
+    const sharer = rtc.sharingPeers.find((id) => tiles.some((tile) => tile.id === id));
+    if (sharer && !expandedId) {
+      autoPinnedRef.current = sharer;
+      setPinned(sharer);
+      return;
+    }
+    if (expandedId && autoPinnedRef.current === expandedId && !rtc.sharingPeers.includes(expandedId)) {
+      autoPinnedRef.current = null;
+      setPinned(null);
+    }
+    // `tiles` muda a cada render; as regras só dependem de quem transmite e do pin.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rtc.sharingPeers, expandedId]);
   const visibleTiles = expandedId ? tiles.filter((tile) => tile.id === expandedId) : tiles;
 
   return (
