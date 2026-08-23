@@ -236,25 +236,31 @@ export type Database = {
       servers: {
         Row: {
           created_at: string
+          description: string | null
           icon_url: string | null
           id: string
           invite_code: string
+          is_public: boolean
           name: string
           owner_id: string
         }
         Insert: {
           created_at?: string
+          description?: string | null
           icon_url?: string | null
           id?: string
           invite_code?: string
+          is_public?: boolean
           name: string
           owner_id: string
         }
         Update: {
           created_at?: string
+          description?: string | null
           icon_url?: string | null
           id?: string
           invite_code?: string
+          is_public?: boolean
           name?: string
           owner_id?: string
         }
@@ -313,6 +319,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      discover_servers: {
+        Args: { _limit?: number; _search?: string }
+        Returns: {
+          description: string
+          icon_url: string
+          id: string
+          is_member: boolean
+          member_count: number
+          name: string
+        }[]
+      }
       is_conversation_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
