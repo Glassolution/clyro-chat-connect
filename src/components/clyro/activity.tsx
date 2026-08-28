@@ -30,10 +30,14 @@ export function ActivityPanel({ onSelectProfile }: { onSelectProfile: (id: strin
         <h2 className="text-sm font-semibold">Ativo agora</h2>
       </header>
       {active.length === 0 ? (
-        <div className="m-4 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-          <Sparkles size={16} className="mb-2" />
-          Está quieto por aqui. Quando seus amigos entrarem em uma call ou começarem algo novo,
-          aparece nesta lista.
+        <div className="clyro-fade-in flex flex-1 flex-col items-center justify-center px-7 pb-16 text-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-card shadow-panel">
+            <Sparkles size={20} className="text-muted-foreground" />
+          </span>
+          <h3 className="mt-5 text-sm font-medium">Está quieto por aqui</h3>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+            Quando seus amigos entrarem em uma call ou começarem algo novo, aparece nesta lista.
+          </p>
         </div>
       ) : (
         <ul className="space-y-2 overflow-y-auto clyro-scroll p-4">
@@ -43,7 +47,7 @@ export function ActivityPanel({ onSelectProfile }: { onSelectProfile: (id: strin
                 type="button"
                 onClick={() => onSelectProfile(profile.id)}
                 title="Ver perfil"
-                className="w-full rounded-xl border border-border bg-card p-3 text-left transition-colors hover:border-foreground/25"
+                className="clyro-lift w-full rounded-xl border border-border bg-card p-3 text-left hover:border-foreground/20 hover:bg-accent/35"
               >
                 <div className="flex items-center gap-2.5">
                   <UserAvatar profile={profile} size={32} />

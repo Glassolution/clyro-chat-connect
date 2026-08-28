@@ -4,26 +4,28 @@ import {
   LandingBenefits,
   LandingCta,
   LandingFeatures,
+  LandingFlow,
   LandingFooter,
   LandingHero,
   LandingNav,
+  LandingShowcase,
 } from "@/components/clyro/landing";
 
 export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Clyro — converse do seu jeito" },
+      { title: "Clyro — where every project finds its community" },
       {
         name: "description",
         content:
-          "O Clyro reúne servidores, canais de texto, salas de voz sempre abertas e chamadas com vídeo e compartilhamento de tela em uma interface minimalista em preto e branco.",
+          "Clyro gives your project a public home: post updates, share videos and behind-the-scenes of what you are building, and follow the discussion of the people who use it.",
       },
-      { property: "og:title", content: "Clyro — converse do seu jeito" },
+      { property: "og:title", content: "Clyro — where every project finds its community" },
       {
         property: "og:description",
         content:
-          "Servidores, canais de texto, salas de voz sempre abertas e chamadas com vídeo — tudo em preto e branco.",
+          "A public space for every project: updates, videos, inline comments and community.",
       },
     ],
   }),
@@ -39,6 +41,8 @@ function Landing() {
       <LandingNav signedIn={signedIn} />
       <main>
         <LandingHero signedIn={signedIn} />
+        <LandingShowcase />
+        <LandingFlow />
         <LandingFeatures />
         <LandingBenefits />
         <LandingCta signedIn={signedIn} />

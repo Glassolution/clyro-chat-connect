@@ -205,16 +205,19 @@ export type DiscoverServer = {
   description: string | null;
   member_count: number;
   is_member: boolean;
+  created_at: string | null;
 };
 
+export type DiscoverSort = "popular" | "new";
+
 /**
- * Lista os servidores públicos com mais gente. Depende da função
- * `discover_servers` (migração 20260821190000) — os tipos gerados ainda não a
+ * Lista as comunidades públicas para a vitrine. Depende da função
+ * `discover_servers` (migração 20260823120000) — os tipos gerados ainda não a
  * conhecem, por isso o cast na chamada.
  */
-export function useDiscoverServers(search: string) {
+export function useDiscoverServers(search: string, sort: DiscoverSort = "popular") {
   return useQuery({
-    queryKey: ["discover-servers", search],
+    queryKey: ["discover-servers", search, sort],
     // Função ausente devolve 404: insistir não resolve e só deixa o painel travado.
     retry: 1,
     queryFn: async () => {
@@ -229,6 +232,7 @@ export function useDiscoverServers(search: string) {
       const { data, error } = await client.rpc("discover_servers", {
         _search: search,
         _limit: 48,
+        _sort: sort,
       });
       if (error) throw new Error(error.message);
       return (data ?? []).map((server) => ({

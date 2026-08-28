@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, MessageSquare, Phone, Search, UserPlus, Users, Video, X } from "lucide-react";
+import { Check, Phone, Search, Send, UserPlus, Users, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -151,9 +151,9 @@ export function FriendsPanel({
               {incoming.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum pedido novo.</p>
               ) : (
-                <CardGrid>
+                <PeopleList>
                   {incoming.map((f, index) => (
-                    <PersonCard
+                    <PersonRow
                       key={f.id}
                       profile={profiles?.get(f.requester_id)}
                       index={index}
@@ -161,26 +161,17 @@ export function FriendsPanel({
                       onSelectProfile={onSelectProfile}
                       actions={
                         <>
-                          <Button
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => void respond(f.id, "accepted")}
-                          >
-                            <Check size={14} /> Aceitar
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="secondary"
-                            aria-label="Recusar"
-                            onClick={() => void respond(f.id, "reject")}
-                          >
-                            <X size={16} />
-                          </Button>
+                          <RowAction label="Aceitar" onClick={() => void respond(f.id, "accepted")}>
+                            <Check size={15} />
+                          </RowAction>
+                          <RowAction label="Recusar" onClick={() => void respond(f.id, "reject")}>
+                            <X size={15} />
+                          </RowAction>
                         </>
                       }
                     />
                   ))}
-                </CardGrid>
+                </PeopleList>
               )}
             </section>
 
@@ -189,27 +180,25 @@ export function FriendsPanel({
               {outgoing.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum pedido aguardando.</p>
               ) : (
-                <CardGrid>
+                <PeopleList>
                   {outgoing.map((f, index) => (
-                    <PersonCard
+                    <PersonRow
                       key={f.id}
                       profile={profiles?.get(f.addressee_id)}
                       index={index}
                       caption="Aguardando resposta"
                       onSelectProfile={onSelectProfile}
                       actions={
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="flex-1"
+                        <RowAction
+                          label="Cancelar pedido"
                           onClick={() => void respond(f.id, "reject")}
                         >
-                          <X size={14} /> Cancelar pedido
-                        </Button>
+                          <X size={15} />
+                        </RowAction>
                       }
                     />
                   ))}
-                </CardGrid>
+                </PeopleList>
               )}
             </section>
           </TabsContent>
@@ -241,7 +230,7 @@ export function FriendsPanel({
 
 function SearchField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
-    <div className="relative mb-5">
+    <div className="relative mb-6">
       <Search
         size={15}
         className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -251,7 +240,7 @@ function SearchField({ value, onChange }: { value: string; onChange: (value: str
         onChange={(e) => onChange(e.target.value)}
         placeholder="Buscar"
         aria-label="Buscar amigos"
-        className="h-9 w-full rounded-lg bg-panel pl-9 pr-3 text-sm text-foreground outline-none transition-shadow placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+        className="h-10 w-full rounded-xl border border-border bg-panel pl-9 pr-3 text-sm text-foreground outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-muted-foreground focus:border-foreground/25 focus:ring-1 focus:ring-ring"
       />
     </div>
   );
@@ -259,14 +248,14 @@ function SearchField({ value, onChange }: { value: string; onChange: (value: str
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <h2 className="mb-4 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
       {children}
     </h2>
   );
 }
 
-function CardGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{children}</div>;
+function PeopleList({ children }: { children: React.ReactNode }) {
+  return <ul className="divide-y divide-border/70 border-y border-border/70">{children}</ul>;
 }
 
 function Grid({
@@ -289,9 +278,9 @@ function Grid({
   return (
     <section>
       <SectionTitle>{title}</SectionTitle>
-      <CardGrid>
+      <PeopleList>
         {profiles.map((profile, index) => (
-          <PersonCard
+          <PersonRow
             key={profile.id}
             profile={profile}
             index={index}
@@ -299,39 +288,52 @@ function Grid({
             onSelectProfile={onSelectProfile}
             actions={
               <>
-                <Button size="sm" className="flex-1" onClick={() => onOpenDM(profile.id)}>
-                  <MessageSquare size={14} /> Mensagem
-                </Button>
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  aria-label="Chamada de voz"
-                  onClick={() => onCall(profile.id, false)}
-                >
-                  <Phone size={16} />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  aria-label="Chamada de vídeo"
-                  onClick={() => onCall(profile.id, true)}
-                >
-                  <Video size={16} />
-                </Button>
+                <RowAction label="Mensagem" onClick={() => onOpenDM(profile.id)}>
+                  <Send size={15} />
+                </RowAction>
+                <RowAction label="Chamada de voz" onClick={() => onCall(profile.id, false)}>
+                  <Phone size={15} />
+                </RowAction>
+                <RowAction label="Chamada de vídeo" onClick={() => onCall(profile.id, true)}>
+                  <Video size={15} />
+                </RowAction>
               </>
             }
           />
         ))}
-      </CardGrid>
+      </PeopleList>
     </section>
   );
 }
 
+/** Botão redondo da linha: discreto em repouso, acende quando a linha recebe o mouse. */
+function RowAction({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary/50 text-muted-foreground transition-[background-color,color,transform] duration-200 ease-clyro hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-95 group-hover/row:bg-secondary"
+    >
+      {children}
+    </button>
+  );
+}
+
 /**
- * O corpo do card é um botão que abre o perfil no painel da direita; as ações
- * ficam fora dele para não aninhar botões.
+ * Uma linha por pessoa. O bloco do nome é um botão que abre o perfil; as ações
+ * ficam ao lado, fora dele, para não aninhar botões.
  */
-function PersonCard({
+function PersonRow({
   profile,
   index,
   caption,
@@ -346,28 +348,36 @@ function PersonCard({
 }) {
   const name = profile?.display_name || profile?.username || "Usuário";
   return (
-    <article
-      className="clyro-enter flex flex-col rounded-2xl border border-border bg-card p-5 transition-colors hover:border-foreground/25"
-      style={{ animationDelay: `${Math.min(index, 11) * 35}ms` }}
+    <li
+      className="clyro-enter group/row"
+      style={{ animationDelay: `${Math.min(index, 14) * 25}ms` }}
     >
-      <button
-        type="button"
-        onClick={() => profile && onSelectProfile(profile.id)}
-        className="flex flex-col items-center text-center"
-        title="Ver perfil"
-      >
-        <UserAvatar profile={profile} size={64} showStatus={false} />
-        <h3 className="mt-3 max-w-full truncate text-sm font-semibold">{name}</h3>
-        {profile && (
-          <p className="max-w-full truncate text-xs text-muted-foreground">@{profile.username}</p>
-        )}
-        <p className="mt-2 flex max-w-full items-center gap-1.5 text-xs text-muted-foreground">
-          <StatusDot status={profile?.status} className="h-2 w-2 shrink-0" />
-          <span className="truncate">{caption}</span>
-        </p>
-      </button>
-      <div className="mt-4 flex items-center gap-2">{actions}</div>
-    </article>
+      <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-accent/40">
+        <button
+          type="button"
+          onClick={() => profile && onSelectProfile(profile.id)}
+          title="Ver perfil"
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <UserAvatar profile={profile} size={40} />
+          <span className="min-w-0">
+            <span className="flex items-baseline gap-2">
+              <span className="truncate text-[15px] font-medium">{name}</span>
+              {profile && (
+                <span className="truncate text-xs text-muted-foreground opacity-0 transition-opacity duration-200 group-hover/row:opacity-100">
+                  @{profile.username}
+                </span>
+              )}
+            </span>
+            <span className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+              <StatusDot status={profile?.status} className="h-2 w-2 shrink-0" />
+              <span className="truncate">{caption}</span>
+            </span>
+          </span>
+        </button>
+        <div className="flex shrink-0 items-center gap-1.5">{actions}</div>
+      </div>
+    </li>
   );
 }
 
@@ -381,12 +391,12 @@ function EmptyState({
   action?: (() => void) | undefined;
 }) {
   return (
-    <div className="clyro-fade-in flex flex-col items-center justify-center px-6 py-20 text-center">
-      <span className="flex h-16 w-16 items-center justify-center rounded-3xl bg-panel">
-        <ClyroMark className="h-8 w-8" glyphClassName="text-panel" />
+    <div className="clyro-fade-in flex flex-col items-center justify-center px-6 py-24 text-center">
+      <span className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-border bg-panel shadow-panel">
+        <ClyroMark className="h-9 w-9" glyphClassName="text-panel" />
       </span>
-      <h2 className="mt-5 text-base font-semibold">{title}</h2>
-      <p className="mt-1.5 max-w-xs text-sm text-muted-foreground">{body}</p>
+      <h2 className="mt-6 text-lg font-normal tracking-[-0.015em]">{title}</h2>
+      <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">{body}</p>
       {action && (
         <Button size="sm" className="mt-5" onClick={action}>
           <UserPlus size={14} /> Adicionar amigo

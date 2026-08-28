@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Compass, Hash } from "lucide-react";
+import { Plus, Compass, Hash, Search } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -98,14 +98,11 @@ export function ServerRail({
 
   return (
     <nav className="flex h-full w-[72px] shrink-0 flex-col items-center gap-2 bg-rail py-3 text-rail-foreground">
-      <RailButton active={homeActive} onClick={onHome} label="Mensagens diretas">
-        <ClyroMark
-          className={cn("h-7 w-7", homeActive ? "text-rail" : "text-rail-foreground")}
-          glyphClassName={homeActive ? "text-rail-foreground" : "text-rail"}
-        />
+      <RailButton variant="plain" active={homeActive} onClick={onHome} label="Mensagens diretas">
+        <ClyroMark className="h-7 w-7 text-rail-foreground" glyphClassName="text-rail" />
       </RailButton>
-      <RailButton active={discoverActive} onClick={onDiscover} label="Descobrir servidores">
-        <Compass size={20} />
+      <RailButton variant="plain" active={discoverActive} onClick={onDiscover} label="Comunidades">
+        <Search size={20} />
       </RailButton>
       <span className="my-1 h-px w-8 bg-rail-foreground/15" />
       <div className="flex w-full flex-1 flex-col items-center gap-2 overflow-y-auto clyro-scroll">
@@ -194,11 +191,14 @@ function RailButton({
   onClick,
   label,
   children,
+  /** `plain` mantém o quadrado neutro no estado ativo — sem inverter para branco. */
+  variant = "fill",
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
   children: React.ReactNode;
+  variant?: "fill" | "plain";
 }) {
   return (
     <Tooltip>
@@ -221,7 +221,8 @@ function RailButton({
           <span
             className={cn(
               "flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-rail-foreground/10 text-rail-foreground transition-all group-hover:rounded-xl group-hover:bg-rail-foreground/20",
-              active && "rounded-xl bg-rail-foreground text-rail",
+              active && variant === "fill" && "rounded-xl bg-rail-foreground text-rail",
+              active && variant === "plain" && "rounded-xl bg-rail-foreground/20",
             )}
           >
             {children}

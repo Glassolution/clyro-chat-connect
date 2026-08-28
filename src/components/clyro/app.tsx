@@ -47,7 +47,7 @@ export function ClyroApp() {
   const { data: servers = [] } = useServers(userId);
   const { data: conversations = [] } = useConversations(userId);
   const { data: voiceStates = [] } = useVoiceStates();
-  const [selection, setSelection] = useState<Selection>({ kind: "friends" });
+  const [selection, setSelection] = useState<Selection>({ kind: "discover" });
   const [voice, setVoice] = useState<VoiceSession | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
 
@@ -276,6 +276,7 @@ export function ClyroApp() {
           userId={userId ?? ""}
         />
 
+        {/* A vitrine ocupa a largura inteira: nela não existe barra lateral. */}
         {activeServer ? (
           <ServerSidebar
             server={activeServer}
@@ -287,7 +288,7 @@ export function ClyroApp() {
             activeVoiceChannelId={voice?.channelId ?? null}
             footer={userBar}
           />
-        ) : (
+        ) : selection.kind === "discover" ? null : (
           <HomeSidebar
             conversations={conversations}
             servers={servers}
@@ -353,9 +354,11 @@ export function ClyroApp() {
               placeholder={`Conversar em ${conversationTitle(activeConversation, profiles, userId)}`}
               header={
                 <>
-                  <AtSign size={16} className="text-muted-foreground" />
-                  <span className="truncate text-sm font-semibold">
-                    {conversationTitle(activeConversation, profiles, userId)}
+                  <span className="flex min-w-0 items-center gap-2 rounded-xl bg-panel px-3 py-1.5">
+                    <AtSign size={15} className="shrink-0 text-muted-foreground" />
+                    <span className="truncate text-sm font-medium">
+                      {conversationTitle(activeConversation, profiles, userId)}
+                    </span>
                   </span>
                   <div className="ml-auto flex items-center gap-1">
                     <Button
@@ -386,14 +389,14 @@ export function ClyroApp() {
               channelId={activeChannel.id}
               placeholder={`Conversar em #${activeChannel.name}`}
               header={
-                <>
+                <span className="flex min-w-0 items-center gap-2 rounded-xl bg-panel px-3 py-1.5">
                   {activeChannel.kind === "voice" ? (
-                    <Volume2 size={16} className="text-muted-foreground" />
+                    <Volume2 size={15} className="shrink-0 text-muted-foreground" />
                   ) : (
-                    <Hash size={16} className="text-muted-foreground" />
+                    <Hash size={15} className="shrink-0 text-muted-foreground" />
                   )}
-                  <span className="truncate text-sm font-semibold">{activeChannel.name}</span>
-                </>
+                  <span className="truncate text-sm font-medium">{activeChannel.name}</span>
+                </span>
               }
             />
           )}

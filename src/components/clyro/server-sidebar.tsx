@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Hash, Volume2, Plus, Copy, MonitorUp, MicOff, HeadphoneOff } from "lucide-react";
+import {
+  Hash,
+  Volume2,
+  Plus,
+  Copy,
+  MonitorUp,
+  MicOff,
+  HeadphoneOff,
+  ChevronDown,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,6 +21,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useProfiles, useVoiceStates } from "@/lib/clyro-queries";
@@ -63,23 +78,40 @@ export function ServerSidebar({
   const voiceChannels = channels.filter((c) => c.kind === "voice");
 
   return (
-    <div className="flex h-full w-[260px] shrink-0 flex-col border-r border-border bg-panel">
-      <header className="flex h-14 items-center justify-between border-b border-border px-4">
-        <span className="truncate text-sm font-semibold">{server.name}</span>
-        <button
-          type="button"
-          aria-label="Copiar convite"
-          onClick={() => {
-            void navigator.clipboard.writeText(server.invite_code);
-            toast.success(`Convite copiado: ${server.invite_code}`);
-          }}
-          className="text-muted-foreground transition hover:text-foreground"
-        >
-          <Copy size={14} />
-        </button>
+    <div className="flex h-full w-[280px] shrink-0 flex-col border-r border-border bg-panel">
+      <header className="flex h-16 items-center border-b border-border px-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex min-w-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-left transition-colors duration-200 hover:bg-accent"
+            >
+              <span className="truncate text-[15px] font-semibold">{server.name}</span>
+              <ChevronDown size={15} className="shrink-0 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuItem
+              onClick={() => {
+                void navigator.clipboard.writeText(server.invite_code);
+                toast.success(`Convite copiado: ${server.invite_code}`);
+              }}
+            >
+              <Copy size={14} /> Copiar convite
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                setKind("text");
+                setOpen(true);
+              }}
+            >
+              <Plus size={14} /> Criar canal
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
-      <div className="flex-1 overflow-y-auto clyro-scroll px-2 py-3">
+      <div className="clyro-scroll flex-1 overflow-y-auto px-3 py-4">
         <Group
           label="Canais de texto"
           onAdd={() => {
@@ -164,6 +196,17 @@ export function ServerSidebar({
             );
           })}
         </Group>
+
+        <button
+          type="button"
+          onClick={() => {
+            setKind("text");
+            setOpen(true);
+          }}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-2.5 text-sm text-muted-foreground transition-colors duration-200 hover:border-foreground/30 hover:text-foreground"
+        >
+          <Plus size={15} /> Criar canal
+        </button>
       </div>
       {footer}
 
@@ -207,22 +250,44 @@ function Group({
   onAdd: () => void;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(true);
+
   return (
-    <section className="mb-4">
-      <div className="flex items-center justify-between px-2 pb-1">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </span>
+    <section className="mb-5">
+      <div className="flex items-center gap-1 px-1.5 pb-1.5">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="flex min-w-0 items-center gap-1 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors duration-200 hover:text-foreground"
+        >
+          <ChevronDown
+            size={13}
+            className={cn(
+              "shrink-0 transition-transform duration-300 ease-clyro",
+              !open && "-rotate-90",
+            )}
+          />
+          <span className="truncate">{label}</span>
+        </button>
         <button
           type="button"
           onClick={onAdd}
           aria-label={`Criar ${label.toLowerCase()}`}
-          className="text-muted-foreground transition hover:text-foreground"
+          className="ml-auto flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground"
         >
           <Plus size={14} />
         </button>
       </div>
-      <div className="space-y-0.5">{children}</div>
+      {/* abre por altura: nada aparece de estalo */}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-300 ease-clyro",
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div className="min-h-0 space-y-0.5 overflow-hidden">{children}</div>
+      </div>
     </section>
   );
 }
@@ -245,7 +310,7 @@ function ChannelButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+        "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground",
         active && "bg-accent text-foreground",
       )}
     >

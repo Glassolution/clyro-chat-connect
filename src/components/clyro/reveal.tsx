@@ -1,18 +1,29 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
+export type RevealVariant = "up" | "fade" | "scale";
+
+const VARIANT_CLASS: Record<RevealVariant, string> = {
+  up: "clyro-reveal",
+  fade: "clyro-reveal-fade",
+  scale: "clyro-reveal-scale",
+};
+
 /**
  * Revela o conteúdo quando ele entra na viewport. O deslocamento e a transição
- * vivem na classe `clyro-reveal`; aqui só adicionamos `is-revealed` uma vez.
+ * vivem nas classes `clyro-reveal*`; aqui só adicionamos `is-revealed` uma vez.
+ * `delay` escalona itens irmãos — a lista inteira acomoda em cascata.
  */
 export function Reveal({
   children,
   className,
   delay = 0,
+  variant = "up",
 }: {
   children: ReactNode;
   className?: string;
   delay?: number;
+  variant?: RevealVariant;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -29,7 +40,7 @@ export function Reveal({
         element.classList.add("is-revealed");
         observer.disconnect();
       },
-      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" },
+      { threshold: 0.1, rootMargin: "0px 0px -6% 0px" },
     );
     observer.observe(element);
     return () => observer.disconnect();
@@ -38,7 +49,7 @@ export function Reveal({
   return (
     <div
       ref={ref}
-      className={cn("clyro-reveal", className)}
+      className={cn(VARIANT_CLASS[variant], className)}
       style={{ transitionDelay: `${delay}ms` }}
     >
       {children}
