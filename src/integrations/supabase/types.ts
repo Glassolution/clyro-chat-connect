@@ -172,9 +172,12 @@ export type Database = {
         Row: {
           activity: string | null
           avatar_url: string | null
+          banner_color: string | null
+          bio: string | null
           created_at: string
           display_name: string
           id: string
+          pronouns: string | null
           status: string
           updated_at: string
           username: string
@@ -182,9 +185,12 @@ export type Database = {
         Insert: {
           activity?: string | null
           avatar_url?: string | null
+          banner_color?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string
           id: string
+          pronouns?: string | null
           status?: string
           updated_at?: string
           username: string
@@ -192,9 +198,12 @@ export type Database = {
         Update: {
           activity?: string | null
           avatar_url?: string | null
+          banner_color?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string
           id?: string
+          pronouns?: string | null
           status?: string
           updated_at?: string
           username?: string
