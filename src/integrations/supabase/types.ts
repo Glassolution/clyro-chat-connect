@@ -329,8 +329,9 @@ export type Database = {
     }
     Functions: {
       discover_servers: {
-        Args: { _limit?: number; _search?: string }
+        Args: { _limit?: number; _search?: string; _sort?: string }
         Returns: {
+          created_at: string
           description: string
           icon_url: string
           id: string
