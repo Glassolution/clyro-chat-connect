@@ -272,11 +272,16 @@ export function SettingsDialog({
             </Button>
           </TabsContent>
 
-          <TabsContent value="voice" className="space-y-1 pt-4">
-            <p className="pb-2 text-sm text-muted-foreground">
+          <TabsContent value="voice" className="max-h-[60vh] space-y-2 overflow-y-auto pt-4">
+            <p className="pb-1 text-sm text-muted-foreground">
               Tratamento aplicado ao seu microfone. Fica ligado por padrão e vale já na chamada em
               andamento.
             </p>
+            <AudioToggle
+              field="highFidelity"
+              title="Áudio de alta fidelidade"
+              body="Voz em estéreo 48 kHz com bitrate alto. Bem mais nítido; usa mais banda."
+            />
             <AudioToggle
               field="noiseSuppression"
               title="Supressão de ruído"
@@ -292,9 +297,13 @@ export function SettingsDialog({
               title="Nivelar volume"
               body="Ajusta o ganho para sua voz sair sempre no mesmo nível."
             />
+            <p className="pt-3 text-sm text-muted-foreground">
+              Compartilhamento de tela. Vale na próxima vez que você começar a transmitir.
+            </p>
+            <ScreenQualitySettings />
             <p className="pt-3 text-xs text-muted-foreground">
-              Alguns microfones não aceitam trocar isso no meio da chamada; nesse caso vale na
-              próxima vez que você entrar.
+              Alguns microfones e telas não aceitam trocar isso no meio da chamada; nesse caso vale
+              na próxima vez que você entrar.
             </p>
           </TabsContent>
         </Tabs>
