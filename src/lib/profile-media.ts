@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -86,4 +87,51 @@ export async function resignLegacyUrl(url: string | null | undefined): Promise<s
   const path = pathFromMediaUrl(url);
   if (!path) return null;
   return signPath(path);
+}
+
+/**
+ * Links já assinados nesta sessão, por caminho. A mesma foto aparece na lista,
+ * no palco e no perfil: assinar uma vez basta para os três.
+ */
+const signedCache = new Map<string, string>();
+const signing = new Map<string, Promise<string | null>>();
+
+function signOnce(path: string) {
+  const pending = signing.get(path);
+  if (pending) return pending;
+  const request = signPath(path).then((url) => {
+    if (url) signedCache.set(path, url);
+    signing.delete(path);
+    return url;
+  });
+  signing.set(path, request);
+  return request;
+}
+
+/**
+ * URL utilizável para uma imagem do bucket privado.
+ *
+ * Um link gravado quando o bucket era público não abre mais, e esperar o dono
+ * do perfil recarregar o app para reassinar deixava a foto quebrada para todo
+ * mundo até lá. Aqui quem está exibindo assina na hora, assim que o navegador
+ * recusa a imagem — sem atualizar a página e sem depender de ninguém.
+ */
+export function useMediaUrl(url: string | null | undefined) {
+  const path = url ? pathFromMediaUrl(url) : null;
+  const [signed, setSigned] = useState<string | null>(
+    path ? (signedCache.get(path) ?? null) : null,
+  );
+
+  useEffect(() => {
+    setSigned(path ? (signedCache.get(path) ?? null) : null);
+  }, [path]);
+
+  const onError = useCallback(() => {
+    if (!path) return;
+    void signOnce(path).then((next) => {
+      if (next) setSigned(next);
+    });
+  }, [path]);
+
+  return { src: signed ?? url ?? null, onError };
 }

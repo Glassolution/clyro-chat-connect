@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useDiscoverServers, type DiscoverServer, type DiscoverSort } from "@/lib/clyro-queries";
 import { initialsOf } from "@/lib/clyro-types";
+import { MediaImage } from "./primitives";
 
 const SORTS: { value: DiscoverSort; label: string }[] = [
   { value: "popular", label: "Em alta" },
@@ -218,15 +219,13 @@ function Cover({ community }: { community: DiscoverServer }) {
     <div className="relative aspect-[16/10] w-full overflow-hidden bg-stage">
       {community.icon_url ? (
         <>
-          <img
+          <MediaImage
             src={community.icon_url}
-            alt=""
             aria-hidden="true"
             className="absolute inset-0 h-full w-full scale-125 object-cover opacity-30 blur-2xl"
           />
-          <img
+          <MediaImage
             src={community.icon_url}
-            alt=""
             className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-2xl object-cover shadow-panel transition-transform duration-500 ease-clyro group-hover/card:scale-105"
           />
         </>

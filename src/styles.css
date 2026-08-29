@@ -228,12 +228,6 @@
   box-shadow: 0 0 0 2px var(--color-online);
 }
 
-/* A bola de status de quem está falando: verde com um brilho curto em volta. */
-@utility speaking-dot {
-  box-shadow:
-    0 0 0 2px var(--color-panel),
-    0 0 8px 0 color-mix(in oklch, var(--color-online) 70%, transparent);
-}
 
 @utility speaking-halo {
   border-radius: inherit;

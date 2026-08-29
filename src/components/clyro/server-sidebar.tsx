@@ -357,6 +357,7 @@ export function ServerSidebar({
                             <UserAvatar
                               profile={profile}
                               size={20}
+                              showStatus={false}
                               speaking={speakingUserIds.includes(member.user_id)}
                             />
                             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">

@@ -63,8 +63,8 @@ export function UserBar({
                 {profile?.display_name || profile?.username}
               </span>
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <StatusDot status={profile?.status} speaking={speaking} className="h-2 w-2" />
-                {speaking ? "Falando" : profile ? STATUS_LABEL[profile.status] : ""}
+                <StatusDot status={profile?.status} className="h-2 w-2" />
+                {profile ? STATUS_LABEL[profile.status] : ""}
               </span>
             </span>
           </button>

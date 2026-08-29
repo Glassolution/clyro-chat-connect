@@ -452,7 +452,12 @@ function Tile({
       {stream ? (
         <StreamVideo stream={stream} className="h-full w-full bg-black object-contain" />
       ) : (
-        <UserAvatar profile={profile} size={expanded ? 112 : 72} speaking={speaking} />
+        <UserAvatar
+          profile={profile}
+          size={expanded ? 112 : 72}
+          speaking={speaking}
+          showStatus={false}
+        />
       )}
 
       {hand && (

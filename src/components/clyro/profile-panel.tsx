@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useMutualServers, useProfiles } from "@/lib/clyro-queries";
 import { initialsOf, STATUS_LABEL, type Profile } from "@/lib/clyro-types";
-import { StatusDot, UserAvatar } from "./primitives";
+import { MediaImage, StatusDot, UserAvatar } from "./primitives";
 
 const memberSince = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
@@ -98,7 +98,7 @@ export function ProfilePanel({
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary text-[10px] font-semibold">
                       {server.icon_url ? (
-                        <img src={server.icon_url} alt="" className="h-full w-full object-cover" />
+                        <MediaImage src={server.icon_url} className="h-full w-full object-cover" />
                       ) : (
                         initialsOf(server.name)
                       )}
@@ -163,7 +163,7 @@ function Banner({ profile }: { profile: Profile }) {
   if (profile.banner_url) {
     return (
       <div className="h-20 w-full overflow-hidden bg-secondary">
-        <img src={profile.banner_url} alt="" className="h-full w-full object-cover" />
+        <MediaImage src={profile.banner_url} className="h-full w-full object-cover" />
       </div>
     );
   }

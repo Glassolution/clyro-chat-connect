@@ -41,7 +41,7 @@ import {
   type ScreenResolution,
 } from "@/lib/media-settings";
 import { uploadProfileImage } from "@/lib/profile-media";
-import { UserAvatar } from "./primitives";
+import { MediaImage, UserAvatar } from "./primitives";
 
 const BIO_LIMIT = 280;
 const DEFAULT_BANNER = "#2b2b2f";
@@ -678,7 +678,7 @@ function ImageField({
             kind === "avatar" ? "h-12 w-12 rounded-full" : "h-12 w-20 rounded-lg",
           )}
         >
-          {value && <img src={value} alt="" className="h-full w-full object-cover" />}
+          <MediaImage src={value} className="h-full w-full object-cover" />
         </span>
 
         <input
@@ -747,7 +747,7 @@ function ProfilePreview({
   return (
     <div className="mt-1.5 overflow-hidden rounded-xl border border-border bg-card">
       <div className="h-16 w-full" style={{ backgroundColor: bannerColor }}>
-        {bannerUrl && <img src={bannerUrl} alt="" className="h-full w-full object-cover" />}
+        <MediaImage src={bannerUrl} className="h-full w-full object-cover" />
       </div>
       <div className="px-4 pb-4">
         <div className="-mt-7 mb-2">

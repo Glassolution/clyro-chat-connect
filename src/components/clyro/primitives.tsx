@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useMediaUrl } from "@/lib/profile-media";
 import type { PresenceStatus, Profile } from "@/lib/clyro-types";
 import { initialsOf } from "@/lib/clyro-types";
 
@@ -36,13 +37,10 @@ export function ClyroWordmark({ className }: { className?: string }) {
 
 export function StatusDot({
   status,
-  speaking = false,
   className,
   style,
 }: {
   status: PresenceStatus | undefined;
-  /** Falando agora: a bola acende em verde, seja qual for o status. */
-  speaking?: boolean;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -58,13 +56,33 @@ export function StatusDot({
     <span
       style={style}
       className={cn(
-        "block shrink-0 rounded-full ring-2 ring-panel transition-[background-color,box-shadow] duration-100",
-        speaking ? "bg-online speaking-dot" : color,
+        "block shrink-0 rounded-full ring-2 ring-panel",
+        color,
         !style && "h-3 w-3",
         className,
       )}
     />
   );
+}
+
+/**
+ * <img> para as imagens do bucket privado. Um link do tempo em que o bucket era
+ * público não abre mais: quando o navegador recusa, ele é reassinado na hora e
+ * a imagem aparece sozinha, sem ninguém recarregar a página.
+ */
+export function MediaImage({
+  src,
+  alt = "",
+  className,
+  ...rest
+}: {
+  src: string | null | undefined;
+  alt?: string;
+  className?: string;
+} & Omit<React.ImgHTMLAttributes<HTMLImageElement>, "src" | "alt" | "className" | "onError">) {
+  const media = useMediaUrl(src);
+  if (!media.src) return null;
+  return <img src={media.src} alt={alt} onError={media.onError} className={className} {...rest} />;
 }
 
 export function UserAvatar({
@@ -82,6 +100,9 @@ export function UserAvatar({
 }) {
   const name = profile?.display_name || profile?.username || "?";
   const dotSize = Math.max(8, Math.round(size * 0.3));
+  // A foto pode ser um link antigo do tempo em que o bucket era público: o
+  // hook reassina na hora se o navegador recusar, sem esperar um recarregar.
+  const avatar = useMediaUrl(profile?.avatar_url);
   return (
     <span
       className={cn("relative inline-flex shrink-0", className)}
@@ -94,8 +115,13 @@ export function UserAvatar({
         )}
         style={{ fontSize: Math.max(10, size * 0.36) }}
       >
-        {profile?.avatar_url ? (
-          <img src={profile.avatar_url} alt={name} className="h-full w-full object-cover" />
+        {avatar.src ? (
+          <img
+            src={avatar.src}
+            alt={name}
+            onError={avatar.onError}
+            className="h-full w-full object-cover"
+          />
         ) : (
           initialsOf(name) || "?"
         )}
@@ -103,7 +129,6 @@ export function UserAvatar({
       {showStatus && (
         <StatusDot
           status={profile?.status}
-          speaking={speaking}
           className="absolute bottom-0 right-0 translate-x-[15%] translate-y-[15%]"
           style={{ width: dotSize, height: dotSize }}
         />

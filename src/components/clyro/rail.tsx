@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Hash, Search } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { ClyroMark } from "./primitives";
+import { ClyroMark, MediaImage } from "./primitives";
 import { CreateServerFlow } from "./create-server-flow";
 import { initialsOf, type Server } from "@/lib/clyro-types";
 
@@ -47,7 +47,7 @@ export function ServerRail({
             label={server.name}
           >
             {server.icon_url ? (
-              <img src={server.icon_url} alt="" className="h-full w-full object-cover" />
+              <MediaImage src={server.icon_url} className="h-full w-full object-cover" />
             ) : (
               <span className="text-sm font-semibold">
                 {initialsOf(server.name) || <Hash size={16} />}
