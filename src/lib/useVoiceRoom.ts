@@ -781,18 +781,17 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       return;
     }
     try {
-      // Áudio da tela sem o processamento de voz (eco/ruído), para música e
-      // vídeos chegarem limpos; vídeo em Full HD e taxa de quadros alta.
+      // Resolução e fps saem das preferências do usuário. Áudio da tela sem o
+      // processamento de voz (eco/ruído), para música e vídeo chegarem limpos.
+      const settings = audioSettingsRef.current;
       const display = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30, max: 60 },
-        },
+        video: screenConstraints(settings),
         audio: {
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
+          channelCount: 2,
+          sampleRate: 48000,
         },
       });
       const track = display.getVideoTracks()[0];
@@ -800,16 +799,16 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         display.getTracks().forEach((t) => t.stop());
         return;
       }
-      // "detail" prioriza nitidez (texto legível) em vez de fluidez.
-      track.contentHint = "detail";
+      // Acima de 30 fps priorizamos fluidez; abaixo disso, texto nítido.
+      track.contentHint = settings.screenFps >= 60 ? "motion" : "detail";
       track.onended = stopSharing;
       const audioTrack = display.getAudioTracks()[0];
       if (audioTrack) {
         // Se o som da aba parar (troca de aba, por exemplo), o vídeo continua.
         audioTrack.onended = () => removeExtraTrack("screen-audio");
-        await addExtraTrack("screen-audio", audioTrack);
+        await addExtraTrack("screen-audio", audioTrack, 256_000);
       }
-      await addExtraTrack("screen", track, 8_000_000);
+      await addExtraTrack("screen", track, screenBitrate(settings));
       setScreenStream(display);
       setSharingScreen(true);
       sharingScreenRef.current = true;
