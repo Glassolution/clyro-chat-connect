@@ -3,12 +3,11 @@ import { ArrowLeft, Camera, ChevronRight, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { uploadProfileImage } from "@/lib/profile-media";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-
-const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 /**
  * Cada modelo define os canais que o servidor nasce tendo. É o que faz a
@@ -142,37 +141,19 @@ export function CreateServerFlow({
   };
 
   /**
-   * O ícone vai para o bucket `profile-media`, dentro da pasta do próprio
-   * usuário — é o que a política de escrita exige, e o bucket já é de leitura
-   * pública, então serve para o ícone do servidor sem precisar de outro.
+   * O ícone vai para o mesmo bucket privado das fotos de perfil, dentro da
+   * pasta do próprio usuário, e o que fica salvo é o link assinado.
    */
   const uploadIcon = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error("Escolha um arquivo de imagem.");
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("A imagem precisa ter até 2 MB.");
-      return;
-    }
     setUploading(true);
-    const extension = file.name.split(".").pop()?.toLowerCase() || "png";
-    const path = `${userId}/server-${Date.now()}.${extension}`;
-    const { error } = await supabase.storage
-      .from("profile-media")
-      .upload(path, file, { upsert: true, contentType: file.type });
+    const result = await uploadProfileImage(userId, file, "server");
     setUploading(false);
 
-    if (error) {
-      toast.error(
-        /bucket/i.test(error.message)
-          ? "O armazenamento de imagens ainda não existe. Aplique a migração profile_media no Supabase."
-          : "Não foi possível enviar a imagem.",
-      );
+    if (!result.ok) {
+      toast.error(result.error);
       return;
     }
-    const { data } = supabase.storage.from("profile-media").getPublicUrl(path);
-    setIconUrl(data.publicUrl);
+    setIconUrl(result.url);
   };
 
   const createServer = async () => {

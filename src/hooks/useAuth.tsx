@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { resignLegacyUrl } from "@/lib/profile-media";
 
 export type PresenceStatus = "online" | "idle" | "dnd" | "invisible";
 
@@ -44,7 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select("*")
       .eq("id", id)
       .maybeSingle();
-    if (data) setProfile(data as Profile);
+    if (!data) return;
+    setProfile(data as Profile);
+    void healLegacyMedia(data as Profile);
   }, []);
 
   useEffect(() => {
@@ -101,6 +104,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+/**
+ * O bucket de imagens passou a ser privado, e os links públicos gravados antes
+ * disso não abrem mais. Ao carregar o próprio perfil eles são reassinados e
+ * regravados: a foto volta sozinha, sem ninguém ter que reenviar nada.
+ */
+async function healLegacyMedia(profile: Profile) {
+  const [avatarUrl, bannerUrl] = await Promise.all([
+    resignLegacyUrl(profile.avatar_url),
+    resignLegacyUrl(profile.banner_url),
+  ]);
+  if (!avatarUrl && !bannerUrl) return;
+
+  const patch = {
+    ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+    ...(bannerUrl ? { banner_url: bannerUrl } : {}),
+  };
+  const { error } = await supabase
+    .from("profiles")
+    // banner_url pode não existir nos tipos gerados ainda (migração de mídia).
+    .update(patch as { avatar_url?: string })
+    .eq("id", profile.id);
+  if (error) console.error("[clyro] não foi possível reassinar as imagens do perfil", error);
 }
 
 export function useAuth() {

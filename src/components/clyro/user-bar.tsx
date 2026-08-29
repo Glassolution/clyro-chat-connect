@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { setAudioSetting, useAudioSettings } from "@/lib/audio-settings";
+import { setMediaSetting, useMediaSettings } from "@/lib/media-settings";
 import { STATUS_LABEL, type PresenceStatus } from "@/lib/clyro-types";
 import { StatusDot, UserAvatar } from "./primitives";
 import { SettingsDialog } from "./settings-dialog";
@@ -23,17 +23,20 @@ export function UserBar({
   muted,
   deafened,
   inVoice,
+  speaking = false,
   onToggleMute,
   onToggleDeafen,
 }: {
   muted: boolean;
   deafened: boolean;
   inVoice: boolean;
+  /** Você está falando agora: acende o próprio avatar e a bola de status. */
+  speaking?: boolean;
   onToggleMute: () => void;
   onToggleDeafen: () => void;
 }) {
   const { profile, signOut, refreshProfile } = useAuth();
-  const audio = useAudioSettings();
+  const audio = useMediaSettings();
   const [open, setOpen] = useState(false);
 
   const setStatus = async (status: PresenceStatus) => {
@@ -54,14 +57,14 @@ export function UserBar({
             type="button"
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1 text-left transition hover:bg-accent"
           >
-            <UserAvatar profile={profile ?? undefined} size={32} />
+            <UserAvatar profile={profile ?? undefined} size={32} speaking={speaking} />
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium">
                 {profile?.display_name || profile?.username}
               </span>
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <StatusDot status={profile?.status} className="h-2 w-2" />
-                {profile ? STATUS_LABEL[profile.status] : ""}
+                <StatusDot status={profile?.status} speaking={speaking} className="h-2 w-2" />
+                {speaking ? "Falando" : profile ? STATUS_LABEL[profile.status] : ""}
               </span>
             </span>
           </button>
@@ -100,19 +103,19 @@ export function UserBar({
             </DropdownMenuLabel>
             <DropdownMenuCheckboxItem
               checked={audio.noiseSuppression}
-              onCheckedChange={(checked) => setAudioSetting("noiseSuppression", checked)}
+              onCheckedChange={(checked) => setMediaSetting("noiseSuppression", checked)}
             >
               Supressão de ruído
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={audio.echoCancellation}
-              onCheckedChange={(checked) => setAudioSetting("echoCancellation", checked)}
+              onCheckedChange={(checked) => setMediaSetting("echoCancellation", checked)}
             >
               Cancelamento de eco
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={audio.autoGainControl}
-              onCheckedChange={(checked) => setAudioSetting("autoGainControl", checked)}
+              onCheckedChange={(checked) => setMediaSetting("autoGainControl", checked)}
             >
               Volume automático
             </DropdownMenuCheckboxItem>

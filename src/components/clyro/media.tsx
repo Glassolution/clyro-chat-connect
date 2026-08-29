@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { useMediaSettings } from "@/lib/media-settings";
 
 export function StreamVideo({
   stream,
@@ -27,12 +28,26 @@ export function StreamVideo({
 
 export function StreamAudio({ stream, deafened }: { stream: MediaStream; deafened: boolean }) {
   const ref = useRef<HTMLAudioElement>(null);
+  const { outputDeviceId } = useMediaSettings();
+
   useEffect(() => {
     if (ref.current) ref.current.srcObject = stream;
   }, [stream]);
   useEffect(() => {
     if (ref.current) ref.current.muted = deafened;
   }, [deafened]);
+
+  // Manda o som para o fone escolhido nas configurações; vazio devolve ao
+  // padrão do sistema. Firefox e Safari ainda não têm `setSinkId`.
+  useEffect(() => {
+    const el = ref.current as
+      (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
+    if (!el?.setSinkId) return;
+    void el.setSinkId(outputDeviceId).catch(() => {
+      /* o dispositivo pode ter sido desconectado: fica no padrão */
+    });
+  }, [outputDeviceId, stream]);
+
   return <audio ref={ref} autoPlay />;
 }
 

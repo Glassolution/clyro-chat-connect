@@ -36,10 +36,13 @@ export function ClyroWordmark({ className }: { className?: string }) {
 
 export function StatusDot({
   status,
+  speaking = false,
   className,
   style,
 }: {
   status: PresenceStatus | undefined;
+  /** Falando agora: a bola acende em verde, seja qual for o status. */
+  speaking?: boolean;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -55,8 +58,8 @@ export function StatusDot({
     <span
       style={style}
       className={cn(
-        "block shrink-0 rounded-full ring-2 ring-panel",
-        color,
+        "block shrink-0 rounded-full ring-2 ring-panel transition-[background-color,box-shadow] duration-100",
+        speaking ? "bg-online speaking-dot" : color,
         !style && "h-3 w-3",
         className,
       )}
@@ -86,7 +89,7 @@ export function UserAvatar({
     >
       <span
         className={cn(
-          "flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground font-medium transition-shadow duration-200 ease-clyro",
+          "flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground font-medium transition-shadow duration-100 ease-clyro",
           speaking && "speaking-ring",
         )}
         style={{ fontSize: Math.max(10, size * 0.36) }}
@@ -100,6 +103,7 @@ export function UserAvatar({
       {showStatus && (
         <StatusDot
           status={profile?.status}
+          speaking={speaking}
           className="absolute bottom-0 right-0 translate-x-[15%] translate-y-[15%]"
           style={{ width: dotSize, height: dotSize }}
         />

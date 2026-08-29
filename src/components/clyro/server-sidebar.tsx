@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Hash,
   Volume2,
@@ -41,6 +41,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useChannelCategories, useProfiles, useVoiceStates } from "@/lib/clyro-queries";
 import type { Channel, ChannelCategory, Selection, Server } from "@/lib/clyro-types";
+import { resignLegacyUrl, uploadProfileImage } from "@/lib/profile-media";
 import { UserAvatar } from "./primitives";
 
 export function ServerSidebar({
@@ -51,6 +52,7 @@ export function ServerSidebar({
   onOpenVoice,
   onSelectProfile,
   activeVoiceChannelId,
+  speakingUserIds = [],
   currentUserId,
   onIconChanged,
   footer,
@@ -62,6 +64,8 @@ export function ServerSidebar({
   onOpenVoice: (channel: Channel) => void;
   onSelectProfile: (userId: string) => void;
   activeVoiceChannelId: string | null;
+  /** Ids de quem está falando agora, para acender a bola verde na lista. */
+  speakingUserIds?: string[];
   currentUserId: string;
   onIconChanged: () => void;
   footer: React.ReactNode;
@@ -79,36 +83,37 @@ export function ServerSidebar({
   const iconRef = useRef<HTMLInputElement>(null);
   const isOwner = server.owner_id === currentUserId;
 
+  // Ícone gravado quando o bucket ainda era público: o dono reassina na
+  // primeira visita e o servidor volta a aparecer com imagem para todo mundo.
+  useEffect(() => {
+    if (!isOwner || !server.icon_url) return;
+    let cancelled = false;
+    void resignLegacyUrl(server.icon_url).then(async (url) => {
+      if (!url || cancelled) return;
+      const { error } = await supabase
+        .from("servers")
+        .update({ icon_url: url })
+        .eq("id", server.id);
+      if (!error) onIconChanged();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwner, server.icon_url, server.id, onIconChanged]);
+
   /**
-   * Mesmo caminho do ícone no fluxo de criação: bucket `profile-media`, dentro
-   * da pasta do próprio usuário, que é o que a política de escrita exige.
+   * Mesmo caminho do ícone no fluxo de criação: bucket privado, pasta do
+   * próprio usuário, link assinado guardado no servidor.
    */
   const uploadIcon = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error("Escolha um arquivo de imagem.");
+    const result = await uploadProfileImage(currentUserId, file, `server-${server.id}`);
+    if (!result.ok) {
+      toast.error(result.error);
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("A imagem precisa ter até 2 MB.");
-      return;
-    }
-    const extension = file.name.split(".").pop()?.toLowerCase() || "png";
-    const path = `${currentUserId}/server-${server.id}-${Date.now()}.${extension}`;
-    const { error: uploadError } = await supabase.storage
-      .from("profile-media")
-      .upload(path, file, { upsert: true, contentType: file.type });
-    if (uploadError) {
-      toast.error(
-        /bucket/i.test(uploadError.message)
-          ? "O armazenamento de imagens ainda não existe. Aplique a migração profile_media."
-          : "Não foi possível enviar a imagem.",
-      );
-      return;
-    }
-    const { data } = supabase.storage.from("profile-media").getPublicUrl(path);
     const { error } = await supabase
       .from("servers")
-      .update({ icon_url: data.publicUrl })
+      .update({ icon_url: result.url })
       .eq("id", server.id);
     if (error) {
       toast.error("Não foi possível salvar o ícone.");
@@ -349,7 +354,11 @@ export function ServerSidebar({
                             title="Ver perfil"
                             className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-accent"
                           >
-                            <UserAvatar profile={profile} size={20} showStatus={false} />
+                            <UserAvatar
+                              profile={profile}
+                              size={20}
+                              speaking={speakingUserIds.includes(member.user_id)}
+                            />
                             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                               {profile?.display_name || profile?.username || "Participante"}
                             </span>

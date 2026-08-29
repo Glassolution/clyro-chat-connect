@@ -184,6 +184,18 @@ export function ClyroApp() {
     [conversations, selection],
   );
 
+  /**
+   * Quem está falando agora, por usuário — o mesmo sinal que acende a borda no
+   * palco alimenta a bola verde da lista lateral e a do próprio perfil.
+   */
+  const speakingUserIds = useMemo(() => {
+    const ids = rtc.peers.filter((p) => p.speaking).map((p) => p.userId);
+    if (rtc.localSpeaking && !rtc.muted && userId) ids.push(userId);
+    return ids;
+  }, [rtc.peers, rtc.localSpeaking, rtc.muted, userId]);
+
+  const selfSpeaking = rtc.localSpeaking && !rtc.muted && !!voice;
+
   const activeChannel =
     selection.kind === "channel"
       ? (channels.find((c) => c.id === selection.channelId) ?? null)
@@ -255,6 +267,7 @@ export function ClyroApp() {
         muted={rtc.muted}
         deafened={rtc.deafened}
         inVoice={!!voice}
+        speaking={selfSpeaking}
         onToggleMute={rtc.toggleMute}
         onToggleDeafen={rtc.toggleDeafen}
       />
@@ -286,6 +299,7 @@ export function ClyroApp() {
             onOpenVoice={openVoice}
             onSelectProfile={setProfileId}
             activeVoiceChannelId={voice?.channelId ?? null}
+            speakingUserIds={speakingUserIds}
             currentUserId={userId ?? ""}
             onIconChanged={() => void qc.invalidateQueries({ queryKey: ["servers", userId] })}
             footer={userBar}
