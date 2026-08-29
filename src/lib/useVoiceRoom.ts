@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { audioConstraints, useAudioSettings } from "@/lib/audio-settings";
+import {
+  audioConstraints,
+  screenBitrate,
+  screenConstraints,
+  useAudioSettings,
+  voiceBitrate,
+  type AudioSettings,
+} from "@/lib/audio-settings";
 
 /**
  * Mesh WebRTC room over Lovable Cloud realtime broadcast signalling.
@@ -68,6 +75,54 @@ const ICE_SERVERS: RTCConfiguration = {
 
 export const hasTurnRelay = Boolean(TURN_URL);
 
+/**
+ * O Opus padrão do WebRTC é mono, ~32 kbps e com DTX — ótimo para rádio, ruim
+ * para voz que soa presente. Aqui pedimos estéreo, bitrate alto e correção de
+ * erro embutida direto no SDP que enviamos ao outro lado.
+ */
+function withHighQualityAudio(
+  description: RTCSessionDescriptionInit,
+  settings: AudioSettings,
+): RTCSessionDescriptionInit {
+  const sdp = description.sdp;
+  if (!sdp) return description;
+
+  const stereo = settings.highFidelity ? 1 : 0;
+  const bitrate = voiceBitrate(settings);
+  const opusPayloads = [...sdp.matchAll(/a=rtpmap:(\d+) opus\/48000/gi)].map((m) => m[1]);
+  if (opusPayloads.length === 0) return description;
+
+  const extras = [
+    `stereo=${stereo}`,
+    `sprop-stereo=${stereo}`,
+    `maxaveragebitrate=${bitrate}`,
+    "maxplaybackrate=48000",
+    "sprop-maxcapturerate=48000",
+    "useinbandfec=1",
+    "usedtx=0",
+  ].join(";");
+
+  let next = sdp;
+  for (const payload of opusPayloads) {
+    const fmtp = new RegExp(`a=fmtp:${payload} ([^\\r\\n]*)`);
+    next = fmtp.test(next)
+      ? next.replace(fmtp, (_all, params: string) => {
+          const kept = params
+            .split(";")
+            .filter((p) => !/^(stereo|sprop-stereo|maxaveragebitrate|maxplaybackrate|sprop-maxcapturerate|useinbandfec|usedtx)=/.test(p.trim()))
+            .filter(Boolean)
+            .join(";");
+          return `a=fmtp:${payload} ${kept ? `${kept};` : ""}${extras}`;
+        })
+      : next.replace(
+          new RegExp(`(a=rtpmap:${payload} opus/48000[^\\r\\n]*\\r?\\n)`),
+          `$1a=fmtp:${payload} ${extras}\r\n`,
+        );
+  }
+
+  return { type: description.type, sdp: next };
+}
+
 export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   /** Id desta aba na sinalização. O id do usuário continua vindo antes do "__". */
   const selfId = userId ? `${userId}__${CONNECTION_SUFFIX}` : null;
@@ -123,8 +178,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   }, []);
 
   /**
-   * Sobe o teto de bitrate da trilha de vídeo recém-adicionada. Sem isso o
-   * WebRTC negocia um bitrate conservador e a tela compartilhada fica borrada.
+   * Sobe o teto de bitrate da trilha recém-adicionada. Sem isso o WebRTC
+   * negocia um bitrate conservador e a tela compartilhada fica borrada.
    */
   const boostSender = (pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: number) => {
     const sender = pc.getSenders().find((s) => s.track === track);
@@ -134,12 +189,27 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     params.encodings = params.encodings.map((e) => ({
       ...e,
       maxBitrate,
-      scaleResolutionDownBy: 1,
+      ...(track.kind === "video" ? { scaleResolutionDownBy: 1 } : {}),
     }));
     void sender.setParameters(params).catch(() => {
       /* alguns navegadores recusam; segue com o bitrate padrão */
     });
   };
+
+  /** Sobe o teto de bitrate de todas as faixas de voz desta conexão. */
+  const boostVoice = useCallback((pc: RTCPeerConnection) => {
+    const bitrate = voiceBitrate(audioSettingsRef.current);
+    pc.getSenders()
+      .filter((s) => s.track?.kind === "audio")
+      .forEach((sender) => {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+        params.encodings = params.encodings.map((e) => ({ ...e, maxBitrate: bitrate }));
+        void sender.setParameters(params).catch(() => {
+          /* alguns navegadores recusam; segue no padrão */
+        });
+      });
+  }, []);
 
   const attachAnalyser = useCallback((id: string, stream: MediaStream) => {
     try {
@@ -230,11 +300,15 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         try {
           makingOfferRef.current.set(peerId, true);
           await pc.setLocalDescription();
+          boostVoice(pc);
           if (pc.localDescription) {
             send("signal", {
               from: selfId ?? "",
               to: peerId,
-              description: pc.localDescription.toJSON(),
+              description: withHighQualityAudio(
+                pc.localDescription.toJSON(),
+                audioSettingsRef.current,
+              ),
             });
           }
         } catch {
@@ -396,11 +470,15 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
             }
             if (data.description.type === "offer") {
               await pc.setLocalDescription();
+              boostVoice(pc);
               if (pc.localDescription) {
                 send("signal", {
                   from: selfId,
                   to: peerId,
-                  description: pc.localDescription.toJSON(),
+                  description: withHighQualityAudio(
+                    pc.localDescription.toJSON(),
+                    audioSettingsRef.current,
+                  ),
                 });
               }
             }
@@ -703,18 +781,17 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       return;
     }
     try {
-      // Áudio da tela sem o processamento de voz (eco/ruído), para música e
-      // vídeos chegarem limpos; vídeo em Full HD e taxa de quadros alta.
+      // Resolução e fps saem das preferências do usuário. Áudio da tela sem o
+      // processamento de voz (eco/ruído), para música e vídeo chegarem limpos.
+      const settings = audioSettingsRef.current;
       const display = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30, max: 60 },
-        },
+        video: screenConstraints(settings),
         audio: {
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
+          channelCount: 2,
+          sampleRate: 48000,
         },
       });
       const track = display.getVideoTracks()[0];
@@ -722,16 +799,16 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         display.getTracks().forEach((t) => t.stop());
         return;
       }
-      // "detail" prioriza nitidez (texto legível) em vez de fluidez.
-      track.contentHint = "detail";
+      // Acima de 30 fps priorizamos fluidez; abaixo disso, texto nítido.
+      track.contentHint = settings.screenFps >= 60 ? "motion" : "detail";
       track.onended = stopSharing;
       const audioTrack = display.getAudioTracks()[0];
       if (audioTrack) {
         // Se o som da aba parar (troca de aba, por exemplo), o vídeo continua.
         audioTrack.onended = () => removeExtraTrack("screen-audio");
-        await addExtraTrack("screen-audio", audioTrack);
+        await addExtraTrack("screen-audio", audioTrack, 256_000);
       }
-      await addExtraTrack("screen", track, 8_000_000);
+      await addExtraTrack("screen", track, screenBitrate(settings));
       setScreenStream(display);
       setSharingScreen(true);
       sharingScreenRef.current = true;

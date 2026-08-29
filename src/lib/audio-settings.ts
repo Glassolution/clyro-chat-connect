@@ -1,5 +1,8 @@
 import { useSyncExternalStore } from "react";
 
+export type ScreenResolution = 720 | 1080 | 1440 | 2160;
+export type ScreenFps = 15 | 30 | 60;
+
 export type AudioSettings = {
   /** Corta ruído de fundo constante (ventilador, teclado, rua). */
   noiseSuppression: boolean;
@@ -7,12 +10,21 @@ export type AudioSettings = {
   echoCancellation: boolean;
   /** Nivela o volume da sua voz automaticamente. */
   autoGainControl: boolean;
+  /** Voz em estéreo 48 kHz com bitrate alto — usa mais banda. */
+  highFidelity: boolean;
+  /** Altura máxima da tela transmitida. */
+  screenResolution: ScreenResolution;
+  /** Quadros por segundo da tela transmitida. */
+  screenFps: ScreenFps;
 };
 
 export const AUDIO_DEFAULTS: AudioSettings = {
   noiseSuppression: true,
   echoCancellation: true,
   autoGainControl: true,
+  highFidelity: true,
+  screenResolution: 1080,
+  screenFps: 30,
 };
 
 const STORAGE_KEY = "clyro:audio-settings";
@@ -63,5 +75,41 @@ export function audioConstraints(settings: AudioSettings): MediaTrackConstraints
     noiseSuppression: settings.noiseSuppression,
     echoCancellation: settings.echoCancellation,
     autoGainControl: settings.autoGainControl,
+    // Captura sempre em 48 kHz; no modo alta fidelidade também em estéreo, que é
+    // o que faz música e voz chegarem com corpo em vez de "telefone".
+    sampleRate: 48000,
+    sampleSize: 16,
+    channelCount: settings.highFidelity ? 2 : 1,
   };
+}
+
+/** Teto de bitrate do áudio de voz, em bits por segundo. */
+export function voiceBitrate(settings: AudioSettings): number {
+  return settings.highFidelity ? 256_000 : 64_000;
+}
+
+/** Restrições de captura de tela conforme a escolha do usuário. */
+export function screenConstraints(settings: AudioSettings): MediaTrackConstraints {
+  const height = settings.screenResolution;
+  const width = Math.round((height * 16) / 9);
+  return {
+    width: { ideal: width },
+    height: { ideal: height },
+    frameRate: { ideal: settings.screenFps, max: settings.screenFps },
+  };
+}
+
+/**
+ * Bitrate de vídeo proporcional a resolução e fluidez — sem isso, 1440p a 60 fps
+ * fica tão borrado quanto 720p.
+ */
+export function screenBitrate(settings: AudioSettings): number {
+  const base: Record<ScreenResolution, number> = {
+    720: 3_000_000,
+    1080: 6_000_000,
+    1440: 10_000_000,
+    2160: 18_000_000,
+  };
+  const fpsFactor = settings.screenFps >= 60 ? 1.6 : settings.screenFps >= 30 ? 1 : 0.7;
+  return Math.round(base[settings.screenResolution] * fpsFactor);
 }

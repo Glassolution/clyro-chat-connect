@@ -78,19 +78,23 @@ export function SettingsDialog({
     setUploading(null);
 
     if (error) {
-      // Bucket ausente é o caso esperado antes da migração de mídia rodar.
-      const missingBucket = /bucket/i.test(error.message);
-      toast.error(
-        missingBucket
-          ? "O armazenamento de imagens ainda não existe. Aplique a migração profile_media no Supabase."
-          : "Não foi possível enviar a imagem.",
-      );
+      toast.error("Não foi possível enviar a imagem.");
       return;
     }
 
-    const { data } = supabase.storage.from("profile-media").getPublicUrl(path);
-    if (kind === "avatar") setAvatarUrl(data.publicUrl);
-    else setBannerUrl(data.publicUrl);
+    // O bucket é privado, então a imagem vira uma URL assinada de validade longa
+    // — é ela que fica salva no perfil e aparece para as outras pessoas.
+    const signed = await supabase.storage
+      .from("profile-media")
+      .createSignedUrl(path, 60 * 60 * 24 * 3650);
+
+    if (signed.error || !signed.data) {
+      toast.error("Imagem enviada, mas não conseguimos gerar o link.");
+      return;
+    }
+
+    if (kind === "avatar") setAvatarUrl(signed.data.signedUrl);
+    else setBannerUrl(signed.data.signedUrl);
     toast.success("Imagem enviada. Salve para aplicar.");
   };
 
@@ -272,11 +276,16 @@ export function SettingsDialog({
             </Button>
           </TabsContent>
 
-          <TabsContent value="voice" className="space-y-1 pt-4">
-            <p className="pb-2 text-sm text-muted-foreground">
+          <TabsContent value="voice" className="max-h-[60vh] space-y-2 overflow-y-auto pt-4">
+            <p className="pb-1 text-sm text-muted-foreground">
               Tratamento aplicado ao seu microfone. Fica ligado por padrão e vale já na chamada em
               andamento.
             </p>
+            <AudioToggle
+              field="highFidelity"
+              title="Áudio de alta fidelidade"
+              body="Voz em estéreo 48 kHz com bitrate alto. Bem mais nítido; usa mais banda."
+            />
             <AudioToggle
               field="noiseSuppression"
               title="Supressão de ruído"
@@ -292,9 +301,13 @@ export function SettingsDialog({
               title="Nivelar volume"
               body="Ajusta o ganho para sua voz sair sempre no mesmo nível."
             />
+            <p className="pt-3 text-sm text-muted-foreground">
+              Compartilhamento de tela. Vale na próxima vez que você começar a transmitir.
+            </p>
+            <ScreenQualitySettings />
             <p className="pt-3 text-xs text-muted-foreground">
-              Alguns microfones não aceitam trocar isso no meio da chamada; nesse caso vale na
-              próxima vez que você entrar.
+              Alguns microfones e telas não aceitam trocar isso no meio da chamada; nesse caso vale
+              na próxima vez que você entrar.
             </p>
           </TabsContent>
         </Tabs>
@@ -303,12 +316,16 @@ export function SettingsDialog({
   );
 }
 
+type BooleanAudioField = {
+  [K in keyof AudioSettings]: AudioSettings[K] extends boolean ? K : never;
+}[keyof AudioSettings];
+
 function AudioToggle({
   field,
   title,
   body,
 }: {
-  field: keyof AudioSettings;
+  field: BooleanAudioField;
   title: string;
   body: string;
 }) {
@@ -327,6 +344,72 @@ function AudioToggle({
         onCheckedChange={(checked) => setAudioSetting(field, checked)}
       />
     </div>
+  );
+}
+
+/** Botõezinhos de escolha única para resolução e fps da transmissão. */
+function ChoiceRow<T extends number>({
+  title,
+  body,
+  value,
+  options,
+  onSelect,
+}: {
+  title: string;
+  body: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onSelect: (value: T) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-3">
+      <p className="text-sm font-medium">{title}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{body}</p>
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        {options.map((option) => (
+          <Button
+            key={option.value}
+            type="button"
+            size="sm"
+            variant={option.value === value ? "default" : "secondary"}
+            onClick={() => onSelect(option.value)}
+          >
+            {option.label}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ScreenQualitySettings() {
+  const settings = useAudioSettings();
+  return (
+    <>
+      <ChoiceRow
+        title="Resolução da tela"
+        body="Quanto maior, mais nítido o texto — e mais banda a transmissão usa."
+        value={settings.screenResolution}
+        options={[
+          { value: 720, label: "720p" },
+          { value: 1080, label: "1080p" },
+          { value: 1440, label: "1440p" },
+          { value: 2160, label: "4K" },
+        ]}
+        onSelect={(value) => setAudioSetting("screenResolution", value)}
+      />
+      <ChoiceRow
+        title="Taxa de quadros"
+        body="60 fps para jogos e vídeo; 15 fps economiza banda em telas paradas."
+        value={settings.screenFps}
+        options={[
+          { value: 15, label: "15 fps" },
+          { value: 30, label: "30 fps" },
+          { value: 60, label: "60 fps" },
+        ]}
+        onSelect={(value) => setAudioSetting("screenFps", value)}
+      />
+    </>
   );
 }
 
