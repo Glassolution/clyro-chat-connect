@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { audioConstraints, useAudioSettings } from "@/lib/audio-settings";
+import {
+  audioConstraints,
+  screenBitrate,
+  screenConstraints,
+  useAudioSettings,
+  voiceBitrate,
+  type AudioSettings,
+} from "@/lib/audio-settings";
 
 /**
  * Mesh WebRTC room over Lovable Cloud realtime broadcast signalling.
