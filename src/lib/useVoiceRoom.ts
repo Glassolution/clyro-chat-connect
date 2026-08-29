@@ -337,7 +337,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       void polite;
       return pc;
     },
-    [selfId, send, attachAnalyser],
+    [selfId, send, attachAnalyser, boostVoice],
   );
 
   const removePeer = useCallback((peerId: string) => {
