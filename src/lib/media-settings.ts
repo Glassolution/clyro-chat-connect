@@ -19,6 +19,8 @@ export type MediaSettings = {
   screenFps: ScreenFps;
   /** Avisos sonoros de entrada, saída e compartilhamento de tela. */
   sounds: boolean;
+  /** Só manda áudio enquanto você estiver falando: o resto não sai daqui. */
+  noiseGate: boolean;
 };
 
 /** Alturas oferecidas na transmissão de tela — 720p a 4K. */
@@ -38,6 +40,7 @@ export const MEDIA_DEFAULTS: MediaSettings = {
   screenResolution: 1080,
   screenFps: 30,
   sounds: true,
+  noiseGate: true,
 };
 
 const STORAGE_KEY = "clyro:media-settings";

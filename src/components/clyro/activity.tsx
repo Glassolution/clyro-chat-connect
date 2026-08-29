@@ -1,6 +1,7 @@
 import { Headphones, MonitorUp, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useFriendships, useProfiles, useVoiceStates } from "@/lib/clyro-queries";
+import { useFriendships, useProfiles } from "@/lib/clyro-queries";
+import { useVoiceStates } from "@/lib/voice-presence";
 import type { Profile } from "@/lib/clyro-types";
 import { UserAvatar } from "./primitives";
 
@@ -8,7 +9,7 @@ export function ActivityPanel({ onSelectProfile }: { onSelectProfile: (id: strin
   const { user } = useAuth();
   const { data: profiles } = useProfiles();
   const { data: friendships = [] } = useFriendships(user?.id);
-  const { data: voiceStates = [] } = useVoiceStates();
+  const voiceStates = useVoiceStates();
 
   const friendIds = friendships
     .filter((f) => f.status === "accepted")

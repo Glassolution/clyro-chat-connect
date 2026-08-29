@@ -68,6 +68,13 @@ function withTimeout(promise: Promise<unknown>, ms: number) {
 }
 
 /**
+ * Atraso entre a medição e o portão de ruído. É o que permite abrir a passagem
+ * antes de o começo da palavra chegar nela — sem isso a primeira consoante sai
+ * decepada. Trinta milissegundos ninguém percebe numa conversa.
+ */
+const GATE_LOOKAHEAD_SECONDS = 0.03;
+
+/**
  * Ajusta o Opus: banda cheia a 48 kHz, correção de erro ligada, sem corte por
  * silêncio e com o teto de bitrate da preferência. Em alta fidelidade o áudio
  * vai em estéreo a 256 kbps — qualidade de música, não de telefonia. É a metade
@@ -125,10 +132,18 @@ function tuneSender(pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: 
   if (!sender) return;
   const params = sender.getParameters();
   if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+  if (track.kind === "video") {
+    // Sob aperto de CPU ou de banda o navegador prefere baixar a resolução —
+    // é o que fazia o 4K chegar borrado do outro lado. Aqui a resolução é
+    // sagrada: o que cede é a taxa de quadros.
+    params.degradationPreference = "maintain-resolution";
+  }
   params.encodings = params.encodings.map((e) => ({
     ...e,
     maxBitrate,
-    ...(track.kind === "video" ? { scaleResolutionDownBy: 1 } : {}),
+    ...(track.kind === "video"
+      ? { scaleResolutionDownBy: 1, networkPriority: "high" as RTCPriorityType }
+      : {}),
   }));
   void sender.setParameters(params).catch(() => {
     /* alguns navegadores recusam; segue com o bitrate padrão */
@@ -201,6 +216,19 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const extraTrackRef = useRef<Map<string, MediaStreamTrack>>(new Map());
   const audioCtxRef = useRef<AudioContext | null>(null);
+  /**
+   * Grafo do microfone: a fonte crua alimenta a medição e, por um atraso curto,
+   * o portão que decide o que sai daqui. O atraso é o que permite o portão
+   * abrir *antes* do começo da palavra passar por ele.
+   */
+  const micGraphRef = useRef<{
+    source: MediaStreamAudioSourceNode;
+    delay: DelayNode;
+    gain: GainNode;
+    destination: MediaStreamAudioDestinationNode;
+  } | null>(null);
+  /** Captura crua do microfone; `localStreamRef` guarda o que é enviado. */
+  const rawStreamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
   const mutedRef = useRef(false);
@@ -245,6 +273,77 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     }
   }, []);
 
+  /**
+   * Monta (ou refaz a entrada de) o grafo do microfone e devolve o stream que
+   * vai para os outros. Devolve `null` quando o navegador não deixa o áudio
+   * rodar — aí a captura crua segue direto, sem portão, que é melhor do que
+   * ficar mudo.
+   */
+  const buildMicPipeline = useCallback((raw: MediaStream): MediaStream | null => {
+    try {
+      if (raw.getAudioTracks().length === 0) return null;
+      if (!audioCtxRef.current) {
+        const Ctor =
+          window.AudioContext ??
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!Ctor) return null;
+        audioCtxRef.current = new Ctor();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") void ctx.resume().catch(() => {});
+
+      const source = ctx.createMediaStreamSource(raw);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analysersRef.current.set("__self", analyser);
+
+      const existing = micGraphRef.current;
+      if (existing) {
+        // Troca de microfone reaproveita o portão e a saída: a faixa enviada
+        // continua a mesma, então ninguém precisa renegociar nada.
+        try {
+          existing.source.disconnect();
+        } catch {
+          /* já desconectada */
+        }
+        source.connect(existing.delay);
+        micGraphRef.current = { ...existing, source };
+        return existing.destination.stream;
+      }
+
+      const delay = ctx.createDelay(0.5);
+      delay.delayTime.value = GATE_LOOKAHEAD_SECONDS;
+      const gain = ctx.createGain();
+      gain.gain.value = mediaSettingsRef.current.noiseGate ? 0 : 1;
+      const destination = ctx.createMediaStreamDestination();
+
+      source.connect(delay);
+      delay.connect(gain);
+      gain.connect(destination);
+
+      micGraphRef.current = { source, delay, gain, destination };
+      return destination.stream;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  /** Abre ou fecha o portão, com rampa para não estalar nas pontas. */
+  const applyGate = useCallback((open: boolean) => {
+    const graph = micGraphRef.current;
+    const ctx = audioCtxRef.current;
+    if (!graph || !ctx) return;
+    const target = !mediaSettingsRef.current.noiseGate || open ? 1 : 0;
+    const now = ctx.currentTime;
+    const current = graph.gain.gain.value;
+    graph.gain.gain.cancelScheduledValues(now);
+    graph.gain.gain.setValueAtTime(current, now);
+    // Abre rápido (a voz já vem atrasada pelo lookahead) e fecha devagar, para
+    // o fim da palavra não ser decepado.
+    graph.gain.gain.linearRampToValueAtTime(target, now + (target === 1 ? 0.015 : 0.12));
+  }, []);
+
   const createPeer = useCallback(
     (peerId: string) => {
       const existing = pcsRef.current.get(peerId);
@@ -274,12 +373,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         },
       }));
 
-      pc.ontrack = (event) => {
-        event.streams[0]?.getTracks().forEach((t) => {
-          if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
-        });
-        if (!event.streams[0]) remoteStream.addTrack(event.track);
-        attachAnalyser(peerId, remoteStream);
+      /** Reflete no estado o que o stream do peer tem agora. */
+      const syncPeer = () => {
         setPeers((prev) => ({
           ...prev,
           [peerId]: {
@@ -290,18 +385,37 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
             hasVideo: remoteStream.getVideoTracks().some((t) => t.readyState === "live"),
           },
         }));
-        event.track.onended = () => {
-          setPeers((prev) =>
-            prev[peerId]
-              ? {
-                  ...prev,
-                  [peerId]: {
-                    ...prev[peerId],
-                    hasVideo: remoteStream.getVideoTracks().some((t) => t.readyState === "live"),
-                  },
-                }
-              : prev,
-          );
+      };
+
+      pc.ontrack = (event) => {
+        const track = event.track;
+        event.streams[0]?.getTracks().forEach((t) => {
+          if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
+        });
+        if (!remoteStream.getTracks().includes(track)) remoteStream.addTrack(track);
+        attachAnalyser(peerId, remoteStream);
+        syncPeer();
+
+        /*
+         * Parar de compartilhar não encerra a faixa do outro lado: ela apenas
+         * emudece, e o último quadro ficava congelado na tela de quem assistia
+         * até a call acabar. Tirar a faixa muda do stream é o que faz a
+         * transmissão sumir de verdade. Só vale para vídeo — em áudio um mudo
+         * costuma ser oscilação de rede, e cortar o som seria pior.
+         */
+        if (track.kind === "video") {
+          track.onmute = () => {
+            remoteStream.removeTrack(track);
+            syncPeer();
+          };
+          track.onunmute = () => {
+            if (!remoteStream.getTracks().includes(track)) remoteStream.addTrack(track);
+            syncPeer();
+          };
+        }
+        track.onended = () => {
+          remoteStream.removeTrack(track);
+          syncPeer();
         };
       };
 
@@ -379,13 +493,20 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       // trocas em chamada passam pelo efeito de sincronia do microfone.
       const opened = await openMicrophone(mediaSettingsRef.current);
       if (!opened) setError("Não conseguimos acessar seu microfone.");
-      const stream = opened ?? new MediaStream();
+      const raw = opened ?? new MediaStream();
 
       const giveUp = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        if (localStreamRef.current === stream) localStreamRef.current = null;
+        raw.getTracks().forEach((t) => t.stop());
+        if (rawStreamRef.current === raw) rawStreamRef.current = null;
       };
       if (cancelled) return giveUp();
+
+      rawStreamRef.current = raw;
+      // O que sai daqui é a saída do grafo — com o portão de ruído no caminho.
+      // Sem grafo (navegador bloqueando o áudio), a captura crua vai direto.
+      const processed = buildMicPipeline(raw);
+      const stream = processed ?? raw;
+      if (!processed) attachAnalyser("__self", raw);
 
       localStreamRef.current = stream;
       stream.getAudioTracks().forEach((t) => {
@@ -395,7 +516,6 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         t.enabled = !mutedRef.current && !deafenedRef.current;
       });
       setLocalStream(stream);
-      attachAnalyser("__self", stream);
 
       // A saída anterior precisa ter terminado antes de reabrir o mesmo tópico.
       await roomTeardown.catch(() => {});
@@ -568,8 +688,21 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
             ),
           );
       }
+      rawStreamRef.current?.getTracks().forEach((t) => t.stop());
+      rawStreamRef.current = null;
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
+      if (micGraphRef.current) {
+        const { source, delay, gain } = micGraphRef.current;
+        [source, delay, gain].forEach((node) => {
+          try {
+            node.disconnect();
+          } catch {
+            /* o contexto pode já ter sido fechado */
+          }
+        });
+        micGraphRef.current = null;
+      }
       setLocalStream(null);
       extraTrackRef.current.forEach((t) => t.stop());
       extraTrackRef.current.clear();
@@ -579,7 +712,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       setSharingPeers([]);
       setCameraOn(false);
     };
-  }, [roomKey, userId, createPeer, removePeer, send, attachAnalyser]);
+  }, [roomKey, userId, createPeer, removePeer, send, attachAnalyser, buildMicPipeline]);
 
   /**
    * Oferta nova para todo mundo. O teto de bitrate do transmissor muda na hora,
@@ -614,39 +747,53 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
    * preferências de tratamento, quando o navegador ignora `applyConstraints`.
    */
   const replaceMicTrack = useCallback(async () => {
-    const stream = await openMicrophone(mediaSettingsRef.current);
-    const next = stream?.getAudioTracks()[0];
-    if (!stream || !next) {
+    const raw = await openMicrophone(mediaSettingsRef.current);
+    const captured = raw?.getAudioTracks()[0];
+    if (!raw || !captured) {
       setError("Não conseguimos abrir esse microfone.");
       return;
     }
-    next.contentHint = "speech";
-    next.enabled = !mutedRef.current && !deafenedRef.current;
+    captured.contentHint = "speech";
 
-    const previous = localStreamRef.current?.getAudioTracks() ?? [];
-    await Promise.all(
-      [...pcsRef.current.values()].map(async (pc) => {
-        // Só a faixa do microfone: o som da tela compartilhada também é áudio
-        // e não pode ser trocado aqui.
-        const sender = pc.getSenders().find((s) => s.track && previous.includes(s.track));
-        try {
-          if (sender) await sender.replaceTrack(next);
-          else pc.addTrack(next, stream);
-        } catch {
-          /* conexão fechando no meio da troca */
-        }
-        tuneSender(pc, next, voiceBitrate(mediaSettingsRef.current));
-      }),
-    );
+    const previousRaw = rawStreamRef.current;
+    const previousOut = localStreamRef.current?.getAudioTracks() ?? [];
+    rawStreamRef.current = raw;
 
-    previous.forEach((t) => t.stop());
-    localStreamRef.current = stream;
-    setLocalStream(stream);
-    attachAnalyser("__self", stream);
+    // Com o grafo montado, trocar de microfone é só reconectar a entrada: a
+    // faixa que os outros recebem continua sendo a saída do portão, então não
+    // há nada para substituir nem para renegociar.
+    const processed = buildMicPipeline(raw);
+    const outgoing = processed ?? raw;
+    const nextTrack = outgoing.getAudioTracks()[0];
+    const sameTrack = !!nextTrack && previousOut.includes(nextTrack);
+
+    if (nextTrack && !sameTrack) {
+      nextTrack.enabled = !mutedRef.current && !deafenedRef.current;
+      await Promise.all(
+        [...pcsRef.current.values()].map(async (pc) => {
+          // Só a faixa do microfone: o som da tela compartilhada também é
+          // áudio e não pode ser trocado aqui.
+          const sender = pc.getSenders().find((s) => s.track && previousOut.includes(s.track));
+          try {
+            if (sender) await sender.replaceTrack(nextTrack);
+            else pc.addTrack(nextTrack, outgoing);
+          } catch {
+            /* conexão fechando no meio da troca */
+          }
+          tuneSender(pc, nextTrack, voiceBitrate(mediaSettingsRef.current));
+        }),
+      );
+      previousOut.forEach((t) => t.stop());
+      localStreamRef.current = outgoing;
+      setLocalStream(outgoing);
+    }
+
+    previousRaw?.getTracks().forEach((t) => t.stop());
+    if (!processed) attachAnalyser("__self", raw);
     setError(null);
-    // A faixa nova pode ter outra contagem de canais: o SDP precisa acompanhar.
-    await renegotiate();
-  }, [attachAnalyser, renegotiate]);
+    // Contagem de canais pode ter mudado: o SDP precisa acompanhar.
+    if (!sameTrack) await renegotiate();
+  }, [attachAnalyser, buildMicPipeline, renegotiate]);
 
   /**
    * Mantém a captura igual ao que está escolhido nas configurações. Uma
@@ -654,7 +801,9 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
    * entrega continuar diferente do pedido, recaptura o microfone.
    */
   useEffect(() => {
-    const track = localStreamRef.current?.getAudioTracks()[0];
+    // A conferência é na captura crua: a saída do grafo é uma faixa sintética,
+    // que não carrega dispositivo nem tratamento nenhum nas suas configurações.
+    const track = rawStreamRef.current?.getAudioTracks()[0];
     if (!roomKey || !track || syncingMicRef.current) return;
 
     // Assinatura do pedido: sem ela, um microfone que se recusa a atender
@@ -761,6 +910,44 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharingScreen, mediaSettings.screenResolution, mediaSettings.screenFps]);
 
+  /**
+   * Rede de segurança do portão: se o navegador segurar o áudio suspenso, a
+   * saída processada não produz som nenhum e a chamada ficaria muda. Depois de
+   * algumas tentativas de acordar o contexto, a captura crua volta para o lugar
+   * dela — sem portão, mas com voz.
+   */
+  useEffect(() => {
+    if (!roomKey) return;
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      const ctx = audioCtxRef.current;
+      if (!ctx || !micGraphRef.current) return;
+      if (ctx.state === "running") {
+        window.clearInterval(timer);
+        return;
+      }
+      void ctx.resume().catch(() => {});
+      attempts += 1;
+      if (attempts < 5) return;
+      window.clearInterval(timer);
+
+      const rawTrack = rawStreamRef.current?.getAudioTracks()[0];
+      const raw = rawStreamRef.current;
+      if (!rawTrack || !raw) return;
+      console.warn("[clyro] áudio suspenso pelo navegador: microfone sem o portão de ruído");
+      rawTrack.enabled = !mutedRef.current && !deafenedRef.current;
+      const previous = localStreamRef.current?.getAudioTracks() ?? [];
+      pcsRef.current.forEach((pc) => {
+        const sender = pc.getSenders().find((s) => s.track && previous.includes(s.track));
+        void sender?.replaceTrack(rawTrack).catch(() => {});
+      });
+      micGraphRef.current = null;
+      localStreamRef.current = raw;
+      setLocalStream(raw);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [roomKey]);
+
   // ---- speaking detection -------------------------------------------------
   /**
    * A borda tem que acender junto com a voz e apagar junto com o silêncio —
@@ -835,8 +1022,14 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       analysersRef.current.forEach((analyser, id) => {
         const rms = level(analyser, id);
         if (id === "__self") {
-          selfSpeaking = !mutedRef.current && isSpeaking("__self", rms, selfSpeaking);
-          setLocalSpeaking(selfSpeaking);
+          const next = !mutedRef.current && isSpeaking("__self", rms, selfSpeaking);
+          if (next !== selfSpeaking) {
+            selfSpeaking = next;
+            setLocalSpeaking(next);
+            // O mesmo sinal que acende a bola verde abre o portão: o que os
+            // outros ouvem é exatamente o que a borda mostra.
+            applyGate(next);
+          }
         } else {
           remote.set(id, rms);
         }
@@ -867,7 +1060,13 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       lastPeak.clear();
       setLocalSpeaking(false);
     };
-  }, [roomKey]);
+  }, [roomKey, applyGate]);
+
+  // Ligar ou desligar o portão vale na hora: desligado, a passagem fica aberta;
+  // ligado, fecha até a próxima palavra — o laço reabre em um quadro.
+  useEffect(() => {
+    applyGate(!mediaSettings.noiseGate);
+  }, [mediaSettings.noiseGate, applyGate]);
 
   // ---- controls -----------------------------------------------------------
   const applyAudioEnabled = useCallback(() => {

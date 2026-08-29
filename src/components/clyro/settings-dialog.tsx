@@ -298,6 +298,11 @@ export function SettingsDialog({
               title="Nivelar volume"
               body="Ajusta o ganho para sua voz sair sempre no mesmo nível."
             />
+            <AudioToggle
+              field="noiseGate"
+              title="Transmitir só quando você fala"
+              body="Fora da fala, nada sai do seu microfone — nem teclado, nem TV, nem conversa ao fundo. É o mesmo sinal da borda verde."
+            />
             <p className="pt-3 text-xs text-muted-foreground">
               Vale na hora, inclusive na chamada em andamento: se o microfone não aceitar a troca ao
               vivo, ele é reaberto sem derrubar a call.

@@ -39,7 +39,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { useChannelCategories, useProfiles, useVoiceStates } from "@/lib/clyro-queries";
+import { useChannelCategories, useProfiles } from "@/lib/clyro-queries";
+import { useVoiceStates } from "@/lib/voice-presence";
 import type { Channel, ChannelCategory, Selection, Server } from "@/lib/clyro-types";
 import { resignLegacyUrl, uploadProfileImage } from "@/lib/profile-media";
 import { UserAvatar } from "./primitives";
@@ -71,7 +72,7 @@ export function ServerSidebar({
   footer: React.ReactNode;
 }) {
   const { data: profiles } = useProfiles();
-  const { data: voiceStates = [] } = useVoiceStates();
+  const voiceStates = useVoiceStates();
   const { data: categories = [] } = useChannelCategories(server.id);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
