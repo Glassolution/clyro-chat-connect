@@ -78,19 +78,23 @@ export function SettingsDialog({
     setUploading(null);
 
     if (error) {
-      // Bucket ausente é o caso esperado antes da migração de mídia rodar.
-      const missingBucket = /bucket/i.test(error.message);
-      toast.error(
-        missingBucket
-          ? "O armazenamento de imagens ainda não existe. Aplique a migração profile_media no Supabase."
-          : "Não foi possível enviar a imagem.",
-      );
+      toast.error("Não foi possível enviar a imagem.");
       return;
     }
 
-    const { data } = supabase.storage.from("profile-media").getPublicUrl(path);
-    if (kind === "avatar") setAvatarUrl(data.publicUrl);
-    else setBannerUrl(data.publicUrl);
+    // O bucket é privado, então a imagem vira uma URL assinada de validade longa
+    // — é ela que fica salva no perfil e aparece para as outras pessoas.
+    const signed = await supabase.storage
+      .from("profile-media")
+      .createSignedUrl(path, 60 * 60 * 24 * 3650);
+
+    if (signed.error || !signed.data) {
+      toast.error("Imagem enviada, mas não conseguimos gerar o link.");
+      return;
+    }
+
+    if (kind === "avatar") setAvatarUrl(signed.data.signedUrl);
+    else setBannerUrl(signed.data.signedUrl);
     toast.success("Imagem enviada. Salve para aplicar.");
   };
 
