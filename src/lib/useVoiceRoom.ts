@@ -300,11 +300,15 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         try {
           makingOfferRef.current.set(peerId, true);
           await pc.setLocalDescription();
+          boostVoice(pc);
           if (pc.localDescription) {
             send("signal", {
               from: selfId ?? "",
               to: peerId,
-              description: pc.localDescription.toJSON(),
+              description: withHighQualityAudio(
+                pc.localDescription.toJSON(),
+                audioSettingsRef.current,
+              ),
             });
           }
         } catch {
