@@ -103,12 +103,7 @@ export function FriendsPanel({
               Pendentes{incoming.length ? ` (${incoming.length})` : ""}
             </TabsTrigger>
           </TabsList>
-          <Button
-            size="sm"
-            variant={tab === "add" ? "default" : "secondary"}
-            className="ml-auto"
-            onClick={() => setTab("add")}
-          >
+          <Button size="sm" className="ml-auto font-medium" onClick={() => setTab("add")}>
             <UserPlus size={14} /> Adicionar amigo
           </Button>
         </header>
@@ -240,7 +235,7 @@ function SearchField({ value, onChange }: { value: string; onChange: (value: str
         onChange={(e) => onChange(e.target.value)}
         placeholder="Buscar"
         aria-label="Buscar amigos"
-        className="h-10 w-full rounded-xl border border-border bg-panel pl-9 pr-3 text-sm text-foreground outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-muted-foreground focus:border-foreground/25 focus:ring-1 focus:ring-ring"
+        className="h-9 w-full rounded bg-rail pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
       />
     </div>
   );
@@ -248,14 +243,14 @@ function SearchField({ value, onChange }: { value: string; onChange: (value: str
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mb-4 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+    <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.02em] text-muted-foreground">
       {children}
     </h2>
   );
 }
 
 function PeopleList({ children }: { children: React.ReactNode }) {
-  return <ul className="divide-y divide-border/70 border-y border-border/70">{children}</ul>;
+  return <ul className="divide-y divide-border/60">{children}</ul>;
 }
 
 function Grid({
@@ -322,7 +317,7 @@ function RowAction({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary/50 text-muted-foreground transition-[background-color,color,transform] duration-200 ease-clyro hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-95 group-hover/row:bg-secondary"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rail text-muted-foreground transition-[background-color,color] duration-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       {children}
     </button>
@@ -352,14 +347,14 @@ function PersonRow({
       className="clyro-enter group/row"
       style={{ animationDelay: `${Math.min(index, 14) * 25}ms` }}
     >
-      <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-accent/40">
+      <div className="flex items-center gap-3 rounded px-2 py-2.5 transition-colors duration-100 hover:bg-[var(--color-muted)]">
         <button
           type="button"
           onClick={() => profile && onSelectProfile(profile.id)}
           title="Ver perfil"
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
-          <UserAvatar profile={profile} size={40} />
+          <UserAvatar profile={profile} size={32} />
           <span className="min-w-0">
             <span className="flex items-baseline gap-2">
               <span className="truncate text-[15px] font-medium">{name}</span>

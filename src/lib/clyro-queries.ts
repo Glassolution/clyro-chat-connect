@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type {
   Channel,
+  ChannelCategory,
   Conversation,
   Friendship,
   Message,
@@ -51,13 +52,63 @@ export function useChannels(serverId: string | null) {
     enabled: !!serverId,
     queryKey: ["channels", serverId],
     queryFn: async () => {
+      // `category_id` só existe depois da migração channel_categories. Pedir a
+      // coluna antes disso derruba a consulta inteira e a barra lateral fica
+      // sem canal nenhum — por isso a tentativa com fallback.
+      const base = "id, server_id, name, kind, position";
+      const withCategory = await supabase
+        .from("channels")
+        .select(`${base}, category_id`)
+        .eq("server_id", serverId as string)
+        .order("position");
+
+      if (!withCategory.error) {
+        return (withCategory.data ?? []) as unknown as Channel[];
+      }
+
       const { data, error } = await supabase
         .from("channels")
-        .select("id, server_id, name, kind, position")
+        .select(base)
         .eq("server_id", serverId as string)
         .order("position");
       if (error) throw error;
-      return (data ?? []) as Channel[];
+      return (data ?? []).map((row) => ({ ...row, category_id: null })) as unknown as Channel[];
+    },
+  });
+}
+
+/**
+ * Categorias do servidor. A tabela pode não existir ainda (migração
+ * channel_categories pendente), então o erro é engolido e a barra lateral
+ * simplesmente cai nos grupos padrão em vez de travar.
+ */
+export function useChannelCategories(serverId: string | null) {
+  return useQuery({
+    enabled: !!serverId,
+    queryKey: ["channel-categories", serverId],
+    retry: 1,
+    queryFn: async () => {
+      const client = supabase as unknown as {
+        from: (table: string) => {
+          select: (columns: string) => {
+            eq: (
+              column: string,
+              value: string,
+            ) => {
+              order: (
+                column: string,
+              ) => Promise<{ data: ChannelCategory[] | null; error: unknown }>;
+            };
+          };
+        };
+      };
+      const { data, error } = await client
+        .from("channel_categories")
+        .select("id, server_id, name, position")
+        .eq("server_id", serverId as string)
+        .order("position");
+      if (error) return [] as ChannelCategory[];
+      return data ?? [];
     },
   });
 }
@@ -179,6 +230,9 @@ export function useRealtimeSync(userId: string | undefined) {
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "channels" }, () => {
         void qc.invalidateQueries({ queryKey: ["channels"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "channel_categories" }, () => {
+        void qc.invalidateQueries({ queryKey: ["channel-categories"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "server_members" }, () => {
         void qc.invalidateQueries({ queryKey: ["servers", userId] });

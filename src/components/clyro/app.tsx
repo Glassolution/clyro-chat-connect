@@ -286,6 +286,8 @@ export function ClyroApp() {
             onOpenVoice={openVoice}
             onSelectProfile={setProfileId}
             activeVoiceChannelId={voice?.channelId ?? null}
+            currentUserId={userId ?? ""}
+            onIconChanged={() => void qc.invalidateQueries({ queryKey: ["servers", userId] })}
             footer={userBar}
           />
         ) : selection.kind === "discover" ? null : (
@@ -354,9 +356,9 @@ export function ClyroApp() {
               placeholder={`Conversar em ${conversationTitle(activeConversation, profiles, userId)}`}
               header={
                 <>
-                  <span className="flex min-w-0 items-center gap-2 rounded-xl bg-panel px-3 py-1.5">
+                  <span className="flex min-w-0 items-center gap-2">
                     <AtSign size={15} className="shrink-0 text-muted-foreground" />
-                    <span className="truncate text-sm font-medium">
+                    <span className="truncate text-base font-semibold">
                       {conversationTitle(activeConversation, profiles, userId)}
                     </span>
                   </span>
@@ -389,13 +391,13 @@ export function ClyroApp() {
               channelId={activeChannel.id}
               placeholder={`Conversar em #${activeChannel.name}`}
               header={
-                <span className="flex min-w-0 items-center gap-2 rounded-xl bg-panel px-3 py-1.5">
+                <span className="flex min-w-0 items-center gap-2">
                   {activeChannel.kind === "voice" ? (
-                    <Volume2 size={15} className="shrink-0 text-muted-foreground" />
+                    <Volume2 size={20} className="shrink-0 text-muted-foreground" />
                   ) : (
-                    <Hash size={15} className="shrink-0 text-muted-foreground" />
+                    <Hash size={20} className="shrink-0 text-muted-foreground" />
                   )}
-                  <span className="truncate text-sm font-medium">{activeChannel.name}</span>
+                  <span className="truncate text-base font-semibold">{activeChannel.name}</span>
                 </span>
               }
             />

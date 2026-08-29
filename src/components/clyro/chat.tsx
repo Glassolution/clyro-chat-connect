@@ -214,7 +214,7 @@ export function ChatPanel({
               */}
               <div
                 className={cn(
-                  "group/msg -mx-6 flex gap-4 px-6 py-0.5 transition-colors duration-100 hover:bg-panel/70",
+                  "group/msg -mx-6 flex gap-4 px-6 py-0.5 transition-colors duration-100 hover:bg-[var(--color-muted)]",
                   grouped ? "mt-0" : "mt-4",
                 )}
               >
@@ -252,7 +252,7 @@ export function ChatPanel({
       </div>
 
       <div className="shrink-0 px-6 pb-6">
-        <div className="flex items-end gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 transition-colors duration-200 focus-within:border-foreground/25">
+        <div className="flex items-end gap-2 rounded-lg bg-input px-4 py-2.5">
           <textarea
             ref={inputRef}
             rows={1}
@@ -320,7 +320,7 @@ export function ChatPanel({
               onClick={() => void send()}
               disabled={!draft.trim()}
               aria-label="Enviar mensagem"
-              className="ml-1 flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-[opacity,transform] duration-200 ease-clyro hover:opacity-90 active:scale-95 disabled:opacity-25"
+              className="ml-1 flex h-8 w-8 items-center justify-center rounded bg-primary text-primary-foreground transition-[opacity,transform] duration-200 ease-clyro hover:opacity-90 active:scale-95 disabled:opacity-25"
             >
               <SendHorizonal size={15} />
             </button>

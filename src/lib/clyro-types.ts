@@ -16,6 +16,15 @@ export type Channel = {
   name: string;
   kind: "text" | "voice";
   position: number;
+  /** null = fora de categoria, cai nos grupos padrão de texto/voz. */
+  category_id: string | null;
+};
+
+export type ChannelCategory = {
+  id: string;
+  server_id: string;
+  name: string;
+  position: number;
 };
 
 export type Message = {

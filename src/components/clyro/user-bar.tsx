@@ -1,16 +1,20 @@
 import { useState } from "react";
-import { Mic, MicOff, Headphones, HeadphoneOff, Settings, LogOut } from "lucide-react";
+import { Mic, MicOff, Headphones, HeadphoneOff, Settings, LogOut, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuCheckboxItem,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
+import { setAudioSetting, useAudioSettings } from "@/lib/audio-settings";
 import { STATUS_LABEL, type PresenceStatus } from "@/lib/clyro-types";
 import { StatusDot, UserAvatar } from "./primitives";
 import { SettingsDialog } from "./settings-dialog";
@@ -29,6 +33,7 @@ export function UserBar({
   onToggleDeafen: () => void;
 }) {
   const { profile, signOut, refreshProfile } = useAuth();
+  const audio = useAudioSettings();
   const [open, setOpen] = useState(false);
 
   const setStatus = async (status: PresenceStatus) => {
@@ -78,26 +83,131 @@ export function UserBar({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={muted ? "Ativar microfone" : "Silenciar microfone"}
+      {/*
+        Mutar/ensurdecer com a seta ao lado abrindo o menu de áudio, como no
+        Discord — o toggle continua num clique só, sem menu no caminho.
+      */}
+      <VoiceToggle
+        label={muted ? "Ativar microfone" : "Silenciar microfone"}
+        danger={muted}
+        disabled={!inVoice}
         onClick={onToggleMute}
+        icon={muted ? <MicOff size={17} /> : <Mic size={17} />}
+        menu={
+          <>
+            <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.02em] text-muted-foreground">
+              Entrada de voz
+            </DropdownMenuLabel>
+            <DropdownMenuCheckboxItem
+              checked={audio.noiseSuppression}
+              onCheckedChange={(checked) => setAudioSetting("noiseSuppression", checked)}
+            >
+              Supressão de ruído
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={audio.echoCancellation}
+              onCheckedChange={(checked) => setAudioSetting("echoCancellation", checked)}
+            >
+              Cancelamento de eco
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={audio.autoGainControl}
+              onCheckedChange={(checked) => setAudioSetting("autoGainControl", checked)}
+            >
+              Volume automático
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setOpen(true)}>
+              <Settings size={14} /> Configurações de voz
+            </DropdownMenuItem>
+          </>
+        }
+      />
+
+      <VoiceToggle
+        label={deafened ? "Ativar áudio" : "Ficar surdo"}
+        danger={deafened}
         disabled={!inVoice}
-      >
-        {muted ? <MicOff size={16} /> : <Mic size={16} />}
-      </Button>
+        onClick={onToggleDeafen}
+        icon={deafened ? <HeadphoneOff size={17} /> : <Headphones size={17} />}
+        menu={
+          <>
+            <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.02em] text-muted-foreground">
+              Saída de áudio
+            </DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => setOpen(true)}>
+              <Settings size={14} /> Configurações de voz
+            </DropdownMenuItem>
+          </>
+        }
+      />
+
       <Button
         variant="ghost"
         size="icon"
-        aria-label={deafened ? "Ativar áudio" : "Ficar surdo"}
-        onClick={onToggleDeafen}
-        disabled={!inVoice}
+        aria-label="Configurações"
+        title="Configurações"
+        onClick={() => setOpen(true)}
       >
-        {deafened ? <HeadphoneOff size={16} /> : <Headphones size={16} />}
+        <Settings size={17} />
       </Button>
 
       <SettingsDialog open={open} onOpenChange={setOpen} />
     </div>
+  );
+}
+
+/**
+ * Botão de duas partes: o corpo alterna o estado num clique, a seta abre o menu
+ * de dispositivo. Ficam colados para ler como um controle só.
+ */
+function VoiceToggle({
+  label,
+  icon,
+  danger,
+  disabled,
+  onClick,
+  menu,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  danger: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  menu: React.ReactNode;
+}) {
+  return (
+    <span className="flex items-center">
+      <button
+        type="button"
+        aria-label={label}
+        title={label}
+        onClick={onClick}
+        disabled={disabled}
+        className={cn(
+          "flex h-8 w-8 items-center justify-center rounded-l text-muted-foreground transition-colors duration-100 hover:bg-[var(--color-muted)] hover:text-foreground disabled:opacity-40",
+          danger && "bg-destructive/15 text-destructive hover:bg-destructive/25",
+        )}
+      >
+        {icon}
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={`${label} — opções`}
+            className={cn(
+              "flex h-8 w-4 items-center justify-center rounded-r text-muted-foreground transition-colors duration-100 hover:bg-[var(--color-muted)] hover:text-foreground",
+              danger && "bg-destructive/15 text-destructive hover:bg-destructive/25",
+            )}
+          >
+            <ChevronDown size={12} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {menu}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }

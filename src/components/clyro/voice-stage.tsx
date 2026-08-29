@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Hand,
   Headphones,
   HeadphoneOff,
   Maximize2,
@@ -10,13 +11,14 @@ import {
   MonitorX,
   PhoneOff,
   Signal,
+  Sparkles,
   Video,
   VideoOff,
   Volume2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/clyro-types";
-import type { RemotePeer } from "@/lib/useVoiceRoom";
+import type { LinkQuality, RemotePeer } from "@/lib/useVoiceRoom";
 import { UserAvatar } from "./primitives";
 import { StreamVideo } from "./media";
 
@@ -33,6 +35,14 @@ export type VoiceControls = {
   cameraOn: boolean;
   connecting: boolean;
   error: string | null;
+  quality: LinkQuality;
+  /** Ids de usuário com a mão levantada. */
+  raisedHands: string[];
+  handRaised: boolean;
+  reactions: { id: string; userId: string; emoji: string }[];
+  toggleHand: () => void;
+  sendReaction: (emoji: string) => void;
+  hasTurnRelay: boolean;
   toggleMute: () => void;
   toggleDeafen: () => void;
   toggleScreen: () => void | Promise<void>;
@@ -47,6 +57,8 @@ type StageTile = {
   muted: boolean;
   stream: MediaStream | null;
   badge: string | null;
+  hand?: boolean;
+  reaction?: string | null;
 };
 
 /** Tempo desde que a chamada começou, no formato h:mm:ss. */
@@ -215,9 +227,11 @@ function ConnectedStage({
       muted: rtc.muted,
       stream: localVideo,
       badge: rtc.sharingScreen ? "Compartilhando tela" : null,
+      hand: rtc.handRaised,
+      reaction: rtc.reactions.find((r) => r.userId === selfProfile?.id)?.emoji ?? null,
     },
     ...rtc.peers.map((peer) => {
-      const profile = profiles?.get(peer.id);
+      const profile = profiles?.get(peer.userId);
       return {
         id: peer.id,
         name: profile?.display_name || profile?.username || "Participante",
@@ -226,6 +240,8 @@ function ConnectedStage({
         muted: false,
         stream: peer.hasVideo ? peer.stream : null,
         badge: rtc.sharingPeers.includes(peer.id) ? "Compartilhando tela" : null,
+        hand: rtc.raisedHands.includes(peer.userId),
+        reaction: rtc.reactions.find((r) => r.userId === peer.userId)?.emoji ?? null,
       };
     }),
   ];
@@ -241,7 +257,11 @@ function ConnectedStage({
       setPinned(sharer);
       return;
     }
-    if (expandedId && autoPinnedRef.current === expandedId && !rtc.sharingPeers.includes(expandedId)) {
+    if (
+      expandedId &&
+      autoPinnedRef.current === expandedId &&
+      !rtc.sharingPeers.includes(expandedId)
+    ) {
       autoPinnedRef.current = null;
       setPinned(null);
     }
@@ -303,6 +323,8 @@ function ConnectedStage({
               muted={tile.muted}
               stream={tile.stream}
               badge={tile.badge}
+              hand={tile.hand ?? false}
+              reaction={tile.reaction ?? null}
               index={index}
               expanded={expandedId === tile.id}
               onToggleExpand={() => setExpandedId(expandedId === tile.id ? null : tile.id)}
@@ -363,6 +385,8 @@ function Tile({
   muted,
   stream,
   badge,
+  hand,
+  reaction,
   index,
   expanded,
   onToggleExpand,
@@ -373,6 +397,8 @@ function Tile({
   muted: boolean;
   stream: MediaStream | null;
   badge: string | null;
+  hand: boolean;
+  reaction: string | null;
   index: number;
   expanded: boolean;
   onToggleExpand: () => void;
@@ -387,14 +413,38 @@ function Tile({
         "clyro-enter group relative flex items-center justify-center overflow-hidden rounded-2xl bg-stage-foreground/5 ring-1 ring-stage-foreground/10 transition-shadow",
         // Expandido ocupa toda a área até a barra de controles, que fica fora daqui.
         expanded ? "h-full w-full" : "aspect-video",
-        speaking && "speaking-pulse",
       )}
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
+      {/*
+        O anel fica sempre montado e só troca de opacidade — trocar a classe
+        remontava a animação a cada palavra, que era o piscar.
+      */}
+      <span
+        aria-hidden="true"
+        data-speaking={speaking}
+        className="speaking-halo pointer-events-none absolute inset-0 z-10"
+      />
+
       {stream ? (
         <StreamVideo stream={stream} className="h-full w-full bg-black object-contain" />
       ) : (
         <UserAvatar profile={profile} size={expanded ? 112 : 72} showStatus={false} />
+      )}
+
+      {hand && (
+        <span
+          title="Mão levantada"
+          className="clyro-pop-in absolute left-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg bg-idle text-base text-black"
+        >
+          ✋
+        </span>
+      )}
+
+      {reaction && (
+        <span className="clyro-pop-in pointer-events-none absolute inset-0 flex items-center justify-center text-6xl">
+          {reaction}
+        </span>
       )}
 
       <span className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-lg bg-black/60 px-2 py-1 text-xs text-white backdrop-blur-sm">
@@ -466,60 +516,103 @@ export function VoiceDock({
   const timer = useCallTimer(!rtc.connecting);
 
   return (
-    <div className="clyro-fade-in border-t border-border bg-rail px-3 py-2.5">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="min-w-0 flex-1 text-left"
-          title="Abrir a tela da chamada"
-        >
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-online">
-            <Signal size={12} />
-            {rtc.connecting ? "Conectando…" : `Voz conectada · ${timer}`}
-          </span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {title}
-            {subtitle ? ` / ${subtitle}` : ""}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={onLeave}
-          aria-label="Sair da chamada"
-          title="Sair da chamada"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
-        >
-          <PhoneOff size={15} />
-        </button>
-      </div>
+    <div className="clyro-fade-in border-t border-border bg-rail px-2 py-2">
+      <div className="rounded-lg bg-card p-2.5">
+        <div className="flex items-start gap-2">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="min-w-0 flex-1 text-left"
+            title="Abrir a tela da chamada"
+          >
+            <span className="flex items-center gap-1.5 text-[15px] font-semibold text-online">
+              <QualityBars quality={rtc.quality} />
+              {rtc.connecting ? "Conectando…" : "Voz conectada"}
+              {!rtc.connecting && (
+                <span className="text-xs font-normal text-muted-foreground">{timer}</span>
+              )}
+            </span>
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+              {title}
+              {subtitle ? ` / ${subtitle}` : ""}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onLeave}
+            aria-label="Desligar a chamada"
+            title="Desligar a chamada"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors duration-100 hover:bg-destructive hover:text-destructive-foreground"
+          >
+            <PhoneOff size={17} />
+          </button>
+        </div>
 
-      <div className="mt-2 flex items-center gap-1.5">
-        <DockButton
-          active={!rtc.muted}
-          onClick={rtc.toggleMute}
-          label={rtc.muted ? "Ativar microfone" : "Silenciar microfone"}
-          animateKey={rtc.muted ? "muted" : "live"}
-          animation={rtc.muted ? "clyro-mute" : "clyro-unmute"}
-        >
-          {rtc.muted ? <MicOff size={15} /> : <Mic size={15} />}
-        </DockButton>
-        <DockButton
-          active={rtc.sharingScreen}
-          onClick={() => void rtc.toggleScreen()}
-          label={rtc.sharingScreen ? "Parar de compartilhar" : "Compartilhar tela"}
-        >
-          {rtc.sharingScreen ? <MonitorX size={15} /> : <MonitorUp size={15} />}
-        </DockButton>
-        <DockButton
-          active={rtc.cameraOn}
-          onClick={() => void rtc.toggleCamera()}
-          label={rtc.cameraOn ? "Desligar câmera" : "Ligar câmera"}
-        >
-          {rtc.cameraOn ? <Video size={15} /> : <VideoOff size={15} />}
-        </DockButton>
+        <div className="mt-2.5 grid grid-cols-4 gap-1.5">
+          <DockButton
+            label={rtc.cameraOn ? "Desligar câmera" : "Ligar câmera"}
+            active={rtc.cameraOn}
+            onClick={() => void rtc.toggleCamera()}
+          >
+            {rtc.cameraOn ? <Video size={17} /> : <VideoOff size={17} />}
+          </DockButton>
+          <DockButton
+            label={rtc.sharingScreen ? "Parar de compartilhar" : "Compartilhar tela"}
+            active={rtc.sharingScreen}
+            onClick={() => void rtc.toggleScreen()}
+          >
+            <MonitorUp size={17} />
+          </DockButton>
+          <DockButton label="Reação" active={false} onClick={() => rtc.sendReaction("👋")}>
+            <Sparkles size={17} />
+          </DockButton>
+          <DockButton
+            label={rtc.handRaised ? "Baixar a mão" : "Levantar a mão"}
+            active={rtc.handRaised}
+            onClick={rtc.toggleHand}
+          >
+            <Hand size={17} />
+          </DockButton>
+        </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Três barras crescentes, como o indicador de sinal do Discord: a altura já
+ * comunica a qualidade sem precisar de texto.
+ */
+function QualityBars({ quality }: { quality: LinkQuality }) {
+  const lit = quality === "good" ? 3 : quality === "fair" ? 2 : quality === "poor" ? 1 : 0;
+  const label =
+    quality === "good"
+      ? "Conexão boa"
+      : quality === "fair"
+        ? "Conexão instável"
+        : quality === "poor"
+          ? "Conexão ruim"
+          : "Medindo a conexão";
+
+  return (
+    <span className="flex items-end gap-[2px]" title={label} aria-label={label} role="img">
+      {[5, 8, 11].map((height, index) => (
+        <span
+          key={height}
+          style={{ height }}
+          className={cn(
+            "w-[3px] rounded-full transition-colors duration-300",
+            index < lit
+              ? quality === "poor"
+                ? "bg-destructive"
+                : quality === "fair"
+                  ? "bg-idle"
+                  : "bg-online"
+              : "bg-muted-foreground/30",
+          )}
+        />
+      ))}
+    </span>
   );
 }
 

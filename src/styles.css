@@ -17,8 +17,13 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  /*
+   * O Discord usa "gg sans", proprietária. A Figtree é a aproximação livre mais
+   * próxima: grotesca geométrica de terminações macias e x-height alto, que é o
+   * que dá o ar arredondado da gg sans nos tamanhos de interface.
+   */
   --font-sans:
-    "Inter", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    "Figtree", "Noto Sans", "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-sans);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -71,91 +76,105 @@
 }
 
 :root {
-  --radius: 0.875rem;
-  /* Azul da marca — só o ícone, os campos do hero e os acentos usam isto. */
-  --brand: oklch(0.5 0.27 264);
-  --brand-strong: oklch(0.62 0.24 254);
-  --brand-soft: oklch(0.74 0.185 243);
-  --brand-abyss: oklch(0.04 0.012 265);
-  --background: oklch(0.155 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.255 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.25 0 0);
-  --muted-foreground: oklch(0.705 0 0);
-  --accent: oklch(0.295 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.62 0.19 25);
+  --radius: 0.5rem;
+  /*
+   * Paleta do Discord (tema escuro), convertida de sRGB para oklch:
+   * #1E1F22 trilha · #232428 cartão · #2B2D31 barra · #313338 conversa
+   * #5865F2 blurple · #00A8FC link · #23A55A online · #F23F43 ocupado
+   */
+  --brand: oklch(0.577 0.209 273.9);
+  --brand-strong: oklch(0.497 0.176 273.9);
+  --brand-soft: oklch(0.701 0.166 242);
+  --brand-abyss: oklch(0.16 0.006 271.2);
+  --background: oklch(0.321 0.009 268.4);
+  --foreground: oklch(0.964 0.003 264.5);
+  --card: oklch(0.261 0.008 274.7);
+  --card-foreground: oklch(0.964 0.003 264.5);
+  --popover: oklch(0.321 0.009 268.4);
+  --popover-foreground: oklch(0.964 0.003 264.5);
+  --primary: oklch(0.577 0.209 273.9);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.349 0.011 271.1);
+  --secondary-foreground: oklch(0.964 0.003 264.5);
+  --muted: oklch(0.337 0.009 268.4);
+  --muted-foreground: oklch(0.687 0.015 254.6);
+  --accent: oklch(0.38 0.012 273.1);
+  --accent-foreground: oklch(0.964 0.003 264.5);
+  --destructive: oklch(0.637 0.215 24.7);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.63 0.205 254);
-  --rail: oklch(0.11 0 0);
-  --rail-foreground: oklch(0.985 0 0);
-  --panel: oklch(0.185 0 0);
-  --panel-foreground: oklch(0.985 0 0);
-  --surface: oklch(0.155 0 0);
-  --stage: oklch(0.11 0 0);
-  --stage-foreground: oklch(0.985 0 0);
-  --online: oklch(0.72 0.16 150);
-  --idle: oklch(0.8 0.13 80);
-  --dnd: oklch(0.63 0.19 25);
-  --offline: oklch(0.56 0 0);
-  --sidebar: oklch(0.185 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.985 0 0);
-  --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.295 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.63 0.205 254);
+  --border: oklch(0.376 0.011 271.1);
+  --input: oklch(0.349 0.011 271.1);
+  --ring: oklch(0.577 0.209 273.9);
+  --rail: oklch(0.239 0.006 271.2);
+  --rail-foreground: oklch(0.964 0.003 264.5);
+  --panel: oklch(0.297 0.008 264.4);
+  --panel-foreground: oklch(0.964 0.003 264.5);
+  --surface: oklch(0.321 0.009 268.4);
+  --stage: oklch(0.239 0.006 271.2);
+  --stage-foreground: oklch(0.964 0.003 264.5);
+  --online: oklch(0.637 0.155 152.3);
+  --idle: oklch(0.801 0.151 80.5);
+  --dnd: oklch(0.637 0.215 24.7);
+  --offline: oklch(0.613 0.016 268.4);
+  --sidebar: oklch(0.297 0.008 264.4);
+  --sidebar-foreground: oklch(0.964 0.003 264.5);
+  --sidebar-primary: oklch(0.577 0.209 273.9);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.38 0.012 273.1);
+  --sidebar-accent-foreground: oklch(0.964 0.003 264.5);
+  --sidebar-border: oklch(0.376 0.011 271.1);
+  --sidebar-ring: oklch(0.577 0.209 273.9);
 }
 
 .dark {
-  --brand: oklch(0.5 0.27 264);
-  --brand-strong: oklch(0.62 0.24 254);
-  --brand-soft: oklch(0.74 0.185 243);
-  --brand-abyss: oklch(0.04 0.012 265);
-  --background: oklch(0.15 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.2 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.2 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.25 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.25 0 0);
-  --muted-foreground: oklch(0.705 0 0);
-  --accent: oklch(0.29 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.62 0.19 25);
+  --radius: 0.5rem;
+  /*
+   * Paleta do Discord (tema escuro), convertida de sRGB para oklch:
+   * #1E1F22 trilha · #232428 cartão · #2B2D31 barra · #313338 conversa
+   * #5865F2 blurple · #00A8FC link · #23A55A online · #F23F43 ocupado
+   */
+  --brand: oklch(0.577 0.209 273.9);
+  --brand-strong: oklch(0.497 0.176 273.9);
+  --brand-soft: oklch(0.701 0.166 242);
+  --brand-abyss: oklch(0.16 0.006 271.2);
+  --background: oklch(0.321 0.009 268.4);
+  --foreground: oklch(0.964 0.003 264.5);
+  --card: oklch(0.261 0.008 274.7);
+  --card-foreground: oklch(0.964 0.003 264.5);
+  --popover: oklch(0.321 0.009 268.4);
+  --popover-foreground: oklch(0.964 0.003 264.5);
+  --primary: oklch(0.577 0.209 273.9);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.349 0.011 271.1);
+  --secondary-foreground: oklch(0.964 0.003 264.5);
+  --muted: oklch(0.337 0.009 268.4);
+  --muted-foreground: oklch(0.687 0.015 254.6);
+  --accent: oklch(0.38 0.012 273.1);
+  --accent-foreground: oklch(0.964 0.003 264.5);
+  --destructive: oklch(0.637 0.215 24.7);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(1 0 0 / 13%);
-  --input: oklch(1 0 0 / 17%);
-  --ring: oklch(0.63 0.205 254);
-  --rail: oklch(0.11 0 0);
-  --rail-foreground: oklch(0.985 0 0);
-  --panel: oklch(0.18 0 0);
-  --panel-foreground: oklch(0.985 0 0);
-  --surface: oklch(0.15 0 0);
-  --stage: oklch(0.11 0 0);
-  --stage-foreground: oklch(0.985 0 0);
-  --sidebar: oklch(0.18 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.985 0 0);
-  --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.29 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 13%);
-  --sidebar-ring: oklch(0.63 0.205 254);
+  --border: oklch(0.376 0.011 271.1);
+  --input: oklch(0.349 0.011 271.1);
+  --ring: oklch(0.577 0.209 273.9);
+  --rail: oklch(0.239 0.006 271.2);
+  --rail-foreground: oklch(0.964 0.003 264.5);
+  --panel: oklch(0.297 0.008 264.4);
+  --panel-foreground: oklch(0.964 0.003 264.5);
+  --surface: oklch(0.321 0.009 268.4);
+  --stage: oklch(0.239 0.006 271.2);
+  --stage-foreground: oklch(0.964 0.003 264.5);
+  --online: oklch(0.637 0.155 152.3);
+  --idle: oklch(0.801 0.151 80.5);
+  --dnd: oklch(0.637 0.215 24.7);
+  --offline: oklch(0.613 0.016 268.4);
+  --sidebar: oklch(0.297 0.008 264.4);
+  --sidebar-foreground: oklch(0.964 0.003 264.5);
+  --sidebar-primary: oklch(0.577 0.209 273.9);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.38 0.012 273.1);
+  --sidebar-accent-foreground: oklch(0.964 0.003 264.5);
+  --sidebar-border: oklch(0.376 0.011 271.1);
+  --sidebar-ring: oklch(0.577 0.209 273.9);
 }
 
 @layer base {
@@ -172,9 +191,19 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-optical-sizing: auto;
-    font-feature-settings: "cv05", "ss03";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/*
+ * Iconografia: o lucide marca todo SVG com .lucide, então uma regra só deixa a
+ * espessura de traço consistente em cada ícone da interface, sem precisar
+ * passar strokeWidth em centenas de lugares.
+ */
+@layer base {
+  .lucide {
+    stroke-width: 1.75;
   }
 }
 
@@ -190,8 +219,27 @@
   }
 }
 
+/*
+ * Anel de quem está falando. É uma borda estável, não um pulso: quem entra e
+ * sai é a opacidade, então a transição é suave nas duas pontas e nada remonta
+ * a cada palavra.
+ */
 @utility speaking-ring {
   box-shadow: 0 0 0 2px var(--color-online);
+}
+
+@utility speaking-halo {
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 2px var(--color-online),
+    0 0 0 1px color-mix(in oklch, var(--color-online) 45%, transparent),
+    0 0 18px -2px color-mix(in oklch, var(--color-online) 55%, transparent);
+  opacity: 0;
+  transition: opacity 0.22s var(--ease-clyro);
+
+  &[data-speaking="true"] {
+    opacity: 1;
+  }
 }
 
 /*
@@ -269,6 +317,7 @@
   }
 }
 
+/* Pulso infinito: só nas maquetes da landing, nunca na chamada de verdade. */
 @utility speaking-pulse {
   animation: clyro-speaking 1.4s ease-in-out infinite;
 }
@@ -525,5 +574,9 @@
 
   .clyro-lift:hover {
     transform: none;
+  }
+
+  .speaking-halo {
+    transition: none;
   }
 }

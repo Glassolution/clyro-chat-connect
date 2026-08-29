@@ -252,15 +252,15 @@ export function HomeSidebar({
               type="button"
               onClick={() => onSelect({ kind: "friends" })}
               className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors hover:bg-accent",
-                selection.kind === "friends" && "bg-accent",
+                "flex w-full items-center gap-3 rounded px-2 py-1.5 text-[15px] font-medium text-muted-foreground transition-colors duration-100 hover:bg-[var(--color-muted)] hover:text-foreground",
+                selection.kind === "friends" && "bg-accent text-foreground",
               )}
             >
               <Users size={16} /> Amigos
             </button>
           </div>
-          <div className="flex items-center justify-between px-4 pb-1 pt-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="flex items-center justify-between px-3 pb-1 pt-4">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.02em] text-muted-foreground">
               Mensagens diretas — {directList.length}
             </span>
             <button
@@ -285,12 +285,17 @@ export function HomeSidebar({
                     type="button"
                     onClick={() => onSelect({ kind: "dm", conversationId: conversation.id })}
                     className={cn(
-                      "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent",
+                      "flex w-full items-center gap-3 rounded px-2 py-1.5 text-left transition-colors duration-100 hover:bg-[var(--color-muted)]",
                       active && "bg-accent",
                     )}
                   >
-                    <UserAvatar profile={single} size={30} showStatus={!conversation.is_group} />
-                    <span className="min-w-0 flex-1 truncate text-sm">
+                    <UserAvatar profile={single} size={32} showStatus={!conversation.is_group} />
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 truncate text-[15px] font-medium",
+                        active ? "text-foreground" : "text-muted-foreground",
+                      )}
+                    >
                       {conversationTitle(conversation, profiles, user?.id)}
                     </span>
                   </button>

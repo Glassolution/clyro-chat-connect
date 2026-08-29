@@ -9,11 +9,28 @@ import { audioConstraints, useAudioSettings } from "@/lib/audio-settings";
  */
 
 export type RemotePeer = {
+  /** Id da conexão (único por aba), não do usuário. */
   id: string;
+  /** Usuário por trás da conexão — é por ele que a interface acha o perfil. */
+  userId: string;
   stream: MediaStream;
   speaking: boolean;
   hasVideo: boolean;
 };
+
+/** Qualidade estimada do enlace, para o indicador da barra de voz. */
+export type LinkQuality = "good" | "fair" | "poor" | "unknown";
+
+/**
+ * A identidade na sinalização é por aba, não por usuário: com a chave de
+ * presença sendo o id do usuário, duas abas da mesma conta colidiam e uma
+ * derrubava a presença da outra — cada uma ficava sozinha na sala.
+ */
+const CONNECTION_SUFFIX = Math.random().toString(36).slice(2, 10);
+
+export function userIdOfPeer(peerId: string) {
+  return peerId.split("__")[0] ?? peerId;
+}
 
 type SignalPayload = {
   from: string;
@@ -22,15 +39,44 @@ type SignalPayload = {
   candidate?: RTCIceCandidateInit;
 };
 
+/**
+ * STUN só resolve NAT simétrico parcialmente. Sem um TURN configurado, dois
+ * participantes atrás de NAT simétrico (móvel, rede corporativa, parte dos
+ * provedores domésticos) trocam candidatos e nunca conectam — que é exatamente
+ * a sensação de "cada um sozinho na própria call". As variáveis abaixo ligam o
+ * relay quando existirem.
+ */
+const TURN_URL = import.meta.env["VITE_TURN_URL"] as string | undefined;
+const TURN_USERNAME = import.meta.env["VITE_TURN_USERNAME"] as string | undefined;
+const TURN_CREDENTIAL = import.meta.env["VITE_TURN_CREDENTIAL"] as string | undefined;
+
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
     { urls: ["stun:global.stun.twilio.com:3478"] },
+    ...(TURN_URL
+      ? [
+          {
+            urls: TURN_URL,
+            username: TURN_USERNAME ?? "",
+            credential: TURN_CREDENTIAL ?? "",
+          },
+        ]
+      : []),
   ],
 };
 
-export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
+export const hasTurnRelay = Boolean(TURN_URL);
+
+export function useVoiceRoom(roomKey: string | null, userId: string | null) {
+  /** Id desta aba na sinalização. O id do usuário continua vindo antes do "__". */
+  const selfId = userId ? `${userId}__${CONNECTION_SUFFIX}` : null;
   const [peers, setPeers] = useState<Record<string, RemotePeer>>({});
+  const [quality, setQuality] = useState<LinkQuality>("unknown");
+  const [raisedHands, setRaisedHands] = useState<string[]>([]);
+  const [handRaised, setHandRaised] = useState(false);
+  /** Reações efêmeras recebidas: some sozinho depois de alguns segundos. */
+  const [reactions, setReactions] = useState<{ id: string; userId: string; emoji: string }[]>([]);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [localSpeaking, setLocalSpeaking] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -134,7 +180,13 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
       const remoteStream = new MediaStream();
       setPeers((prev) => ({
         ...prev,
-        [peerId]: { id: peerId, stream: remoteStream, speaking: false, hasVideo: false },
+        [peerId]: {
+          id: peerId,
+          userId: userIdOfPeer(peerId),
+          stream: remoteStream,
+          speaking: false,
+          hasVideo: false,
+        },
       }));
 
       pc.ontrack = (event) => {
@@ -147,6 +199,7 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
           ...prev,
           [peerId]: {
             id: peerId,
+            userId: userIdOfPeer(peerId),
             stream: remoteStream,
             speaking: prev[peerId]?.speaking ?? false,
             hasVideo: remoteStream.getVideoTracks().some((t) => t.readyState === "live"),
@@ -193,6 +246,18 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
 
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "failed") pc.restartIce();
+      };
+
+      // "disconnected" costuma ser rede oscilando: um restart cedo recupera a
+      // sessão antes de ela morrer de vez.
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+          try {
+            pc.restartIce();
+          } catch {
+            /* navegador antigo sem restartIce */
+          }
+        }
       };
 
       void polite;
@@ -252,8 +317,14 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
       channel.on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
         const ids = Object.keys(state).filter((id) => id !== selfId);
+        /*
+         * Os dois lados criam a conexão. Antes só o lado de id menor criava, e
+         * o outro só nascia no meio do tratamento de uma oferta — o pior momento
+         * possível, porque é exatamente aí que a colisão de ofertas acontece.
+         * Com a criação simétrica, a negociação educada resolve a colisão sozinha.
+         */
         ids.forEach((id) => {
-          if (!pcsRef.current.has(id) && selfId < id) createPeer(id);
+          if (!pcsRef.current.has(id)) createPeer(id);
         });
         pcsRef.current.forEach((_pc, id) => {
           if (!ids.includes(id)) removePeer(id);
@@ -273,6 +344,32 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
           const has = prev.includes(data.from);
           if (data.sharing && !has) return [...prev, data.from];
           if (!data.sharing && has) return prev.filter((id) => id !== data.from);
+          return prev;
+        });
+      });
+
+      channel.on("broadcast", { event: "reaction" }, ({ payload }) => {
+        const data = payload as { from: string; emoji: string };
+        if (!data || data.from === selfId) return;
+        const entry = {
+          id: `${data.from}-${Date.now()}`,
+          userId: userIdOfPeer(data.from),
+          emoji: data.emoji,
+        };
+        setReactions((prev) => [...prev, entry]);
+        window.setTimeout(() => {
+          setReactions((prev) => prev.filter((r) => r.id !== entry.id));
+        }, 4000);
+      });
+
+      channel.on("broadcast", { event: "raise-hand" }, ({ payload }) => {
+        const data = payload as { from: string; raised: boolean };
+        if (!data || data.from === selfId) return;
+        const owner = userIdOfPeer(data.from);
+        setRaisedHands((prev) => {
+          const has = prev.includes(owner);
+          if (data.raised && !has) return [...prev, owner];
+          if (!data.raised && has) return prev.filter((id) => id !== owner);
           return prev;
         });
       });
@@ -353,31 +450,130 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     };
   }, [roomKey, selfId, createPeer, removePeer, send, attachAnalyser]);
 
+  /**
+   * Qualidade do enlace: tempo de ida e volta e perda de pacotes lidos do
+   * próprio WebRTC. É o que alimenta o indicador da barra de voz.
+   */
+  useEffect(() => {
+    if (!roomKey) return;
+    const timer = window.setInterval(async () => {
+      const connections = [...pcsRef.current.values()];
+      if (connections.length === 0) {
+        setQuality("unknown");
+        return;
+      }
+      let worst: LinkQuality = "good";
+      for (const pc of connections) {
+        try {
+          const stats = await pc.getStats();
+          let rtt = 0;
+          let lossRatio = 0;
+          stats.forEach((report) => {
+            if (report.type === "candidate-pair" && report.state === "succeeded") {
+              rtt = Math.max(rtt, (report.currentRoundTripTime ?? 0) * 1000);
+            }
+            if (report.type === "inbound-rtp" && !report.isRemote) {
+              const lost = report.packetsLost ?? 0;
+              const received = report.packetsReceived ?? 0;
+              if (received + lost > 0) lossRatio = Math.max(lossRatio, lost / (received + lost));
+            }
+          });
+          const level: LinkQuality =
+            rtt > 300 || lossRatio > 0.08
+              ? "poor"
+              : rtt > 150 || lossRatio > 0.02
+                ? "fair"
+                : "good";
+          if (level === "poor") worst = "poor";
+          else if (level === "fair" && worst !== "poor") worst = "fair";
+        } catch {
+          /* getStats pode falhar durante a renegociação */
+        }
+      }
+      setQuality(worst);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [roomKey]);
+
   // ---- speaking detection -------------------------------------------------
   useEffect(() => {
     if (!roomKey) return;
     const buffer = new Uint8Array(256);
-    const START = 0.035;
-    const STOP = 0.018;
-    const HOLD_MS = 320;
+    // Envelope: sobe na hora, desce devagar — cobre o silêncio entre sílabas
+    // sem esperar o áudio inteiro cair.
+    const RELEASE = 0.78;
+    // Sustenta a borda através das pausas naturais entre palavras.
+    const HOLD_MS = 600;
+    // Rede de segurança: sem nenhum pico neste intervalo a borda apaga, doa a
+    // quem doer. É o que garante que ela nunca fique acesa para sempre.
+    const MAX_SILENCE_MS = 1400;
+    // Limiares mínimos, para microfone muito silencioso não virar gatilho leve.
+    const FLOOR_MIN = 0.004;
+    const START_MIN = 0.03;
+    const STOP_MIN = 0.016;
+    // Janela do rastreador de ruído: precisa ser maior que uma pausa entre
+    // palavras, para conter pelo menos um trecho de silêncio real.
+    const FLOOR_WINDOW = 40;
 
-    const level = (analyser: AnalyserNode) => {
+    const envelopes = new Map<string, number>();
+    const floorSamples = new Map<string, number[]>();
+    const lastPeak = new Map<string, number>();
+
+    const level = (analyser: AnalyserNode, id: string) => {
       analyser.getByteTimeDomainData(buffer);
       let sum = 0;
       for (let i = 0; i < buffer.length; i += 1) {
         const v = ((buffer[i] ?? 128) - 128) / 128;
         sum += v * v;
       }
-      return Math.sqrt(sum / buffer.length);
+      const rms = Math.sqrt(sum / buffer.length);
+
+      // O piso vem do rms cru, não do envelope: entre sílabas o cru cai ao nível
+      // do ambiente na hora, enquanto o envelope ainda está descendo.
+      const samples = floorSamples.get(id) ?? [];
+      samples.push(rms);
+      if (samples.length > FLOOR_WINDOW) samples.shift();
+      floorSamples.set(id, samples);
+
+      const previous = envelopes.get(id) ?? 0;
+      const envelope = Math.max(rms, previous * RELEASE);
+      envelopes.set(id, envelope);
+      return envelope;
     };
 
-    const isSpeaking = (id: string, rms: number, wasSpeaking: boolean) => {
+    /**
+     * O ruído do ambiente é o menor valor visto na janela — durante a fala
+     * sempre há uma pausa que encosta nele, e no silêncio ele é o próprio sinal.
+     * Um limiar fixo não dá conta: sala barulhenta acima dele mantinha a borda
+     * acesa para sempre.
+     */
+    const noiseFloor = (id: string) => {
+      const samples = floorSamples.get(id);
+      if (!samples || samples.length === 0) return FLOOR_MIN;
+      return Math.max(FLOOR_MIN, Math.min(...samples));
+    };
+
+    /**
+     * Limiares relativos ao ruído medido, não absolutos.
+     */
+    const isSpeaking = (id: string, envelope: number, wasSpeaking: boolean) => {
       const now = Date.now();
-      if (rms > START) {
+      const floor = noiseFloor(id);
+
+      const startAt = Math.max(START_MIN, floor * 4);
+      const stopAt = Math.max(STOP_MIN, floor * 2.2);
+
+      if (envelope > startAt) lastPeak.set(id, now);
+
+      const peak = lastPeak.get(id) ?? 0;
+      // Sem pico recente a borda cai, mesmo que o ruído continue alto.
+      if (now - peak > MAX_SILENCE_MS) return false;
+
+      if (envelope > (wasSpeaking ? stopAt : startAt)) {
         speakingSinceRef.current.set(id, now);
         return true;
       }
-      if (wasSpeaking && rms > STOP) return true;
+
       const last = speakingSinceRef.current.get(id) ?? 0;
       return wasSpeaking && now - last < HOLD_MS;
     };
@@ -387,12 +583,12 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     const loop = () => {
       const remote = new Map<string, number>();
       analysersRef.current.forEach((analyser, id) => {
-        const rms = level(analyser);
+        const envelope = level(analyser, id);
         if (id === "__self") {
-          selfSpeaking = !mutedRef.current && isSpeaking("__self", rms, selfSpeaking);
+          selfSpeaking = !mutedRef.current && isSpeaking("__self", envelope, selfSpeaking);
           setLocalSpeaking(selfSpeaking);
         } else {
-          remote.set(id, rms);
+          remote.set(id, envelope);
         }
       });
 
@@ -402,8 +598,8 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
         Object.keys(next).forEach((id) => {
           const current = next[id];
           if (!current) return;
-          const rms = remote.get(id) ?? 0;
-          const speaking = deafenedRef.current ? false : isSpeaking(id, rms, current.speaking);
+          const envelope = remote.get(id) ?? 0;
+          const speaking = deafenedRef.current ? false : isSpeaking(id, envelope, current.speaking);
           if (current.speaking !== speaking) {
             next[id] = { ...current, speaking };
             changed = true;
@@ -412,11 +608,14 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
         return changed ? next : prev;
       });
 
-      rafRef.current = window.setTimeout(loop, 90) as unknown as number;
+      rafRef.current = window.setTimeout(loop, 60) as unknown as number;
     };
     loop();
     return () => {
       if (rafRef.current) window.clearTimeout(rafRef.current);
+      envelopes.clear();
+      floorSamples.clear();
+      lastPeak.clear();
       setLocalSpeaking(false);
     };
   }, [roomKey]);
@@ -562,8 +761,36 @@ export function useVoiceRoom(roomKey: string | null, selfId: string | null) {
     }
   }, [cameraOn, addExtraTrack, removeExtraTrack]);
 
+  const toggleHand = useCallback(() => {
+    setHandRaised((prev) => {
+      const next = !prev;
+      send("raise-hand", { from: selfId ?? "", raised: next });
+      return next;
+    });
+  }, [send, selfId]);
+
+  const sendReaction = useCallback(
+    (emoji: string) => {
+      if (!selfId) return;
+      send("reaction", { from: selfId, emoji });
+      const entry = { id: `${selfId}-${Date.now()}`, userId: userIdOfPeer(selfId), emoji };
+      setReactions((prev) => [...prev, entry]);
+      window.setTimeout(() => {
+        setReactions((prev) => prev.filter((r) => r.id !== entry.id));
+      }, 4000);
+    },
+    [send, selfId],
+  );
+
   return {
     peers: Object.values(peers),
+    quality,
+    reactions,
+    sendReaction,
+    raisedHands,
+    handRaised,
+    toggleHand,
+    hasTurnRelay,
     localStream,
     screenStream,
     localSpeaking,

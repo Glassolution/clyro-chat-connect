@@ -59,14 +59,14 @@ export function DiscoverPanel({ onOpenServer }: { onOpenServer: (serverId: strin
         <div className="mx-auto max-w-[1400px] px-5 pb-16 pt-6 sm:px-8">
           {/* abas de ordenação e busca, na mesma linha */}
           <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="flex shrink-0 items-center gap-1 rounded-full bg-panel p-1">
+            <div className="flex shrink-0 items-center gap-1 rounded bg-rail p-1">
               {SORTS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => setSort(option.value)}
                   className={cn(
-                    "rounded-full px-4 py-1.5 text-sm transition-colors duration-200",
+                    "rounded px-4 py-1.5 text-sm font-medium transition-colors duration-100",
                     sort === option.value
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground",
@@ -87,7 +87,7 @@ export function DiscoverPanel({ onOpenServer }: { onOpenServer: (serverId: strin
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Buscar comunidade"
                 aria-label="Buscar comunidade"
-                className="h-10 w-full rounded-xl border border-border bg-panel pl-9 pr-3 text-sm text-foreground outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-muted-foreground focus:border-foreground/25 focus:ring-1 focus:ring-ring"
+                className="h-9 w-full rounded bg-rail pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
           </div>
@@ -190,19 +190,14 @@ function CommunityCard({
         </div>
 
         {community.is_member ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="shrink-0 rounded-full px-4"
-            onClick={onOpen}
-          >
+          <Button size="sm" variant="secondary" className="shrink-0 rounded px-4" onClick={onOpen}>
             Abrir
           </Button>
         ) : (
           <Button
             size="sm"
             variant="secondary"
-            className="shrink-0 rounded-full px-4"
+            className="shrink-0 rounded px-4"
             onClick={onJoin}
             disabled={busy}
           >

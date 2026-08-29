@@ -89,7 +89,11 @@ export function LandingNav({ signedIn }: { signedIn: boolean }) {
               Sign in
             </Link>
           )}
-          <Button asChild size="sm" className="h-10 rounded-full px-5 font-medium">
+          <Button
+            asChild
+            size="sm"
+            className="h-10 rounded-full bg-white px-5 font-medium text-[var(--color-rail)] hover:bg-white/90"
+          >
             <Link to={signedIn ? "/app" : "/auth"}>
               {signedIn ? "Open Clyro" : "Create account"}
             </Link>
@@ -302,7 +306,11 @@ export function LandingHero({ signedIn }: { signedIn: boolean }) {
             className="clyro-enter mt-12 flex flex-wrap items-center gap-3 lg:mt-16 lg:justify-center"
             style={{ animationDelay: "340ms" }}
           >
-            <Button asChild size="lg" className="h-12 rounded-full px-7 text-[15px] font-medium">
+            <Button
+              asChild
+              size="lg"
+              className="h-12 rounded-full bg-white px-7 text-[15px] font-medium text-[var(--color-rail)] hover:bg-white/90"
+            >
               <Link to={signedIn ? "/app" : "/auth"}>
                 {signedIn ? "Open Clyro" : "Start your space"}
               </Link>
@@ -1045,7 +1053,11 @@ export function LandingCta({ signedIn }: { signedIn: boolean }) {
           Create the space, publish the first update and send the link to the people already
           watching you. The community grows from there.
         </p>
-        <Button asChild size="lg" className="group mt-9 h-12 rounded-full px-7 font-medium">
+        <Button
+          asChild
+          size="lg"
+          className="group mt-9 h-12 rounded-full bg-white px-7 font-medium text-[var(--color-rail)] hover:bg-white/90"
+        >
           <Link to={signedIn ? "/app" : "/auth"}>
             {signedIn ? "Open Clyro" : "Start your space"}
             <ArrowRight className="transition-transform duration-300 ease-clyro group-hover:translate-x-0.5" />

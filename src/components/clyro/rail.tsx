@@ -1,22 +1,9 @@
 import { useState } from "react";
-import { Plus, Compass, Hash, Search } from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Hash, Search } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { ClyroMark } from "./primitives";
+import { CreateServerFlow } from "./create-server-flow";
 import { initialsOf, type Server } from "@/lib/clyro-types";
 
 export function ServerRail({
@@ -41,60 +28,6 @@ export function ServerRail({
   userId: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const createServer = async () => {
-    if (!name.trim()) return;
-    setBusy(true);
-    const { data, error } = await supabase
-      .from("servers")
-      .insert({ name: name.trim(), owner_id: userId })
-      .select("id")
-      .single();
-    if (error || !data) {
-      setBusy(false);
-      toast.error("Não foi possível criar o servidor.");
-      return;
-    }
-    await supabase
-      .from("server_members")
-      .insert({ server_id: data.id, user_id: userId, role: "owner" });
-    await supabase.from("channels").insert([
-      { server_id: data.id, name: "geral", kind: "text", position: 0 },
-      { server_id: data.id, name: "avisos", kind: "text", position: 1 },
-      { server_id: data.id, name: "Sala de voz", kind: "voice", position: 2 },
-    ]);
-    setBusy(false);
-    setName("");
-    setOpen(false);
-    onChanged();
-    onSelectServer(data.id);
-    toast.success("Servidor criado.");
-  };
-
-  const joinServer = async () => {
-    if (!code.trim()) return;
-    setBusy(true);
-    const { data, error } = await supabase.rpc("join_server_by_invite", {
-      _code: code.trim(),
-    });
-    setBusy(false);
-    if (error) {
-      toast.error("Não foi possível entrar.");
-      return;
-    }
-    if (!data) {
-      toast.error("Convite inválido.");
-      return;
-    }
-    setCode("");
-    setOpen(false);
-    onChanged();
-    onSelectServer(data);
-    toast.success("Você entrou no servidor.");
-  };
 
   return (
     <nav className="flex h-full w-[72px] shrink-0 flex-col items-center gap-2 bg-rail py-3 text-rail-foreground">
@@ -123,64 +56,33 @@ export function ServerRail({
           </RailButton>
         ))}
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DialogTrigger asChild>
-                <button
-                  type="button"
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-dashed border-rail-foreground/25 text-rail-foreground/70 transition-all hover:rounded-xl hover:border-rail-foreground/60 hover:text-rail-foreground"
-                  aria-label="Adicionar servidor"
-                >
-                  <Plus size={18} />
-                </button>
-              </DialogTrigger>
-            </TooltipTrigger>
-            <TooltipContent side="right">Adicionar servidor</TooltipContent>
-          </Tooltip>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Servidores</DialogTitle>
-              <DialogDescription>
-                Crie um espaço novo ou entre com um código de convite.
-              </DialogDescription>
-            </DialogHeader>
-            <Tabs defaultValue="create">
-              <TabsList className="w-full">
-                <TabsTrigger value="create" className="flex-1">
-                  Criar
-                </TabsTrigger>
-                <TabsTrigger value="join" className="flex-1">
-                  Entrar
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="create" className="space-y-3 pt-4">
-                <Label htmlFor="server-name">Nome do servidor</Label>
-                <Input
-                  id="server-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Time de design"
-                />
-                <Button className="w-full" onClick={() => void createServer()} disabled={busy}>
-                  Criar servidor
-                </Button>
-              </TabsContent>
-              <TabsContent value="join" className="space-y-3 pt-4">
-                <Label htmlFor="invite">Código de convite</Label>
-                <Input
-                  id="invite"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="a1b2c3d4"
-                />
-                <Button className="w-full" onClick={() => void joinServer()} disabled={busy}>
-                  <Compass size={16} /> Entrar no servidor
-                </Button>
-              </TabsContent>
-            </Tabs>
-          </DialogContent>
-        </Dialog>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px] border border-dashed border-online/40 bg-card text-online transition-all duration-200 ease-clyro hover:rounded-2xl hover:border-online hover:bg-online hover:text-rail"
+              aria-label="Adicionar servidor"
+            >
+              <Plus size={18} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Adicionar servidor</TooltipContent>
+        </Tooltip>
+
+        <CreateServerFlow
+          open={open}
+          onOpenChange={setOpen}
+          userId={userId}
+          onCreated={(id) => {
+            onChanged();
+            onSelectServer(id);
+          }}
+          onJoined={(id) => {
+            onChanged();
+            onSelectServer(id);
+          }}
+        />
       </div>
     </nav>
   );
@@ -220,9 +122,9 @@ function RailButton({
           />
           <span
             className={cn(
-              "flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-rail-foreground/10 text-rail-foreground transition-all group-hover:rounded-xl group-hover:bg-rail-foreground/20",
-              active && variant === "fill" && "rounded-xl bg-rail-foreground text-rail",
-              active && variant === "plain" && "rounded-xl bg-rail-foreground/20",
+              "flex h-12 w-12 items-center justify-center overflow-hidden rounded-[24px] bg-card text-rail-foreground transition-all duration-200 ease-clyro group-hover:rounded-2xl group-hover:bg-primary group-hover:text-primary-foreground",
+              active && variant === "fill" && "rounded-2xl bg-primary text-primary-foreground",
+              active && variant === "plain" && "rounded-2xl bg-primary text-primary-foreground",
             )}
           >
             {children}

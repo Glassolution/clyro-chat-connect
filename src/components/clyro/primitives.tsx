@@ -80,10 +80,13 @@ export function UserAvatar({
   const name = profile?.display_name || profile?.username || "?";
   const dotSize = Math.max(8, Math.round(size * 0.3));
   return (
-    <span className={cn("relative inline-flex shrink-0", className)} style={{ width: size, height: size }}>
+    <span
+      className={cn("relative inline-flex shrink-0", className)}
+      style={{ width: size, height: size }}
+    >
       <span
         className={cn(
-          "flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground font-medium transition-shadow",
+          "flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground font-medium transition-shadow duration-200 ease-clyro",
           speaking && "speaking-ring",
         )}
         style={{ fontSize: Math.max(10, size * 0.36) }}

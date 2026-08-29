@@ -51,7 +51,7 @@ export function ProfilePanel({
             </span>
           </div>
 
-          <h2 className="truncate text-lg font-semibold leading-tight">
+          <h2 className="truncate text-xl font-bold leading-tight">
             {profile.display_name || profile.username}
           </h2>
           <p className="truncate text-sm text-muted-foreground">
@@ -65,25 +65,25 @@ export function ProfilePanel({
           </p>
 
           {profile.bio && (
-            <div className="mt-4 rounded-xl border border-border bg-card p-3">
+            <div className="mt-4 rounded-lg bg-rail p-3">
               <Field label="Sobre mim" />
               <p className="mt-1 whitespace-pre-line text-sm">{profile.bio}</p>
             </div>
           )}
 
           {profile.activity && (
-            <div className="mt-4 rounded-xl border border-border bg-card p-3">
+            <div className="mt-4 rounded-lg bg-rail p-3">
               <Field label="Atividade" />
               <p className="mt-1 text-sm">{profile.activity}</p>
             </div>
           )}
 
-          <div className="mt-4 rounded-xl border border-border bg-card p-3">
+          <div className="mt-4 rounded-lg bg-rail p-3">
             <Field label="Membro desde" />
             <p className="mt-1 text-sm">{memberSince.format(new Date(profile.created_at))}</p>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 rounded-lg bg-rail p-3">
             <Field label={`Servidores em comum — ${mutualServers.length}`} />
             {mutualServers.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">
@@ -94,9 +94,9 @@ export function ProfilePanel({
                 {mutualServers.map((server) => (
                   <li
                     key={server.id}
-                    className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent"
+                    className="flex items-center gap-2.5 rounded px-2 py-1.5 transition-colors duration-100 hover:bg-[var(--color-muted)]"
                   >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary text-[10px] font-semibold">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary text-[10px] font-semibold">
                       {server.icon_url ? (
                         <img src={server.icon_url} alt="" className="h-full w-full object-cover" />
                       ) : (
