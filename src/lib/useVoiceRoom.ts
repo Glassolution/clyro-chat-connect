@@ -167,9 +167,24 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   // reabrir o microfone nem derrubar a chamada.
   useEffect(() => {
     const track = localStreamRef.current?.getAudioTracks()[0];
-    if (!track) return;
-    void track.applyConstraints(audioConstraints(audioSettings)).catch(() => {
-      // Nem todo dispositivo aceita trocar em tempo real; vale na próxima captura.
+    if (track) {
+      void track.applyConstraints(audioConstraints(audioSettings)).catch(() => {
+        // Nem todo dispositivo aceita trocar em tempo real; vale na próxima captura.
+      });
+    }
+    // O teto de bitrate da voz também acompanha a preferência, sem renegociar.
+    const bitrate = voiceBitrate(audioSettings);
+    pcsRef.current.forEach((pc) => {
+      pc.getSenders()
+        .filter((s) => s.track?.kind === "audio")
+        .forEach((sender) => {
+          const params = sender.getParameters();
+          if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+          params.encodings = params.encodings.map((e) => ({ ...e, maxBitrate: bitrate }));
+          void sender.setParameters(params).catch(() => {
+            /* alguns navegadores recusam */
+          });
+        });
     });
   }, [audioSettings]);
 
@@ -337,7 +352,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       void polite;
       return pc;
     },
-    [selfId, send, attachAnalyser],
+    [selfId, send, attachAnalyser, boostVoice],
   );
 
   const removePeer = useCallback((peerId: string) => {
