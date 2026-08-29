@@ -470,11 +470,15 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
             }
             if (data.description.type === "offer") {
               await pc.setLocalDescription();
+              boostVoice(pc);
               if (pc.localDescription) {
                 send("signal", {
                   from: selfId,
                   to: peerId,
-                  description: pc.localDescription.toJSON(),
+                  description: withHighQualityAudio(
+                    pc.localDescription.toJSON(),
+                    audioSettingsRef.current,
+                  ),
                 });
               }
             }
