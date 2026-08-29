@@ -17,6 +17,8 @@ export type MediaSettings = {
   screenResolution: ScreenResolution;
   /** Quadros por segundo da tela compartilhada. */
   screenFps: ScreenFps;
+  /** Avisos sonoros de entrada, saída e compartilhamento de tela. */
+  sounds: boolean;
 };
 
 /** Alturas oferecidas na transmissão de tela — 720p a 4K. */
@@ -35,6 +37,7 @@ export const MEDIA_DEFAULTS: MediaSettings = {
   highFidelity: true,
   screenResolution: 1080,
   screenFps: 30,
+  sounds: true,
 };
 
 const STORAGE_KEY = "clyro:media-settings";

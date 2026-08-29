@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  ChevronUp,
   Hand,
   Headphones,
   HeadphoneOff,
@@ -16,7 +17,24 @@ import {
   VideoOff,
   Volume2,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import {
+  setMediaSetting,
+  useMediaSettings,
+  SCREEN_FPS,
+  SCREEN_RESOLUTIONS,
+  type ScreenFps,
+  type ScreenResolution,
+} from "@/lib/media-settings";
 import type { Profile } from "@/lib/clyro-types";
 import type { LinkQuality, RemotePeer } from "@/lib/useVoiceRoom";
 import { UserAvatar } from "./primitives";
@@ -357,13 +375,18 @@ function ConnectedStage({
         >
           {rtc.cameraOn ? <Video size={18} /> : <VideoOff size={18} />}
         </ControlButton>
-        <ControlButton
-          active={rtc.sharingScreen}
-          onClick={() => void rtc.toggleScreen()}
-          label={rtc.sharingScreen ? "Parar de compartilhar" : "Compartilhar tela"}
-        >
-          {rtc.sharingScreen ? <MonitorX size={18} /> : <MonitorUp size={18} />}
-        </ControlButton>
+        {/* A qualidade fica colada no botão de compartilhar: é onde a pessoa
+            procura, não enterrada nas configurações. */}
+        <span className="relative flex items-center">
+          <ControlButton
+            active={rtc.sharingScreen}
+            onClick={() => void rtc.toggleScreen()}
+            label={rtc.sharingScreen ? "Parar de compartilhar" : "Compartilhar tela"}
+          >
+            {rtc.sharingScreen ? <MonitorX size={18} /> : <MonitorUp size={18} />}
+          </ControlButton>
+          <ScreenQualityMenu />
+        </span>
         <button
           type="button"
           onClick={onLeave}
@@ -457,6 +480,59 @@ function Tile({
         {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
       </span>
     </button>
+  );
+}
+
+/**
+ * Resolução e taxa de quadros da transmissão, a um clique do botão de tela.
+ * Vale para a próxima transmissão e para a que já estiver no ar.
+ */
+function ScreenQualityMenu() {
+  const settings = useMediaSettings();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Qualidade da transmissão"
+          title="Qualidade da transmissão"
+          className="absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-stage-foreground text-stage ring-2 ring-stage transition-transform hover:scale-110"
+        >
+          <ChevronUp size={11} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="center" className="w-52">
+        <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.02em] text-muted-foreground">
+          Resolução
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={String(settings.screenResolution)}
+          onValueChange={(value) =>
+            setMediaSetting("screenResolution", Number(value) as ScreenResolution)
+          }
+        >
+          {SCREEN_RESOLUTIONS.map((height) => (
+            <DropdownMenuRadioItem key={height} value={String(height)}>
+              {height}p{height === 2160 ? " · 4K" : height === 1080 ? " · Full HD" : ""}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.02em] text-muted-foreground">
+          Quadros por segundo
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={String(settings.screenFps)}
+          onValueChange={(value) => setMediaSetting("screenFps", Number(value) as ScreenFps)}
+        >
+          {SCREEN_FPS.map((fps) => (
+            <DropdownMenuRadioItem key={fps} value={String(fps)}>
+              {fps} fps
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

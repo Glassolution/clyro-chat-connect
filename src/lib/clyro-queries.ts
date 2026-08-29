@@ -169,15 +169,27 @@ export function useFriendships(userId: string | undefined) {
   });
 }
 
+/** Sem sinal de vida por mais tempo que isto, a pessoa saiu — mesmo sem avisar. */
+export const VOICE_STALE_MS = 90_000;
+
 export function useVoiceStates() {
   return useQuery({
     queryKey: ["voice-states"],
+    // Rede de segurança para o caso de um evento de realtime se perder: a lista
+    // se corrige sozinha em meio minuto, sem ninguém precisar recarregar.
+    refetchInterval: 30_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("voice_states")
-        .select("user_id, channel_id, conversation_id, muted, deafened, sharing_screen, camera_on");
+      // `*` em vez das colunas: assim a coluna de heartbeat entra quando a
+      // migração rodar, sem quebrar a lista enquanto ela não rodou.
+      const { data, error } = await supabase.from("voice_states").select("*");
       if (error) throw error;
-      return (data ?? []) as VoiceState[];
+      const rows = (data ?? []) as VoiceState[];
+      const cutoff = Date.now() - VOICE_STALE_MS;
+      // Fantasmas de abas fechadas somem da lista mesmo antes de a faxina do
+      // banco passar.
+      return rows.filter(
+        (row) => !row.heartbeat_at || new Date(row.heartbeat_at).getTime() > cutoff,
+      );
     },
   });
 }

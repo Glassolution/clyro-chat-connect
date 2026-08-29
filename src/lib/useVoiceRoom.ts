@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  playPeerJoinSound,
+  playPeerLeaveSound,
+  playScreenShareSound,
+  playScreenStopSound,
+} from "@/lib/call-sounds";
+import {
   audioConstraints,
   displayConstraints,
   openMicrophone,
@@ -204,6 +210,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const syncingMicRef = useRef(false);
   const lastMicSyncRef = useRef("");
   const sharingScreenRef = useRef(false);
+  /** Primeira sincronia da presença já passou: só depois dela o som de chegada vale. */
+  const syncedRef = useRef(false);
   // Quem está compartilhando tela agora, para a interface destacar a transmissão.
   const [sharingPeers, setSharingPeers] = useState<string[]>([]);
 
@@ -411,11 +419,18 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
          * Com a criação simétrica, a negociação educada resolve a colisão sozinha.
          */
         ids.forEach((id) => {
-          if (!pcsRef.current.has(id)) createPeer(id);
+          if (pcsRef.current.has(id)) return;
+          createPeer(id);
+          // Na primeira sincronia todo mundo é "novo": tocar aí seria uma
+          // saraivada de avisos de quem já estava na sala antes de você.
+          if (syncedRef.current) playPeerJoinSound();
         });
         pcsRef.current.forEach((_pc, id) => {
-          if (!ids.includes(id)) removePeer(id);
+          if (ids.includes(id)) return;
+          removePeer(id);
+          if (syncedRef.current) playPeerLeaveSound();
         });
+        syncedRef.current = true;
         setSharingPeers((prev) => prev.filter((id) => ids.includes(id)));
         // Quem entra depois precisa saber que já existe uma transmissão no ar.
         if (sharingScreenRef.current) {
@@ -427,6 +442,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       channel.on("broadcast", { event: "screen-share" }, ({ payload }) => {
         const data = payload as { from: string; sharing: boolean };
         if (!data || data.from === selfId) return;
+        if (data.sharing) playScreenShareSound();
         setSharingPeers((prev) => {
           const has = prev.includes(data.from);
           if (data.sharing && !has) return [...prev, data.from];
@@ -528,6 +544,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       analysersRef.current.clear();
       setPeers({});
       selfIdRef.current = null;
+      syncedRef.current = false;
       // A próxima entrada abre o microfone do zero: a sincronia recomeça limpa.
       lastMicSyncRef.current = "";
       const channel = channelRef.current;
@@ -926,6 +943,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     setSharingScreen(false);
     sharingScreenRef.current = false;
     setScreenStream(null);
+    playScreenStopSound();
     send("screen-share", { from: selfIdRef.current ?? "", sharing: false });
   }, [removeExtraTrack, send]);
 
@@ -958,6 +976,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       setScreenStream(display);
       setSharingScreen(true);
       sharingScreenRef.current = true;
+      playScreenShareSound();
       send("screen-share", { from: selfIdRef.current ?? "", sharing: true });
     } catch {
       /* user cancelled */

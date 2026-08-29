@@ -161,7 +161,10 @@ export function SettingsDialog({
               Perfil
             </TabsTrigger>
             <TabsTrigger value="voice" className="flex-1">
-              Voz e vídeo
+              Voz
+            </TabsTrigger>
+            <TabsTrigger value="screen" className="flex-1">
+              Tela
             </TabsTrigger>
           </TabsList>
 
@@ -300,7 +303,11 @@ export function SettingsDialog({
               vivo, ele é reaberto sem derrubar a call.
             </p>
 
-            <QualitySettings />
+            <VoiceQualitySettings />
+          </TabsContent>
+
+          <TabsContent value="screen" className="max-h-[62vh] space-y-3 overflow-y-auto pr-1 pt-4">
+            <ScreenQualitySettings />
           </TabsContent>
         </Tabs>
       </DialogContent>
@@ -309,12 +316,11 @@ export function SettingsDialog({
 }
 
 /**
- * Qualidade do que sai daqui: a voz e a tela. Tudo vale na chamada em
- * andamento — o hook renegocia sozinho em vez de pedir para sair e entrar.
+ * Qualidade da voz que sai daqui. Vale na chamada em andamento — o hook
+ * renegocia sozinho em vez de pedir para sair e entrar.
  */
-function QualitySettings() {
+function VoiceQualitySettings() {
   const settings = useMediaSettings();
-  const megabits = (screenBitrate(settings) / 1_000_000).toFixed(1);
   const hiFiKbps = voiceBitrate({ ...settings, highFidelity: true }) / 1000;
   const plainKbps = voiceBitrate({ ...settings, highFidelity: false }) / 1000;
 
@@ -351,12 +357,42 @@ function QualitySettings() {
         mono — o envio continua em alta taxa, mas o estéreo só sai com os dois desligados.
       </p>
 
-      <div className="pt-2">
+      <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3">
+        <div className="min-w-0">
+          <Label htmlFor="sounds" className="text-sm font-medium">
+            Sons da chamada
+          </Label>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Avisos curtos ao entrar, sair e começar uma transmissão de tela.
+          </p>
+        </div>
+        <Switch
+          id="sounds"
+          checked={settings.sounds}
+          onCheckedChange={(checked) => setMediaSetting("sounds", checked)}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Resolução e taxa de quadros da tela compartilhada. Mexer aqui durante uma
+ * transmissão vale na hora, sem precisar recomeçar o compartilhamento.
+ */
+function ScreenQualitySettings() {
+  const settings = useMediaSettings();
+  const megabits = (screenBitrate(settings) / 1_000_000).toFixed(1);
+
+  return (
+    <div className="space-y-3">
+      <div>
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <MonitorUp size={14} /> Transmissão de tela
         </h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Escolha antes de compartilhar; mexer aqui durante a transmissão também vale na hora.
+          O que você escolher aqui vale para a próxima transmissão e também para a que já estiver no
+          ar.
         </p>
       </div>
 
@@ -394,7 +430,7 @@ function QualitySettings() {
             <SelectContent>
               {SCREEN_FPS.map((fps) => (
                 <SelectItem key={fps} value={String(fps)}>
-                  {fps} fps{fps === 60 ? " — movimento" : fps === 15 ? " — leve" : ""}
+                  {FPS_LABEL[fps]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -404,7 +440,8 @@ function QualitySettings() {
 
       <p className="text-xs text-muted-foreground">
         O bitrate acompanha a escolha: cerca de {megabits} Mbps nesta combinação. Resoluções e taxas
-        altas dependem da sua banda de subida e do que a origem da captura entrega.
+        altas dependem da sua banda de subida e do que a origem da captura entrega — uma janela
+        pequena não vira 4K.
       </p>
     </div>
   );
@@ -415,6 +452,12 @@ const RESOLUTION_LABEL: Record<ScreenResolution, string> = {
   1080: "1080p — Full HD",
   1440: "1440p — QHD",
   2160: "2160p — 4K",
+};
+
+const FPS_LABEL: Record<ScreenFps, string> = {
+  15: "15 fps — leve",
+  30: "30 fps — equilibrado",
+  60: "60 fps — movimento",
 };
 
 /** Valor do "sem preferência": o Select do Radix não aceita item vazio. */

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Hash, Volume2, Phone, Video, AtSign } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +14,14 @@ import {
   useVoiceStates,
 } from "@/lib/clyro-queries";
 import { useVoiceRoom } from "@/lib/useVoiceRoom";
-import type { Channel, Profile, Selection } from "@/lib/clyro-types";
+import { playJoinSound, playLeaveSound } from "@/lib/call-sounds";
+import {
+  clearVoicePresence,
+  clearVoicePresenceBeacon,
+  publishVoicePresence,
+  HEARTBEAT_INTERVAL_MS,
+} from "@/lib/voice-presence";
+import type { Channel, Profile, Selection, VoiceState } from "@/lib/clyro-types";
 import { useQueryClient } from "@tanstack/react-query";
 import { ServerRail } from "./rail";
 import { HomeSidebar, conversationTitle, dedupeDirectConversations } from "./home-sidebar";
@@ -38,7 +45,7 @@ type VoiceSession = {
 };
 
 export function ClyroApp() {
-  const { user, profile } = useAuth();
+  const { user, profile, session } = useAuth();
   const qc = useQueryClient();
   const userId = user?.id;
   useRealtimeSync(userId);
@@ -64,31 +71,82 @@ export function ClyroApp() {
     if (!userId) return;
 
     const publish = async () => {
+      // Sair some da lista na hora, sem esperar a ida ao servidor: é o que o
+      // clique promete visualmente, e a escrita confirma logo atrás.
       if (!voice) {
-        const { error } = await supabase.from("voice_states").delete().eq("user_id", userId);
-        if (error) console.error("[clyro] falha ao sair da sala de voz", error);
-        return;
+        qc.setQueryData<VoiceState[]>(["voice-states"], (rows) =>
+          (rows ?? []).filter((row) => row.user_id !== userId),
+        );
       }
-      const { error } = await supabase.from("voice_states").upsert({
-        user_id: userId,
-        channel_id: voice.channelId,
-        conversation_id: voice.conversationId,
-        muted: rtc.muted,
-        deafened: rtc.deafened,
-        sharing_screen: rtc.sharingScreen,
-        camera_on: rtc.cameraOn,
-      });
+
+      const error = voice
+        ? await publishVoicePresence({
+            userId,
+            channelId: voice.channelId,
+            conversationId: voice.conversationId,
+            muted: rtc.muted,
+            deafened: rtc.deafened,
+            sharingScreen: rtc.sharingScreen,
+            cameraOn: rtc.cameraOn,
+          })
+        : await clearVoicePresence(userId);
+
       if (error) {
-        console.error("[clyro] falha ao publicar presença de voz", error);
-        toast.error("Você entrou na call, mas os outros não vão te ver na lista.");
-        return;
+        console.error("[clyro] falha ao escrever a presença de voz", error);
+        toast.error(
+          voice
+            ? "Você entrou na call, mas os outros não vão te ver na lista."
+            : "Você saiu da call, mas pode continuar aparecendo na lista dos outros.",
+        );
       }
-      // A confirmação por realtime pode demorar; atualiza a lista local na hora.
+      // A confirmação por realtime pode demorar (e o evento de saída pode nem
+      // chegar); atualizar a lista local na hora vale para os dois caminhos.
       await qc.invalidateQueries({ queryKey: ["voice-states"] });
     };
 
     void publish();
   }, [userId, voice, qc, rtc.muted, rtc.deafened, rtc.sharingScreen, rtc.cameraOn]);
+
+  /**
+   * Sinal de vida enquanto a call durar. É o que faz a lista se limpar sozinha
+   * quando alguém fecha a aba, cai a internet ou o computador dorme — casos em
+   * que o "sair" nunca chega a ser escrito.
+   */
+  useEffect(() => {
+    if (!userId || !voice) return;
+    const timer = window.setInterval(() => {
+      void publishVoicePresence({
+        userId,
+        channelId: voice.channelId,
+        conversationId: voice.conversationId,
+        muted: rtc.muted,
+        deafened: rtc.deafened,
+        sharingScreen: rtc.sharingScreen,
+        cameraOn: rtc.cameraOn,
+      });
+    }, HEARTBEAT_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [userId, voice, rtc.muted, rtc.deafened, rtc.sharingScreen, rtc.cameraOn]);
+
+  // Fechar a aba no meio da call também tira você da lista, sem esperar o
+  // sinal de vida vencer.
+  useEffect(() => {
+    const token = session?.access_token;
+    if (!userId || !voice || !token) return;
+    const leave = () => clearVoicePresenceBeacon(userId, token);
+    window.addEventListener("pagehide", leave);
+    return () => window.removeEventListener("pagehide", leave);
+  }, [userId, voice, session?.access_token]);
+
+  // Aviso sonoro de entrada e saída da própria chamada.
+  const wasInVoiceRef = useRef(false);
+  useEffect(() => {
+    const inVoice = !!voice;
+    if (inVoice === wasInVoiceRef.current) return;
+    wasInVoiceRef.current = inVoice;
+    if (inVoice) playJoinSound();
+    else playLeaveSound();
+  }, [voice]);
 
   useEffect(() => {
     if (!userId) return;

@@ -59,6 +59,8 @@ export type VoiceState = {
   deafened: boolean;
   sharing_screen: boolean;
   camera_on: boolean;
+  /** Último sinal de vida; ausente enquanto a migração de heartbeat não rodar. */
+  heartbeat_at?: string | null;
 };
 
 export type Selection =
