@@ -75,6 +75,54 @@ const ICE_SERVERS: RTCConfiguration = {
 
 export const hasTurnRelay = Boolean(TURN_URL);
 
+/**
+ * O Opus padrão do WebRTC é mono, ~32 kbps e com DTX — ótimo para rádio, ruim
+ * para voz que soa presente. Aqui pedimos estéreo, bitrate alto e correção de
+ * erro embutida direto no SDP que enviamos ao outro lado.
+ */
+function withHighQualityAudio(
+  description: RTCSessionDescriptionInit,
+  settings: AudioSettings,
+): RTCSessionDescriptionInit {
+  const sdp = description.sdp;
+  if (!sdp) return description;
+
+  const stereo = settings.highFidelity ? 1 : 0;
+  const bitrate = voiceBitrate(settings);
+  const opusPayloads = [...sdp.matchAll(/a=rtpmap:(\d+) opus\/48000/gi)].map((m) => m[1]);
+  if (opusPayloads.length === 0) return description;
+
+  const extras = [
+    `stereo=${stereo}`,
+    `sprop-stereo=${stereo}`,
+    `maxaveragebitrate=${bitrate}`,
+    "maxplaybackrate=48000",
+    "sprop-maxcapturerate=48000",
+    "useinbandfec=1",
+    "usedtx=0",
+  ].join(";");
+
+  let next = sdp;
+  for (const payload of opusPayloads) {
+    const fmtp = new RegExp(`a=fmtp:${payload} ([^\\r\\n]*)`);
+    next = fmtp.test(next)
+      ? next.replace(fmtp, (_all, params: string) => {
+          const kept = params
+            .split(";")
+            .filter((p) => !/^(stereo|sprop-stereo|maxaveragebitrate|maxplaybackrate|sprop-maxcapturerate|useinbandfec|usedtx)=/.test(p.trim()))
+            .filter(Boolean)
+            .join(";");
+          return `a=fmtp:${payload} ${kept ? `${kept};` : ""}${extras}`;
+        })
+      : next.replace(
+          new RegExp(`(a=rtpmap:${payload} opus/48000[^\\r\\n]*\\r?\\n)`),
+          `$1a=fmtp:${payload} ${extras}\r\n`,
+        );
+  }
+
+  return { type: description.type, sdp: next };
+}
+
 export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   /** Id desta aba na sinalização. O id do usuário continua vindo antes do "__". */
   const selfId = userId ? `${userId}__${CONNECTION_SUFFIX}` : null;
