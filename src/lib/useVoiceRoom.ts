@@ -149,7 +149,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       .forEach((sender) => {
         const params = sender.getParameters();
         if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
-        params.encodings = params.encodings.map((e) => ({ ...e, maxBitrate, ...{ maxBitrate: bitrate } }));
+        params.encodings = params.encodings.map((e) => ({ ...e, maxBitrate: bitrate }));
         void sender.setParameters(params).catch(() => {
           /* alguns navegadores recusam; segue no padrão */
         });
