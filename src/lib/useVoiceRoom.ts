@@ -123,8 +123,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   }, []);
 
   /**
-   * Sobe o teto de bitrate da trilha de vídeo recém-adicionada. Sem isso o
-   * WebRTC negocia um bitrate conservador e a tela compartilhada fica borrada.
+   * Sobe o teto de bitrate da trilha recém-adicionada. Sem isso o WebRTC
+   * negocia um bitrate conservador e a tela compartilhada fica borrada.
    */
   const boostSender = (pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: number) => {
     const sender = pc.getSenders().find((s) => s.track === track);
@@ -134,12 +134,27 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     params.encodings = params.encodings.map((e) => ({
       ...e,
       maxBitrate,
-      scaleResolutionDownBy: 1,
+      ...(track.kind === "video" ? { scaleResolutionDownBy: 1 } : {}),
     }));
     void sender.setParameters(params).catch(() => {
       /* alguns navegadores recusam; segue com o bitrate padrão */
     });
   };
+
+  /** Sobe o teto de bitrate de todas as faixas de voz desta conexão. */
+  const boostVoice = useCallback((pc: RTCPeerConnection) => {
+    const bitrate = voiceBitrate(audioSettingsRef.current);
+    pc.getSenders()
+      .filter((s) => s.track?.kind === "audio")
+      .forEach((sender) => {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+        params.encodings = params.encodings.map((e) => ({ ...e, maxBitrate, ...{ maxBitrate: bitrate } }));
+        void sender.setParameters(params).catch(() => {
+          /* alguns navegadores recusam; segue no padrão */
+        });
+      });
+  }, []);
 
   const attachAnalyser = useCallback((id: string, stream: MediaStream) => {
     try {
