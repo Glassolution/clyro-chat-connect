@@ -303,12 +303,16 @@ export function SettingsDialog({
   );
 }
 
+type BooleanAudioField = {
+  [K in keyof AudioSettings]: AudioSettings[K] extends boolean ? K : never;
+}[keyof AudioSettings];
+
 function AudioToggle({
   field,
   title,
   body,
 }: {
-  field: keyof AudioSettings;
+  field: BooleanAudioField;
   title: string;
   body: string;
 }) {
@@ -327,6 +331,72 @@ function AudioToggle({
         onCheckedChange={(checked) => setAudioSetting(field, checked)}
       />
     </div>
+  );
+}
+
+/** Botõezinhos de escolha única para resolução e fps da transmissão. */
+function ChoiceRow<T extends number>({
+  title,
+  body,
+  value,
+  options,
+  onSelect,
+}: {
+  title: string;
+  body: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onSelect: (value: T) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-3">
+      <p className="text-sm font-medium">{title}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{body}</p>
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        {options.map((option) => (
+          <Button
+            key={option.value}
+            type="button"
+            size="sm"
+            variant={option.value === value ? "default" : "secondary"}
+            onClick={() => onSelect(option.value)}
+          >
+            {option.label}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ScreenQualitySettings() {
+  const settings = useAudioSettings();
+  return (
+    <>
+      <ChoiceRow
+        title="Resolução da tela"
+        body="Quanto maior, mais nítido o texto — e mais banda a transmissão usa."
+        value={settings.screenResolution}
+        options={[
+          { value: 720, label: "720p" },
+          { value: 1080, label: "1080p" },
+          { value: 1440, label: "1440p" },
+          { value: 2160, label: "4K" },
+        ]}
+        onSelect={(value) => setAudioSetting("screenResolution", value)}
+      />
+      <ChoiceRow
+        title="Taxa de quadros"
+        body="60 fps para jogos e vídeo; 15 fps economiza banda em telas paradas."
+        value={settings.screenFps}
+        options={[
+          { value: 15, label: "15 fps" },
+          { value: 30, label: "30 fps" },
+          { value: 60, label: "60 fps" },
+        ]}
+        onSelect={(value) => setAudioSetting("screenFps", value)}
+      />
+    </>
   );
 }
 
