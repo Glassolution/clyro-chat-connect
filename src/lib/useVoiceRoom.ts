@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { createVoiceFilter, FILTER_SAMPLE_RATE, type VoiceFilterNode } from "@/lib/voice-filter";
 import {
   playPeerJoinSound,
   playPeerLeaveSound,
@@ -68,11 +69,17 @@ function withTimeout(promise: Promise<unknown>, ms: number) {
 }
 
 /**
- * Atraso entre a medição e o portão de ruído. É o que permite abrir a passagem
- * antes de o começo da palavra chegar nela — sem isso a primeira consoante sai
- * decepada. Trinta milissegundos ninguém percebe numa conversa.
+ * Atraso entre a medição e o portão. É o que permite abrir a passagem antes de
+ * o começo da palavra chegar nela — sem isso a primeira consoante sai decepada.
+ * Trinta milissegundos ninguém percebe numa conversa.
  */
 const GATE_LOOKAHEAD_SECONDS = 0.03;
+
+/** Silêncio segurado antes de o portão começar a fechar. */
+const GATE_HOLD_MS = 320;
+
+/** E o quanto ele leva descendo, já sem pressa nenhuma. */
+const GATE_RELEASE_SECONDS = 0.3;
 
 /**
  * Ajusta o Opus: banda cheia a 48 kHz, correção de erro ligada, sem corte por
@@ -223,6 +230,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
    */
   const micGraphRef = useRef<{
     source: MediaStreamAudioSourceNode;
+    /** Nulo quando o navegador não suporta o filtro. */
+    filter: VoiceFilterNode | null;
     rumble: BiquadFilterNode;
     delay: DelayNode;
     gain: GainNode;
@@ -252,105 +261,195 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     void channelRef.current?.send({ type: "broadcast", event, payload });
   }, []);
 
-  const attachAnalyser = useCallback((id: string, stream: MediaStream) => {
-    try {
-      if (!audioCtxRef.current) {
-        const Ctor =
-          window.AudioContext ??
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  /**
+   * Contexto de áudio da chamada. A taxa é fixada em 48 kHz porque é a única em
+   * que o filtro de voz funciona — deixar o navegador escolher 44,1 kHz faria a
+   * rede receber um áudio diferente do que ela conhece.
+   */
+  const ensureAudioContext = useCallback(() => {
+    if (!audioCtxRef.current) {
+      const Ctor =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return null;
+      try {
+        audioCtxRef.current = new Ctor({
+          sampleRate: FILTER_SAMPLE_RATE,
+          latencyHint: "interactive",
+        });
+      } catch {
+        // Navegador que não aceita fixar a taxa: vale o padrão dele.
         audioCtxRef.current = new Ctor();
       }
-      const ctx = audioCtxRef.current;
-      if (!ctx || stream.getAudioTracks().length === 0) return;
-      // Sem o resume o contexto pode nascer suspenso e nada é medido.
-      if (ctx.state === "suspended") void ctx.resume().catch(() => {});
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analysersRef.current.set(id, analyser);
+    }
+    const ctx = audioCtxRef.current;
+    // Sem o resume o contexto pode nascer suspenso e nada roda.
+    if (ctx && ctx.state === "suspended") void ctx.resume().catch(() => {});
+    return ctx;
+  }, []);
+
+  const attachAnalyser = useCallback(
+    (id: string, stream: MediaStream) => {
+      try {
+        const ctx = ensureAudioContext();
+        if (!ctx || stream.getAudioTracks().length === 0) return;
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analysersRef.current.set(id, analyser);
+      } catch {
+        /* speaking detection is best-effort */
+      }
+    },
+    [ensureAudioContext],
+  );
+
+  /**
+   * Liga a entrada do grafo conforme a preferência: com o filtro no caminho ou
+   * direto no corte grave. Trocar de ideia no meio da chamada é só isto — os
+   * outros nós, e a faixa que sai daqui, continuam os mesmos.
+   */
+  const wireMicInput = useCallback(() => {
+    const graph = micGraphRef.current;
+    if (!graph) return;
+    const { source, filter, rumble } = graph;
+    const useFilter = mediaSettingsRef.current.voiceFilter && !!filter;
+
+    // Desconectar por destino preserva o analisador, que também sai da fonte.
+    try {
+      source.disconnect(rumble);
     } catch {
-      /* speaking detection is best-effort */
+      /* não estava ligado assim */
+    }
+    if (filter) {
+      try {
+        source.disconnect(filter);
+      } catch {
+        /* idem */
+      }
+      try {
+        filter.disconnect();
+      } catch {
+        /* idem */
+      }
+    }
+
+    if (useFilter && filter) {
+      source.connect(filter);
+      filter.connect(rumble);
+    } else {
+      source.connect(rumble);
     }
   }, []);
 
   /**
    * Monta (ou refaz a entrada de) o grafo do microfone e devolve o stream que
-   * vai para os outros. Devolve `null` quando o navegador não deixa o áudio
-   * rodar — aí a captura crua segue direto, sem portão, que é melhor do que
-   * ficar mudo.
+   * vai para os outros:
+   *
+   *   captura → filtro de voz → corte grave → atraso → portão → envio
+   *
+   * O filtro é quem faz o trabalho pesado — separa a voz do ruído dentro do som,
+   * inclusive enquanto você fala. O portão vem depois e é opcional: com o filtro
+   * ligado ele quase não tem o que fazer.
+   *
+   * Devolve `null` quando o navegador não deixa o áudio rodar; aí a captura crua
+   * segue direto, que é melhor do que ficar mudo.
    */
-  const buildMicPipeline = useCallback((raw: MediaStream): MediaStream | null => {
-    try {
-      if (raw.getAudioTracks().length === 0) return null;
-      if (!audioCtxRef.current) {
-        const Ctor =
-          window.AudioContext ??
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        if (!Ctor) return null;
-        audioCtxRef.current = new Ctor();
-      }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === "suspended") void ctx.resume().catch(() => {});
+  const buildMicPipeline = useCallback(
+    async (raw: MediaStream): Promise<MediaStream | null> => {
+      try {
+        if (raw.getAudioTracks().length === 0) return null;
+        const ctx = ensureAudioContext();
+        if (!ctx) return null;
 
-      const source = ctx.createMediaStreamSource(raw);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analysersRef.current.set("__self", analyser);
-
-      const existing = micGraphRef.current;
-      if (existing) {
-        // Troca de microfone reaproveita o portão e a saída: a faixa enviada
-        // continua a mesma, então ninguém precisa renegociar nada.
-        try {
-          existing.source.disconnect();
-        } catch {
-          /* já desconectada */
+        const source = ctx.createMediaStreamSource(raw);
+        const existing = micGraphRef.current;
+        if (existing) {
+          // Troca de microfone reaproveita o resto do grafo e a saída: a faixa
+          // enviada continua a mesma, então ninguém precisa renegociar nada.
+          try {
+            existing.source.disconnect();
+          } catch {
+            /* já desconectada */
+          }
+          micGraphRef.current = { ...existing, source };
+          wireMicInput();
+          return existing.destination.stream;
         }
-        source.connect(existing.rumble);
-        micGraphRef.current = { ...existing, source };
-        return existing.destination.stream;
+
+        // Porta batendo, passo, esbarrão na mesa: quase toda a energia disso mora
+        // abaixo de 100 Hz, onde a voz não tem nada a perder.
+        const rumble = ctx.createBiquadFilter();
+        rumble.type = "highpass";
+        rumble.frequency.value = 100;
+        rumble.Q.value = 0.7;
+
+        const delay = ctx.createDelay(0.5);
+        delay.delayTime.value = GATE_LOOKAHEAD_SECONDS;
+        const gain = ctx.createGain();
+        gain.gain.value = mediaSettingsRef.current.noiseGate ? 0 : 1;
+        const destination = ctx.createMediaStreamDestination();
+
+        rumble.connect(delay);
+        delay.connect(gain);
+        gain.connect(destination);
+
+        /*
+         * O medidor escuta depois do filtro, não a captura crua. É o que faz a
+         * borda verde (e o portão, que segue o mesmo sinal) reagirem à voz e não
+         * ao ruído: o que chega aqui já está limpo.
+         */
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        rumble.connect(analyser);
+        analysersRef.current.set("__self", analyser);
+
+        // O filtro entra no grafo mesmo desligado nas preferências: montar custa
+        // uma vez, e ligar depois vira só uma religada de fios.
+        const filter = await createVoiceFilter(ctx);
+
+        micGraphRef.current = { source, filter, rumble, delay, gain, destination };
+        wireMicInput();
+        return destination.stream;
+      } catch {
+        return null;
       }
+    },
+    [ensureAudioContext, wireMicInput],
+  );
 
-      // Porta batendo, passo, esbarrão na mesa: quase toda a energia disso mora
-      // abaixo de 100 Hz, onde a voz não tem nada a perder.
-      const rumble = ctx.createBiquadFilter();
-      rumble.type = "highpass";
-      rumble.frequency.value = 100;
-      rumble.Q.value = 0.7;
-
-      const delay = ctx.createDelay(0.5);
-      delay.delayTime.value = GATE_LOOKAHEAD_SECONDS;
-      const gain = ctx.createGain();
-      gain.gain.value = mediaSettingsRef.current.noiseGate ? 0 : 1;
-      const destination = ctx.createMediaStreamDestination();
-
-      source.connect(rumble);
-      rumble.connect(delay);
-      delay.connect(gain);
-      gain.connect(destination);
-
-      micGraphRef.current = { source, rumble, delay, gain, destination };
-      return destination.stream;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  /** Abre ou fecha o portão, com rampa para não estalar nas pontas. */
+  /**
+   * Abre ou fecha o portão. Abrir é imediato — a voz já vem atrasada pelo
+   * lookahead, então nada se perde. Fechar espera, e ainda desce numa rampa
+   * longa: era o fecho apressado que comia o fim das frases.
+   */
+  const gateCloseRef = useRef<number | null>(null);
   const applyGate = useCallback((open: boolean) => {
     const graph = micGraphRef.current;
     const ctx = audioCtxRef.current;
     if (!graph || !ctx) return;
-    const target = !mediaSettingsRef.current.noiseGate || open ? 1 : 0;
-    const now = ctx.currentTime;
-    const current = graph.gain.gain.value;
-    graph.gain.gain.cancelScheduledValues(now);
-    graph.gain.gain.setValueAtTime(current, now);
-    // Abre rápido (a voz já vem atrasada pelo lookahead) e fecha devagar, para
-    // o fim da palavra não ser decepado.
-    graph.gain.gain.linearRampToValueAtTime(target, now + (target === 1 ? 0.015 : 0.12));
+
+    if (gateCloseRef.current) {
+      window.clearTimeout(gateCloseRef.current);
+      gateCloseRef.current = null;
+    }
+
+    const ramp = (target: number, seconds: number) => {
+      const now = ctx.currentTime;
+      graph.gain.gain.cancelScheduledValues(now);
+      graph.gain.gain.setValueAtTime(graph.gain.gain.value, now);
+      graph.gain.gain.linearRampToValueAtTime(target, now + seconds);
+    };
+
+    if (open || !mediaSettingsRef.current.noiseGate) {
+      ramp(1, 0.015);
+      return;
+    }
+    gateCloseRef.current = window.setTimeout(() => {
+      gateCloseRef.current = null;
+      ramp(0, GATE_RELEASE_SECONDS);
+    }, GATE_HOLD_MS);
   }, []);
 
   const createPeer = useCallback(
@@ -511,9 +610,10 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       if (cancelled) return giveUp();
 
       rawStreamRef.current = raw;
-      // O que sai daqui é a saída do grafo — com o portão de ruído no caminho.
+      // O que sai daqui é a saída do grafo — filtro de voz e portão no caminho.
       // Sem grafo (navegador bloqueando o áudio), a captura crua vai direto.
-      const processed = buildMicPipeline(raw);
+      const processed = await buildMicPipeline(raw);
+      if (cancelled) return giveUp();
       const stream = processed ?? raw;
       if (!processed) attachAnalyser("__self", raw);
 
@@ -702,8 +802,10 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
       if (micGraphRef.current) {
-        const { source, rumble, delay, gain } = micGraphRef.current;
-        [source, rumble, delay, gain].forEach((node) => {
+        const { source, filter, rumble, delay, gain } = micGraphRef.current;
+        filter?.destroy();
+        [source, filter, rumble, delay, gain].forEach((node) => {
+          if (!node) return;
           try {
             node.disconnect();
           } catch {
@@ -771,7 +873,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     // Com o grafo montado, trocar de microfone é só reconectar a entrada: a
     // faixa que os outros recebem continua sendo a saída do portão, então não
     // há nada para substituir nem para renegociar.
-    const processed = buildMicPipeline(raw);
+    const processed = await buildMicPipeline(raw);
     const outgoing = processed ?? raw;
     const nextTrack = outgoing.getAudioTracks()[0];
     const sameTrack = !!nextTrack && previousOut.includes(nextTrack);
@@ -968,7 +1070,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     if (!roomKey) return;
     const buffer = new Uint8Array(128);
     /** Silêncio tolerado entre sílabas; passou disso, a borda apaga. */
-    const HOLD_MS = 160;
+    const HOLD_MS = 220;
     // Limiares mínimos, para microfone muito silencioso não virar gatilho leve.
     const FLOOR_MIN = 0.004;
     const START_MIN = 0.02;
@@ -976,42 +1078,6 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     // Janela do rastreador de ruído: ~2 s, o bastante para conter um silêncio
     // real entre frases.
     const FLOOR_WINDOW = 120;
-
-    /**
-     * Quanto da energia está na faixa em que a voz vive. Batida de porta se
-     * concentra embaixo de 375 Hz; estalo de tecla se espalha pelo agudo; a
-     * voz fica no meio, e é essa proporção que os separa. O espectro vem do
-     * mesmo analisador, então não custa nada além da leitura.
-     */
-    const spectrum = new Uint8Array(128);
-    const voiceRatio = (analyser: AnalyserNode) => {
-      analyser.getByteFrequencyData(spectrum);
-      let low = 0;
-      let voice = 0;
-      let high = 0;
-      for (let i = 0; i < spectrum.length; i += 1) {
-        const value = spectrum[i] ?? 0;
-        if (i < 2) low += value;
-        else if (i <= 18) voice += value;
-        else high += value;
-      }
-      const total = low + voice + high;
-      return total > 0 ? voice / total : 0;
-    };
-
-    /**
-     * Proporção mínima na faixa da voz para abrir — e, mais baixa, para seguir.
-     * Folga suficiente para voz grave, que carrega bastante energia no grave,
-     * continuar passando: quem barra o estalo curto é o ataque abaixo.
-     */
-    const VOICE_RATIO_START = 0.38;
-    const VOICE_RATIO_KEEP = 0.28;
-    /**
-     * Quadros seguidos parecendo voz antes de abrir o portão. Estalo de tecla
-     * dura menos que isso e não passa; o atraso da linha cobre a diferença,
-     * então nenhuma sílaba se perde no caminho.
-     */
-    const ATTACK_FRAMES = 3;
 
     const floorSamples = new Map<string, number[]>();
     const lastPeak = new Map<string, number>();
@@ -1061,19 +1127,15 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     };
 
     let selfSpeaking = false;
-    let attack = 0;
 
     const loop = () => {
       const remote = new Map<string, number>();
       analysersRef.current.forEach((analyser, id) => {
         const rms = level(analyser, id);
         if (id === "__self") {
-          const loud = !mutedRef.current && isSpeaking("__self", rms, selfSpeaking);
-          // Alto o bastante é só metade: precisa soar como voz, e se sustentar.
-          const voiced =
-            loud && voiceRatio(analyser) >= (selfSpeaking ? VOICE_RATIO_KEEP : VOICE_RATIO_START);
-          attack = voiced ? attack + 1 : 0;
-          const next = selfSpeaking ? voiced : attack >= ATTACK_FRAMES;
+          // Sem truque de espectro nem espera de quadros: o que chega ao medidor
+          // já passou pelo filtro, então energia aqui quer dizer voz.
+          const next = !mutedRef.current && isSpeaking("__self", rms, selfSpeaking);
           if (next !== selfSpeaking) {
             selfSpeaking = next;
             setLocalSpeaking(next);
@@ -1118,6 +1180,11 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   useEffect(() => {
     applyGate(!mediaSettings.noiseGate);
   }, [mediaSettings.noiseGate, applyGate]);
+
+  // O filtro entra e sai do caminho sem reabrir o microfone.
+  useEffect(() => {
+    wireMicInput();
+  }, [mediaSettings.voiceFilter, wireMicInput]);
 
   // ---- controls -----------------------------------------------------------
   const applyAudioEnabled = useCallback(() => {

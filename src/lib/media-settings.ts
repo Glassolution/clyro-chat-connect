@@ -19,6 +19,11 @@ export type MediaSettings = {
   screenFps: ScreenFps;
   /** Avisos sonoros de entrada, saída e compartilhamento de tela. */
   sounds: boolean;
+  /**
+   * Separa a voz do ruído amostra por amostra, com uma rede rodando aqui —
+   * filtra em vez de cortar.
+   */
+  voiceFilter: boolean;
   /** Só manda áudio enquanto você estiver falando: o resto não sai daqui. */
   noiseGate: boolean;
 };
@@ -40,7 +45,10 @@ export const MEDIA_DEFAULTS: MediaSettings = {
   screenResolution: 1080,
   screenFps: 30,
   sounds: true,
-  noiseGate: true,
+  voiceFilter: true,
+  // Desligado por padrão: com o filtro de voz fazendo o trabalho, o portão vira
+  // um segundo corte no caminho — e corte é o que engolia o começo das frases.
+  noiseGate: false,
 };
 
 const STORAGE_KEY = "clyro:media-settings";
@@ -89,7 +97,10 @@ export function useMediaSettings(): MediaSettings {
 /** Restrições de captura equivalentes às preferências atuais. */
 export function audioConstraints(settings: MediaSettings): MediaTrackConstraints {
   return {
-    noiseSuppression: settings.noiseSuppression,
+    // Com o filtro de voz ligado, a supressão do navegador sai do caminho: dois
+    // tratamentos em série é o que deixa a voz com aquele som abafado, de
+    // telefone. Quem limpa passa a ser só a rede.
+    noiseSuppression: settings.voiceFilter ? false : settings.noiseSuppression,
     echoCancellation: settings.echoCancellation,
     autoGainControl: settings.autoGainControl,
     // Alta fidelidade pede os dois canais e a taxa cheia. São `ideal`: o

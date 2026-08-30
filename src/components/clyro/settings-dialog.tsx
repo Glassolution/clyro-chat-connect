@@ -280,13 +280,17 @@ export function SettingsDialog({
             <AudioDevices />
 
             <p className="pb-2 pt-4 text-sm text-muted-foreground">
-              Tratamento aplicado ao seu microfone. Fica ligado por padrão e vale já na chamada em
-              andamento.
+              Tratamento aplicado ao seu microfone. Vale já na chamada em andamento.
             </p>
             <AudioToggle
+              field="voiceFilter"
+              title="Filtro de voz"
+              body="Uma rede separa a sua voz do resto — teclado, ventilador, TV, gente falando ao fundo — enquanto você fala. Roda aqui no navegador; nada é enviado para lugar nenhum."
+            />
+            <AudioToggle
               field="noiseSuppression"
-              title="Supressão de ruído"
-              body="Corta ruído de fundo constante — ventilador, teclado, rua. Se a sua voz sair abafada, desligue aqui."
+              title="Supressão de ruído do navegador"
+              body="A limpeza simples que o próprio navegador faz. Fica de fora enquanto o filtro de voz estiver ligado — os dois juntos deixam a voz com som de telefone."
             />
             <AudioToggle
               field="echoCancellation"
@@ -300,8 +304,8 @@ export function SettingsDialog({
             />
             <AudioToggle
               field="noiseGate"
-              title="Transmitir só quando você fala"
-              body="Fora da fala, nada sai do seu microfone — nem teclado, nem TV, nem conversa ao fundo. É o mesmo sinal da borda verde."
+              title="Silêncio total nas pausas"
+              body="Fecha o microfone entre as suas falas. Com o filtro ligado quase não faz diferença — e, se a sua voz sair picotada, é o primeiro a desligar."
             />
             <p className="pt-3 text-xs text-muted-foreground">
               Vale na hora, inclusive na chamada em andamento: se o microfone não aceitar a troca ao
@@ -642,6 +646,10 @@ function AudioToggle({
   body: string;
 }) {
   const settings = useMediaSettings();
+  // A supressão do navegador não se acumula com o filtro: enquanto ele estiver
+  // ligado, este controle fica de fora do caminho e o botão mostra isso.
+  const supersededByFilter = field === "noiseSuppression" && settings.voiceFilter;
+
   return (
     <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3">
       <div className="min-w-0">
@@ -652,7 +660,8 @@ function AudioToggle({
       </div>
       <Switch
         id={field}
-        checked={settings[field]}
+        disabled={supersededByFilter}
+        checked={supersededByFilter ? false : settings[field]}
         onCheckedChange={(checked) => setMediaSetting(field, checked)}
       />
     </div>
