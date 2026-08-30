@@ -223,6 +223,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
    */
   const micGraphRef = useRef<{
     source: MediaStreamAudioSourceNode;
+    rumble: BiquadFilterNode;
     delay: DelayNode;
     gain: GainNode;
     destination: MediaStreamAudioDestinationNode;
@@ -307,10 +308,17 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         } catch {
           /* já desconectada */
         }
-        source.connect(existing.delay);
+        source.connect(existing.rumble);
         micGraphRef.current = { ...existing, source };
         return existing.destination.stream;
       }
+
+      // Porta batendo, passo, esbarrão na mesa: quase toda a energia disso mora
+      // abaixo de 100 Hz, onde a voz não tem nada a perder.
+      const rumble = ctx.createBiquadFilter();
+      rumble.type = "highpass";
+      rumble.frequency.value = 100;
+      rumble.Q.value = 0.7;
 
       const delay = ctx.createDelay(0.5);
       delay.delayTime.value = GATE_LOOKAHEAD_SECONDS;
@@ -318,11 +326,12 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       gain.gain.value = mediaSettingsRef.current.noiseGate ? 0 : 1;
       const destination = ctx.createMediaStreamDestination();
 
-      source.connect(delay);
+      source.connect(rumble);
+      rumble.connect(delay);
       delay.connect(gain);
       gain.connect(destination);
 
-      micGraphRef.current = { source, delay, gain, destination };
+      micGraphRef.current = { source, rumble, delay, gain, destination };
       return destination.stream;
     } catch {
       return null;
@@ -693,8 +702,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
       if (micGraphRef.current) {
-        const { source, delay, gain } = micGraphRef.current;
-        [source, delay, gain].forEach((node) => {
+        const { source, rumble, delay, gain } = micGraphRef.current;
+        [source, rumble, delay, gain].forEach((node) => {
           try {
             node.disconnect();
           } catch {
@@ -968,6 +977,42 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     // real entre frases.
     const FLOOR_WINDOW = 120;
 
+    /**
+     * Quanto da energia está na faixa em que a voz vive. Batida de porta se
+     * concentra embaixo de 375 Hz; estalo de tecla se espalha pelo agudo; a
+     * voz fica no meio, e é essa proporção que os separa. O espectro vem do
+     * mesmo analisador, então não custa nada além da leitura.
+     */
+    const spectrum = new Uint8Array(128);
+    const voiceRatio = (analyser: AnalyserNode) => {
+      analyser.getByteFrequencyData(spectrum);
+      let low = 0;
+      let voice = 0;
+      let high = 0;
+      for (let i = 0; i < spectrum.length; i += 1) {
+        const value = spectrum[i] ?? 0;
+        if (i < 2) low += value;
+        else if (i <= 18) voice += value;
+        else high += value;
+      }
+      const total = low + voice + high;
+      return total > 0 ? voice / total : 0;
+    };
+
+    /**
+     * Proporção mínima na faixa da voz para abrir — e, mais baixa, para seguir.
+     * Folga suficiente para voz grave, que carrega bastante energia no grave,
+     * continuar passando: quem barra o estalo curto é o ataque abaixo.
+     */
+    const VOICE_RATIO_START = 0.38;
+    const VOICE_RATIO_KEEP = 0.28;
+    /**
+     * Quadros seguidos parecendo voz antes de abrir o portão. Estalo de tecla
+     * dura menos que isso e não passa; o atraso da linha cobre a diferença,
+     * então nenhuma sílaba se perde no caminho.
+     */
+    const ATTACK_FRAMES = 3;
+
     const floorSamples = new Map<string, number[]>();
     const lastPeak = new Map<string, number>();
 
@@ -1016,13 +1061,19 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     };
 
     let selfSpeaking = false;
+    let attack = 0;
 
     const loop = () => {
       const remote = new Map<string, number>();
       analysersRef.current.forEach((analyser, id) => {
         const rms = level(analyser, id);
         if (id === "__self") {
-          const next = !mutedRef.current && isSpeaking("__self", rms, selfSpeaking);
+          const loud = !mutedRef.current && isSpeaking("__self", rms, selfSpeaking);
+          // Alto o bastante é só metade: precisa soar como voz, e se sustentar.
+          const voiced =
+            loud && voiceRatio(analyser) >= (selfSpeaking ? VOICE_RATIO_KEEP : VOICE_RATIO_START);
+          attack = voiced ? attack + 1 : 0;
+          const next = selfSpeaking ? voiced : attack >= ATTACK_FRAMES;
           if (next !== selfSpeaking) {
             selfSpeaking = next;
             setLocalSpeaking(next);

@@ -426,12 +426,17 @@ function Tile({
   expanded: boolean;
   onToggleExpand: () => void;
 }) {
+  /*
+   * Na grade, o quadro inteiro é o botão de expandir — é o gesto óbvio. Já
+   * expandido ele deixa de ser clicável: quem está assistindo uma transmissão
+   * clica na tela o tempo todo (para acompanhar, para apontar), e cada clique
+   * derrubava a pessoa de volta para a grade. Sair passa a ser só pelo botão
+   * do canto.
+   */
+  const Frame = expanded ? "div" : "button";
   return (
-    <button
-      type="button"
-      onClick={onToggleExpand}
-      title={expanded ? "Voltar para a grade" : "Expandir"}
-      aria-pressed={expanded}
+    <Frame
+      {...(expanded ? {} : { type: "button" as const, onClick: onToggleExpand, title: "Expandir" })}
       className={cn(
         "clyro-enter group relative flex items-center justify-center overflow-hidden rounded-2xl bg-stage-foreground/5 ring-1 ring-stage-foreground/10 transition-shadow",
         // Expandido ocupa toda a área até a barra de controles, que fica fora daqui.
@@ -481,10 +486,22 @@ function Tile({
         {badge ? ` · ${badge}` : ""}
       </span>
 
-      <span className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
-        {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-      </span>
-    </button>
+      {expanded ? (
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-label="Voltar para a grade"
+          title="Voltar para a grade"
+          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-black/80"
+        >
+          <Minimize2 size={15} />
+        </button>
+      ) : (
+        <span className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
+          <Maximize2 size={15} />
+        </span>
+      )}
+    </Frame>
   );
 }
 
