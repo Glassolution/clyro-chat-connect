@@ -261,8 +261,10 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       localStreamRef.current?.getTracks().forEach((track) => {
         pc.addTrack(track, localStreamRef.current as MediaStream);
       });
-      extraTrackRef.current.forEach((track) => {
-        pc.addTrack(track);
+      extraTrackRef.current.forEach((track, key) => {
+        const wrapper = extraStreamRef.current.get(key);
+        if (wrapper) pc.addTrack(track, wrapper);
+        else pc.addTrack(track);
       });
 
       const remoteStream = new MediaStream();
