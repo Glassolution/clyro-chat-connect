@@ -551,6 +551,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       setLocalStream(null);
       extraTrackRef.current.forEach((t) => t.stop());
       extraTrackRef.current.clear();
+      extraStreamRef.current.clear();
       setScreenStream(null);
       setSharingScreen(false);
       sharingScreenRef.current = false;
