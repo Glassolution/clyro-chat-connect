@@ -148,6 +148,9 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const extraTrackRef = useRef<Map<string, MediaStreamTrack>>(new Map());
+  // Cada trilha extra viaja dentro do próprio MediaStream: assim o outro lado
+  // recebe o vídeo já agrupado e o elemento sabe que há algo novo para exibir.
+  const extraStreamRef = useRef<Map<string, MediaStream>>(new Map());
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
   const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
