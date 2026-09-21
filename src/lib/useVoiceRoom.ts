@@ -352,23 +352,22 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       }));
 
       /*
-       * O elemento de vídeo só reage a uma troca de stream. Como as trilhas
-       * chegam depois (a tela entra no meio da call), publicamos um MediaStream
-       * novo a cada mudança — sem isso o participante ficava com o quadro preto.
+       * Mantém a mesma instância durante toda a conexão. Recriar o MediaStream
+       * em cada mute/unmute reiniciava o decoder e fazia a tela depender de um
+       * novo keyframe — conteúdo estático podia então permanecer preto.
        */
       const publish = () => {
         attachAnalyser(peerId, remoteStream);
-        const snapshot = new MediaStream(remoteStream.getTracks());
         setPeers((prev) => ({
           ...prev,
           [peerId]: {
             id: peerId,
             userId: userIdOfPeer(peerId),
-            stream: snapshot,
+            stream: remoteStream,
             speaking: prev[peerId]?.speaking ?? false,
             hasVideo: remoteStream
               .getVideoTracks()
-              .some((t) => t.readyState === "live" && !t.muted),
+              .some((t) => t.readyState === "live"),
           },
         }));
       };
@@ -381,8 +380,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
           remoteStream.addTrack(event.track);
         }
         publish();
-        // Trilha recebida começa "muted" até o vídeo realmente fluir; é no
-        // unmute que dá para mostrar a tela sem risco de quadro preto.
+        // O vídeo permanece montado durante oscilações de rede; estes eventos
+        // atualizam apenas o estado, sem trocar o stream ligado ao player.
         event.track.onunmute = publish;
         event.track.onmute = publish;
         event.track.onended = () => {
