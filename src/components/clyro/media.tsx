@@ -12,7 +12,27 @@ export function StreamVideo({
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
-    if (ref.current && stream) ref.current.srcObject = stream;
+    const el = ref.current;
+    if (!el || !stream) return;
+    /*
+     * Reatribuir o srcObject sempre que a trilha muda. Quando a tela entra
+     * depois (o stream do participante já estava tocando só o áudio), o vídeo
+     * novo não é pego sozinho pelo elemento — era isso que deixava tudo preto.
+     */
+    const attach = () => {
+      el.srcObject = null;
+      el.srcObject = stream;
+      void el.play().catch(() => {
+        /* autoplay bloqueado; o clique do usuário resolve */
+      });
+    };
+    attach();
+    stream.addEventListener("addtrack", attach);
+    stream.addEventListener("removetrack", attach);
+    return () => {
+      stream.removeEventListener("addtrack", attach);
+      stream.removeEventListener("removetrack", attach);
+    };
   }, [stream]);
   return (
     <video

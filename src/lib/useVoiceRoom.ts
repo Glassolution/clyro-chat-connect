@@ -148,6 +148,9 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const extraTrackRef = useRef<Map<string, MediaStreamTrack>>(new Map());
+  // Cada trilha extra viaja dentro do próprio MediaStream: assim o outro lado
+  // recebe o vídeo já agrupado e o elemento sabe que há algo novo para exibir.
+  const extraStreamRef = useRef<Map<string, MediaStream>>(new Map());
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
   const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
@@ -258,8 +261,10 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       localStreamRef.current?.getTracks().forEach((track) => {
         pc.addTrack(track, localStreamRef.current as MediaStream);
       });
-      extraTrackRef.current.forEach((track) => {
-        pc.addTrack(track);
+      extraTrackRef.current.forEach((track, key) => {
+        const wrapper = extraStreamRef.current.get(key);
+        if (wrapper) pc.addTrack(track, wrapper);
+        else pc.addTrack(track);
       });
 
       const remoteStream = new MediaStream();
@@ -274,34 +279,45 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         },
       }));
 
-      pc.ontrack = (event) => {
-        event.streams[0]?.getTracks().forEach((t) => {
-          if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
-        });
-        if (!event.streams[0]) remoteStream.addTrack(event.track);
+      /*
+       * O elemento de vídeo só reage a uma troca de stream. Como as trilhas
+       * chegam depois (a tela entra no meio da call), publicamos um MediaStream
+       * novo a cada mudança — sem isso o participante ficava com o quadro preto.
+       */
+      const publish = () => {
         attachAnalyser(peerId, remoteStream);
+        const snapshot = new MediaStream(remoteStream.getTracks());
         setPeers((prev) => ({
           ...prev,
           [peerId]: {
             id: peerId,
             userId: userIdOfPeer(peerId),
-            stream: remoteStream,
+            stream: snapshot,
             speaking: prev[peerId]?.speaking ?? false,
-            hasVideo: remoteStream.getVideoTracks().some((t) => t.readyState === "live"),
+            hasVideo: remoteStream
+              .getVideoTracks()
+              .some((t) => t.readyState === "live" && !t.muted),
           },
         }));
+      };
+
+      pc.ontrack = (event) => {
+        event.streams[0]?.getTracks().forEach((t) => {
+          if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
+        });
+        if (!event.streams[0] && !remoteStream.getTracks().includes(event.track)) {
+          remoteStream.addTrack(event.track);
+        }
+        publish();
+        // Trilha recebida começa "muted" até o vídeo realmente fluir; é no
+        // unmute que dá para mostrar a tela sem risco de quadro preto.
+        event.track.onunmute = publish;
+        event.track.onmute = publish;
         event.track.onended = () => {
-          setPeers((prev) =>
-            prev[peerId]
-              ? {
-                  ...prev,
-                  [peerId]: {
-                    ...prev[peerId],
-                    hasVideo: remoteStream.getVideoTracks().some((t) => t.readyState === "live"),
-                  },
-                }
-              : prev,
-          );
+          remoteStream.getTracks().forEach((t) => {
+            if (t === event.track) remoteStream.removeTrack(t);
+          });
+          publish();
         };
       };
 
@@ -535,6 +551,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       setLocalStream(null);
       extraTrackRef.current.forEach((t) => t.stop());
       extraTrackRef.current.clear();
+      extraStreamRef.current.clear();
       setScreenStream(null);
       setSharingScreen(false);
       sharingScreenRef.current = false;
@@ -751,9 +768,11 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const addExtraTrack = useCallback(
     async (key: string, track: MediaStreamTrack, maxBitrate?: number) => {
       extraTrackRef.current.set(key, track);
+      const wrapper = new MediaStream([track]);
+      extraStreamRef.current.set(key, wrapper);
       pcsRef.current.forEach((pc) => {
         try {
-          pc.addTrack(track);
+          pc.addTrack(track, wrapper);
           if (maxBitrate && track.kind === "video") boostSender(pc, track, maxBitrate);
         } catch {
           /* already added */
@@ -779,6 +798,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     });
     track.stop();
     extraTrackRef.current.delete(key);
+    extraStreamRef.current.delete(key);
   }, []);
 
   const stopSharing = useCallback(() => {
