@@ -767,9 +767,11 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const addExtraTrack = useCallback(
     async (key: string, track: MediaStreamTrack, maxBitrate?: number) => {
       extraTrackRef.current.set(key, track);
+      const wrapper = new MediaStream([track]);
+      extraStreamRef.current.set(key, wrapper);
       pcsRef.current.forEach((pc) => {
         try {
-          pc.addTrack(track);
+          pc.addTrack(track, wrapper);
           if (maxBitrate && track.kind === "video") boostSender(pc, track, maxBitrate);
         } catch {
           /* already added */
