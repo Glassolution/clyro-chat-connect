@@ -797,6 +797,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     });
     track.stop();
     extraTrackRef.current.delete(key);
+    extraStreamRef.current.delete(key);
   }, []);
 
   const stopSharing = useCallback(() => {
