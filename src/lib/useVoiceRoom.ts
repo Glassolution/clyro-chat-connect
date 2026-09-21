@@ -145,6 +145,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const makingOfferRef = useRef<Map<string, boolean>>(new Map());
   const ignoreOfferRef = useRef<Map<string, boolean>>(new Map());
+  const negotiationPendingRef = useRef<Set<string>>(new Set());
+  const negotiatingRef = useRef<Set<string>>(new Set());
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const extraTrackRef = useRef<Map<string, MediaStreamTrack>>(new Map());
@@ -228,6 +230,76 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         });
       });
   }, []);
+
+  /**
+   * Serializa renegociações por participante. Adicionar tela, câmera e áudio
+   * quase juntos dispara vários `negotiationneeded`; se um deles acontece com
+   * a conexão fora de `stable`, o navegador rejeita a oferta. Antes essa falha
+   * era ignorada e a interface anunciava a tela sem que a faixa fosse negociada.
+   */
+  const negotiatePeer = useCallback(
+    async (peerId: string, pc: RTCPeerConnection) => {
+      negotiationPendingRef.current.add(peerId);
+      if (negotiatingRef.current.has(peerId)) return;
+      negotiatingRef.current.add(peerId);
+
+      try {
+        while (negotiationPendingRef.current.has(peerId) && pc.signalingState !== "closed") {
+          negotiationPendingRef.current.delete(peerId);
+
+          if (pc.signalingState !== "stable") {
+            await new Promise<void>((resolve) => {
+              const onState = () => {
+                if (pc.signalingState === "stable" || pc.signalingState === "closed") {
+                  pc.removeEventListener("signalingstatechange", onState);
+                  resolve();
+                }
+              };
+              pc.addEventListener("signalingstatechange", onState);
+              window.setTimeout(() => {
+                pc.removeEventListener("signalingstatechange", onState);
+                resolve();
+              }, 1500);
+            });
+          }
+
+          if (pc.signalingState !== "stable") {
+            negotiationPendingRef.current.add(peerId);
+            continue;
+          }
+
+          try {
+            makingOfferRef.current.set(peerId, true);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            boostVoice(pc);
+            if (pc.localDescription) {
+              send("signal", {
+                from: selfId ?? "",
+                to: peerId,
+                description: withHighQualityAudio(
+                  pc.localDescription.toJSON(),
+                  audioSettingsRef.current,
+                ),
+              });
+            }
+          } finally {
+            makingOfferRef.current.set(peerId, false);
+          }
+        }
+      } catch {
+        // Uma colisão pode mudar o estado entre createOffer e setLocalDescription.
+        // Mantém a intenção pendente para uma nova tentativa assim que estabilizar.
+        if (pc.signalingState !== "closed") negotiationPendingRef.current.add(peerId);
+      } finally {
+        negotiatingRef.current.delete(peerId);
+        if (negotiationPendingRef.current.has(peerId) && pc.signalingState !== "closed") {
+          window.setTimeout(() => void negotiatePeer(peerId, pc), 0);
+        }
+      }
+    },
+    [boostVoice, selfId, send],
+  );
 
   const attachAnalyser = useCallback((id: string, stream: MediaStream) => {
     try {
@@ -327,26 +399,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         }
       };
 
-      pc.onnegotiationneeded = async () => {
-        try {
-          makingOfferRef.current.set(peerId, true);
-          await pc.setLocalDescription();
-          boostVoice(pc);
-          if (pc.localDescription) {
-            send("signal", {
-              from: selfId ?? "",
-              to: peerId,
-              description: withHighQualityAudio(
-                pc.localDescription.toJSON(),
-                audioSettingsRef.current,
-              ),
-            });
-          }
-        } catch {
-          /* ignore */
-        } finally {
-          makingOfferRef.current.set(peerId, false);
-        }
+      pc.onnegotiationneeded = () => {
+        void negotiatePeer(peerId, pc);
       };
 
       pc.onconnectionstatechange = () => {
@@ -368,13 +422,15 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       void polite;
       return pc;
     },
-    [selfId, send, attachAnalyser, boostVoice],
+    [selfId, send, attachAnalyser, boostVoice, negotiatePeer],
   );
 
   const removePeer = useCallback((peerId: string) => {
     const pc = pcsRef.current.get(peerId);
     pc?.close();
     pcsRef.current.delete(peerId);
+    negotiationPendingRef.current.delete(peerId);
+    negotiatingRef.current.delete(peerId);
     analysersRef.current.delete(peerId);
     setPeers((prev) => {
       const next = { ...prev };
@@ -540,6 +596,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       setConnecting(false);
       pcsRef.current.forEach((pc) => pc.close());
       pcsRef.current.clear();
+      negotiationPendingRef.current.clear();
+      negotiatingRef.current.clear();
       analysersRef.current.clear();
       setPeers({});
       if (channelRef.current) {
@@ -774,23 +832,26 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         try {
           pc.addTrack(track, wrapper);
           if (maxBitrate && track.kind === "video") boostSender(pc, track, maxBitrate);
+          const peerEntry = [...pcsRef.current.entries()].find(([, candidate]) => candidate === pc);
+          if (peerEntry) void negotiatePeer(peerEntry[0], pc);
         } catch {
           /* already added */
         }
       });
     },
-    [],
+    [negotiatePeer],
   );
 
   const removeExtraTrack = useCallback((key: string) => {
     const track = extraTrackRef.current.get(key);
     if (!track) return;
-    pcsRef.current.forEach((pc) => {
+    pcsRef.current.forEach((pc, peerId) => {
       pc.getSenders()
         .filter((s) => s.track === track)
         .forEach((s) => {
           try {
             pc.removeTrack(s);
+            void negotiatePeer(peerId, pc);
           } catch {
             /* noop */
           }
@@ -799,7 +860,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     track.stop();
     extraTrackRef.current.delete(key);
     extraStreamRef.current.delete(key);
-  }, []);
+  }, [negotiatePeer]);
 
   const stopSharing = useCallback(() => {
     removeExtraTrack("screen");
