@@ -274,34 +274,45 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         },
       }));
 
-      pc.ontrack = (event) => {
-        event.streams[0]?.getTracks().forEach((t) => {
-          if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
-        });
-        if (!event.streams[0]) remoteStream.addTrack(event.track);
+      /*
+       * O elemento de vídeo só reage a uma troca de stream. Como as trilhas
+       * chegam depois (a tela entra no meio da call), publicamos um MediaStream
+       * novo a cada mudança — sem isso o participante ficava com o quadro preto.
+       */
+      const publish = () => {
         attachAnalyser(peerId, remoteStream);
+        const snapshot = new MediaStream(remoteStream.getTracks());
         setPeers((prev) => ({
           ...prev,
           [peerId]: {
             id: peerId,
             userId: userIdOfPeer(peerId),
-            stream: remoteStream,
+            stream: snapshot,
             speaking: prev[peerId]?.speaking ?? false,
-            hasVideo: remoteStream.getVideoTracks().some((t) => t.readyState === "live"),
+            hasVideo: remoteStream
+              .getVideoTracks()
+              .some((t) => t.readyState === "live" && !t.muted),
           },
         }));
+      };
+
+      pc.ontrack = (event) => {
+        event.streams[0]?.getTracks().forEach((t) => {
+          if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
+        });
+        if (!event.streams[0] && !remoteStream.getTracks().includes(event.track)) {
+          remoteStream.addTrack(event.track);
+        }
+        publish();
+        // Trilha recebida começa "muted" até o vídeo realmente fluir; é no
+        // unmute que dá para mostrar a tela sem risco de quadro preto.
+        event.track.onunmute = publish;
+        event.track.onmute = publish;
         event.track.onended = () => {
-          setPeers((prev) =>
-            prev[peerId]
-              ? {
-                  ...prev,
-                  [peerId]: {
-                    ...prev[peerId],
-                    hasVideo: remoteStream.getVideoTracks().some((t) => t.readyState === "live"),
-                  },
-                }
-              : prev,
-          );
+          remoteStream.getTracks().forEach((t) => {
+            if (t === event.track) remoteStream.removeTrack(t);
+          });
+          publish();
         };
       };
 
