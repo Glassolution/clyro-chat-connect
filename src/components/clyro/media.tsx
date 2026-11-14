@@ -13,7 +13,16 @@ export function StreamVideo({
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
-    if (ref.current && stream) ref.current.srcObject = stream;
+    const el = ref.current;
+    if (!el || !stream) return;
+    // Não zera srcObject: isso destrói o decoder e pode deixar uma transmissão
+    // estática preta até o navegador receber outro keyframe.
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+    void el.play().catch(() => {
+      /* autoplay bloqueado; o clique do usuário resolve */
+    });
   }, [stream]);
   return (
     <video

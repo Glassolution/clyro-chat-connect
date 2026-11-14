@@ -219,9 +219,15 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const makingOfferRef = useRef<Map<string, boolean>>(new Map());
   const ignoreOfferRef = useRef<Map<string, boolean>>(new Map());
+  /** Renegociação pedida enquanto outra ainda corre, e quem está negociando agora. */
+  const negotiationPendingRef = useRef<Set<string>>(new Set());
+  const negotiatingRef = useRef<Set<string>>(new Set());
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const extraTrackRef = useRef<Map<string, MediaStreamTrack>>(new Map());
+  // Cada faixa extra viaja dentro do próprio MediaStream: o outro lado recebe o
+  // vídeo já agrupado e o player sabe que há algo novo para exibir.
+  const extraStreamRef = useRef<Map<string, MediaStream>>(new Map());
   const audioCtxRef = useRef<AudioContext | null>(null);
   /**
    * Grafo do microfone: a fonte crua alimenta a medição e, por um atraso curto,
@@ -452,6 +458,71 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     }, GATE_HOLD_MS);
   }, []);
 
+  /**
+   * Serializa as renegociações de cada participante. Adicionar tela e som da
+   * tela quase juntos dispara vários `negotiationneeded`; com a conexão fora de
+   * `stable` o navegador rejeita a oferta, e antes essa falha era engolida — a
+   * interface anunciava a tela sem que a faixa tivesse sido negociada.
+   */
+  const negotiatePeer = useCallback(
+    async (peerId: string, pc: RTCPeerConnection): Promise<void> => {
+      negotiationPendingRef.current.add(peerId);
+      if (negotiatingRef.current.has(peerId)) return;
+      negotiatingRef.current.add(peerId);
+
+      try {
+        while (negotiationPendingRef.current.has(peerId) && pc.signalingState !== "closed") {
+          negotiationPendingRef.current.delete(peerId);
+
+          if (pc.signalingState !== "stable") {
+            await new Promise<void>((resolve) => {
+              const done = () => {
+                pc.removeEventListener("signalingstatechange", onState);
+                window.clearTimeout(timer);
+                resolve();
+              };
+              const onState = () => {
+                if (pc.signalingState === "stable" || pc.signalingState === "closed") done();
+              };
+              const timer = window.setTimeout(done, 1500);
+              pc.addEventListener("signalingstatechange", onState);
+            });
+          }
+
+          if (pc.signalingState !== "stable") {
+            // Ainda no meio de outra troca: tenta de novo na próxima volta.
+            negotiationPendingRef.current.add(peerId);
+            continue;
+          }
+
+          try {
+            makingOfferRef.current.set(peerId, true);
+            await setLocalDescriptionForVoice(pc, mediaSettingsRef.current);
+            if (pc.localDescription) {
+              send("signal", {
+                from: selfIdRef.current ?? "",
+                to: peerId,
+                description: pc.localDescription.toJSON(),
+              });
+            }
+          } finally {
+            makingOfferRef.current.set(peerId, false);
+          }
+        }
+      } catch {
+        // Uma colisão pode mudar o estado entre a oferta e o setLocalDescription:
+        // mantém a intenção para tentar de novo assim que estabilizar.
+        if (pc.signalingState !== "closed") negotiationPendingRef.current.add(peerId);
+      } finally {
+        negotiatingRef.current.delete(peerId);
+        if (negotiationPendingRef.current.has(peerId) && pc.signalingState !== "closed") {
+          window.setTimeout(() => void negotiatePeer(peerId, pc), 0);
+        }
+      }
+    },
+    [send],
+  );
+
   const createPeer = useCallback(
     (peerId: string) => {
       const existing = pcsRef.current.get(peerId);
@@ -465,8 +536,10 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         pc.addTrack(track, localStreamRef.current as MediaStream);
         if (track.kind === "audio") tuneSender(pc, track, voiceBitrate(mediaSettingsRef.current));
       });
-      extraTrackRef.current.forEach((track) => {
-        pc.addTrack(track);
+      extraTrackRef.current.forEach((track, key) => {
+        const wrapper = extraStreamRef.current.get(key);
+        if (wrapper) pc.addTrack(track, wrapper);
+        else pc.addTrack(track);
       });
 
       const remoteStream = new MediaStream();
@@ -537,22 +610,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         }
       };
 
-      pc.onnegotiationneeded = async () => {
-        try {
-          makingOfferRef.current.set(peerId, true);
-          await setLocalDescriptionForVoice(pc, mediaSettingsRef.current);
-          if (pc.localDescription) {
-            send("signal", {
-              from: selfIdRef.current ?? "",
-              to: peerId,
-              description: pc.localDescription.toJSON(),
-            });
-          }
-        } catch {
-          /* ignore */
-        } finally {
-          makingOfferRef.current.set(peerId, false);
-        }
+      pc.onnegotiationneeded = () => {
+        void negotiatePeer(peerId, pc);
       };
 
       pc.onconnectionstatechange = () => {
@@ -574,13 +633,15 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       void polite;
       return pc;
     },
-    [send, attachAnalyser],
+    [send, attachAnalyser, negotiatePeer],
   );
 
   const removePeer = useCallback((peerId: string) => {
     const pc = pcsRef.current.get(peerId);
     pc?.close();
     pcsRef.current.delete(peerId);
+    negotiationPendingRef.current.delete(peerId);
+    negotiatingRef.current.delete(peerId);
     analysersRef.current.delete(peerId);
     setPeers((prev) => {
       const next = { ...prev };
@@ -770,6 +831,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       setConnecting(false);
       pcsRef.current.forEach((pc) => pc.close());
       pcsRef.current.clear();
+      negotiationPendingRef.current.clear();
+      negotiatingRef.current.clear();
       analysersRef.current.clear();
       setPeers({});
       selfIdRef.current = null;
@@ -817,6 +880,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       setLocalStream(null);
       extraTrackRef.current.forEach((t) => t.stop());
       extraTrackRef.current.clear();
+      extraStreamRef.current.clear();
       setScreenStream(null);
       setSharingScreen(false);
       sharingScreenRef.current = false;
@@ -831,25 +895,11 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
    * fidelidade no meio da call não mudaria nada do que sai daqui.
    */
   const renegotiate = useCallback(async () => {
-    const selfId = selfIdRef.current;
-    if (!selfId) return;
+    if (!selfIdRef.current) return;
     await Promise.all(
-      [...pcsRef.current.entries()].map(async ([peerId, pc]) => {
-        if (pc.signalingState !== "stable") return;
-        try {
-          makingOfferRef.current.set(peerId, true);
-          await setLocalDescriptionForVoice(pc, mediaSettingsRef.current);
-          if (pc.localDescription) {
-            send("signal", { from: selfId, to: peerId, description: pc.localDescription.toJSON() });
-          }
-        } catch {
-          /* perdeu a corrida com outra negociação; a próxima mudança refaz */
-        } finally {
-          makingOfferRef.current.set(peerId, false);
-        }
-      }),
+      [...pcsRef.current.entries()].map(([peerId, pc]) => negotiatePeer(peerId, pc)),
     );
-  }, [send]);
+  }, [negotiatePeer]);
 
   // ---- microfone: preferências e dispositivo ------------------------------
   /**
@@ -1224,9 +1274,11 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const addExtraTrack = useCallback(
     async (key: string, track: MediaStreamTrack, maxBitrate?: number) => {
       extraTrackRef.current.set(key, track);
+      const wrapper = new MediaStream([track]);
+      extraStreamRef.current.set(key, wrapper);
       pcsRef.current.forEach((pc) => {
         try {
-          pc.addTrack(track);
+          pc.addTrack(track, wrapper);
           if (maxBitrate) tuneSender(pc, track, maxBitrate);
         } catch {
           /* already added */
@@ -1252,6 +1304,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     });
     track.stop();
     extraTrackRef.current.delete(key);
+    extraStreamRef.current.delete(key);
   }, []);
 
   const stopSharing = useCallback(() => {
