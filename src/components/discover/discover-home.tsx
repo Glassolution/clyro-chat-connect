@@ -13,7 +13,17 @@ import { Mascot } from "@/components/workspace/mascot";
 import { PromoBanner, SiteNav, buttonGhost, buttonPrimary } from "./site-nav";
 import { ProjectArt, ProjectTile } from "./project-tile";
 import { ProjectDialog } from "./project-dialog";
-import { ClosingCta, HowItWorks, OneJourney, SectionHead, SiteFooter } from "./landing-sections";
+import {
+  Closing,
+  MarkBadge,
+  MascotMarks,
+  NotebookFooter,
+  ProductBoard,
+  SectionHead,
+  TwoSides,
+  VerbPill,
+  Workspace,
+} from "./notebook";
 import { HeroSearch } from "./hero-search";
 import { Reveal, useMotionReady } from "@/hooks/use-reveal";
 
@@ -73,7 +83,7 @@ export function DiscoverHome() {
   const scrollTo = (el: HTMLElement | null) => el?.scrollIntoView({ behavior: "smooth" });
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-paper text-foreground">
       <PromoBanner onClick={publish} />
       <SiteNav
         signedIn={Boolean(user)}
@@ -115,7 +125,7 @@ export function DiscoverHome() {
         }}
       />
 
-      <main ref={categoriesRef} className="scroll-mt-20 bg-surface-1">
+      <main ref={categoriesRef} className="scroll-mt-20">
         {filtering ? (
           <div className="mx-auto max-w-[1200px] px-4 py-24 sm:px-6 lg:py-32">
             <Results
@@ -144,18 +154,18 @@ export function DiscoverHome() {
           </div>
         ) : null}
 
-        <HowItWorks
+        <TwoSides
           innerRef={tracksRef}
           empty={all.length === 0}
           onPublish={publish}
           onJoin={join}
           signedIn={Boolean(user)}
         />
-        <OneJourney />
+        <Workspace />
       </main>
 
-      <ClosingCta onPublish={publish} onExplore={join} />
-      <SiteFooter
+      <Closing onPublish={publish} onJoin={join} />
+      <NotebookFooter
         onPublish={publish}
         onCategory={(id) => {
           setCategory(id);
@@ -175,69 +185,11 @@ export function DiscoverHome() {
   );
 }
 
-/*
- * Escadinhas de quadrados nos cantos, como numa planta baixa. Cada número é
- * quantas células a linha tem, da borda para dentro.
+/**
+ * Hero do caderno: a fila de mascotes, o título com o verbo numa pílula, a
+ * serifa explicando, as duas ações, a busca de verdade e o quadro de pedidos
+ * de um projeto como prova. As áreas ficam numa faixa logo abaixo.
  */
-const STAIRS = [6, 5, 3, 3, 1];
-const CELL = 48;
-/* Primeira linha da grade a partir da borda: o centro menos meia tela arredondada para cima. */
-const STAIR_EDGE = `calc(50% - round(up, 50%, ${CELL}px))`;
-const STAIR_X = {
-  left: { left: STAIR_EDGE },
-  right: { right: STAIR_EDGE },
-} satisfies Record<string, React.CSSProperties>;
-/* As de baixo terminam ~2 células acima do fim do hero, encaixadas na grade. */
-const STAIR_BOTTOM_TOP = `round(down, calc(100% - ${STAIRS.length * CELL + 2 * CELL}px), ${CELL}px)`;
-
-function Staircase({
-  className,
-  flip,
-  style,
-}: {
-  className?: string;
-  flip?: "x" | "y" | "xy";
-  style?: React.CSSProperties;
-}) {
-  const w = Math.max(...STAIRS) * CELL + 1;
-  const h = STAIRS.length * CELL + 1;
-  const scale =
-    flip === "x"
-      ? "scale(-1,1)"
-      : flip === "y"
-        ? "scale(1,-1)"
-        : flip === "xy"
-          ? "scale(-1,-1)"
-          : "";
-  return (
-    <svg
-      aria-hidden="true"
-      width={w}
-      height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      className={cn("hero-in pointer-events-none absolute", className)}
-      style={{ ...style, transform: scale || undefined, "--d": "900ms" } as React.CSSProperties}
-    >
-      {STAIRS.flatMap((n, row) =>
-        Array.from({ length: n }, (_, col) => (
-          <rect
-            key={`${row}-${col}`}
-            x={col * CELL + 0.5}
-            y={row * CELL + 0.5}
-            width={CELL}
-            height={CELL}
-            fill={
-              (row === 1 && col === 3) || (row === 3 && col === 0) ? "var(--brand-soft)" : "none"
-            }
-            stroke="var(--edge-strong)"
-            strokeOpacity={1 - (row + col) * 0.09}
-          />
-        )),
-      )}
-    </svg>
-  );
-}
-
 function Hero({
   total,
   draft,
@@ -258,100 +210,45 @@ function Hero({
   onExplore: () => void;
 }) {
   return (
-    <section className="relative overflow-hidden">
-      <div className="blueprint-grid pointer-events-none absolute inset-0" />
-      {/*
-       * A grade nasce no centro da tela; as escadinhas também, para cair sempre
-       * em cima das linhas, em qualquer largura.
-       */}
-      <Staircase className="top-0 hidden sm:block" style={STAIR_X.left} />
-      <Staircase className="top-0 hidden sm:block" style={STAIR_X.right} flip="x" />
-      <Staircase
-        className="hidden opacity-70 lg:block"
-        style={{ ...STAIR_X.left, top: STAIR_BOTTOM_TOP }}
-        flip="y"
-      />
-      <Staircase
-        className="hidden opacity-70 lg:block"
-        style={{ ...STAIR_X.right, top: STAIR_BOTTOM_TOP }}
-        flip="xy"
-      />
+    <section className="relative">
+      <div className="mx-auto flex max-w-[1200px] flex-col items-center px-4 pb-16 pt-12 text-center sm:px-6 sm:pt-16">
+        <MascotMarks />
 
-      <div className="relative mx-auto flex max-w-[1200px] flex-col items-center px-4 pb-14 pt-16 text-center sm:px-6 sm:pt-24">
-        {/* Números reais da vitrine; o mascote de frente marca cada um, sem cara de nota. */}
-        <div className="hero-in flex flex-wrap items-center justify-center gap-x-10 gap-y-2 font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-          <span className="flex items-center gap-2">
-            <Mascot pose="neutro" size={16} />
-            {total} {total === 1 ? "projeto aberto" : "projetos abertos"}
-          </span>
-          <span className="flex items-center gap-2">
-            <Mascot pose="neutro" size={16} />
-            {CATEGORIES.length} categorias
-          </span>
-        </div>
-
-        <h1 className="mt-8 text-[clamp(2.2rem,8vw,5.25rem)] font-semibold leading-[1.2] tracking-[-0.045em]">
-          {/*
-           * Entrada do hero, o momento autoral da página: as linhas sobem, a
-           * tecla cai e é pressionada, e "sozinho" é digitado em pixel.
-           */}
-          <span className="hero-in inline-block" style={{ "--d": "80ms" } as React.CSSProperties}>
-            Construa com gente
+        <h1 className="mt-8 text-[clamp(2.5rem,7.4vw,5.6rem)] font-bold leading-[1.04] tracking-[-0.048em]">
+          <span className="hero-in inline-block" style={{ "--d": "120ms" } as React.CSSProperties}>
+            Onde startups encontram
           </span>
           <br />
-          <span className="hero-in inline-block" style={{ "--d": "180ms" } as React.CSSProperties}>
-            não
-          </span>
-          {/*
-           * A tecla não entra no fluxo da linha: o span reserva só a largura
-           * visível e a imagem sobe 0,1em sobre a primeira linha, como na
-           * referência. Margem transparente medida no PNG: 8,8% à esquerda,
-           * 5,5% em cima, 5% embaixo.
-           */}
-          <span
-            aria-hidden="true"
-            className="group/key relative mx-[0.34em] inline-block h-[0.7em] w-[1.52em] align-baseline"
-          >
-            <span
-              className="key-in absolute inset-0 block"
-              style={{ "--d": "320ms" } as React.CSSProperties}
-            >
-              <img
-                src="/keycap-peace.webp"
-                alt=""
-                draggable={false}
-                width={1312}
-                height={1199}
-                className="absolute bottom-[-0.33em] left-[-0.17em] z-10 h-[1.72em] w-auto max-w-none select-none transition-transform duration-150 ease-out group-hover/key:translate-y-[0.035em] group-hover/key:scale-[0.985] [filter:drop-shadow(0_0.03em_0.04em_rgba(60,20,0,0.22))_drop-shadow(0_0.14em_0.28em_rgba(60,20,0,0.26))]"
-              />
-            </span>
-          </span>
-          {/* A tecla é decorativa; sem este espaço o leitor de tela lê "nãosozinho". */}
-          <span className="sr-only"> </span>
-          <span
-            className="type-in inline-block font-pixel text-[1.18em] font-normal leading-none tracking-[-0.02em]"
-            style={{ "--d": "820ms" } as React.CSSProperties}
-          >
-            sozinho
-          </span>
+          <span className="hero-in inline-block" style={{ "--d": "200ms" } as React.CSSProperties}>
+            gente para
+          </span>{" "}
+          <VerbPill />
         </h1>
 
         <p
-          className="hero-in mt-6 max-w-[520px] text-base leading-[1.5] text-muted-foreground"
-          style={{ "--d": "460ms" } as React.CSSProperties}
+          className="hero-in mt-6 max-w-[62ch] text-balance font-serif text-[clamp(1.05rem,1.6vw,1.25rem)] leading-[1.55] text-graphite"
+          style={{ "--d": "380ms" } as React.CSSProperties}
         >
-          Encontre uma startup para fazer parte ou monte o time do seu projeto. Quem publica escolhe
-          quem entra.
+          Publique o seu projeto ou peça para entrar em um. Quem publica escolhe quem entra, e o
+          time começa a trabalhar no mesmo lugar.
         </p>
 
         <div
-          className="hero-in mt-8 flex flex-wrap items-center justify-center gap-2"
-          style={{ "--d": "560ms" } as React.CSSProperties}
+          className="hero-in mt-8 flex flex-wrap items-center justify-center gap-2.5"
+          style={{ "--d": "480ms" } as React.CSSProperties}
         >
-          <button type="button" onClick={onPublish} className={buttonPrimary("h-10")}>
+          <button
+            type="button"
+            onClick={onPublish}
+            className={buttonPrimary("h-11 px-5 text-[15px]")}
+          >
             Publicar projeto
           </button>
-          <button type="button" onClick={onExplore} className={buttonGhost("h-10")}>
+          <button
+            type="button"
+            onClick={onExplore}
+            className={buttonGhost("h-11 px-5 text-[15px]")}
+          >
             {total === 0 ? "Quero entrar num time" : "Explorar projetos"}
           </button>
         </div>
@@ -360,17 +257,51 @@ function Hero({
           value={draft}
           onChange={onDraft}
           onSubmit={onSearch}
-          className="hero-in mt-6"
-          style={{ "--d": "660ms" } as React.CSSProperties}
+          className="hero-in mt-5"
+          style={{ "--d": "560ms" } as React.CSSProperties}
         />
+        <p
+          className="hero-in mt-3 text-[13px] text-graphite"
+          style={{ "--d": "600ms" } as React.CSSProperties}
+        >
+          {total === 0
+            ? "Nenhum projeto aberto ainda: o primeiro pode ser o seu."
+            : `${total} ${total === 1 ? "projeto aberto" : "projetos abertos"} em ${CATEGORIES.length} áreas.`}
+        </p>
+
+        {/* O produto, com os personagens espiando em volta. */}
+        <div className="relative mt-14 w-full max-w-[1080px]">
+          <MarkBadge
+            pose="estrela"
+            ring="#ffb110"
+            doodle="lines"
+            className="-left-24 top-[-36px]"
+            delay={900}
+          />
+          <MarkBadge
+            pose="brincando"
+            ring="#62aef0"
+            doodle="sparkle"
+            className="-right-16 top-[-48px]"
+            delay={1000}
+          />
+          <MarkBadge pose="sorte" ring="#ff6a13" className="-left-10 bottom-16" delay={1100} />
+          <MarkBadge
+            pose="energia"
+            ring="#02093a"
+            doodle="squiggle"
+            className="-right-14 bottom-24"
+            delay={1200}
+          />
+          <div className="hero-in" style={{ "--d": "700ms" } as React.CSSProperties}>
+            <ProductBoard />
+          </div>
+        </div>
       </div>
 
-      {/* Faixa de categorias, como a faixa de logos: monocromática até o hover. */}
-      <div
-        className="hero-in relative border-y border-edge bg-background/70 backdrop-blur-sm"
-        style={{ "--d": "760ms" } as React.CSSProperties}
-      >
-        <div className="clyro-scroll mx-auto flex max-w-[1200px] items-center gap-1 overflow-x-auto px-4 py-4 sm:justify-between sm:px-6">
+      {/* Faixa de áreas: como uma parede de logos, em tinta apagada até o hover. */}
+      <div className="relative">
+        <div className="clyro-scroll mx-auto flex max-w-[1200px] items-center gap-1 overflow-x-auto px-4 pb-6 sm:justify-center sm:px-6">
           {CATEGORIES.map((c) => {
             const active = category === c.id;
             return (
@@ -378,18 +309,19 @@ function Hero({
                 key={c.id}
                 type="button"
                 onClick={() => onCategory(c.id)}
+                aria-pressed={active}
                 className={cn(
-                  "group flex h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-[15px] font-medium tracking-[-0.02em] transition-colors",
+                  "group flex h-10 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] font-medium tracking-[-0.01em] transition-[background-color,color] duration-200",
                   active
-                    ? "bg-surface-2 text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-white text-foreground shadow-[0_0_0_1px_rgb(0_0_0/0.08)]"
+                    : "text-black/50 hover:bg-black/[0.04] hover:text-foreground",
                 )}
               >
                 <Mascot
                   pose={c.pose}
                   size={22}
                   className={cn(
-                    "transition-[filter,opacity,transform] duration-300 ease-clyro group-hover:-translate-y-0.5 group-hover:-rotate-6",
+                    "transition-[filter,opacity,transform] duration-300 [transition-timing-function:var(--ease-spring)] group-hover:-translate-y-0.5 group-hover:-rotate-6",
                     active
                       ? ""
                       : "opacity-60 grayscale group-hover:opacity-100 group-hover:grayscale-0",

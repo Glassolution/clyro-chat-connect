@@ -82,8 +82,8 @@ export function SiteNav({
       className={cn(
         "sticky top-0 z-30 border-b transition-[background-color,border-color,box-shadow] duration-300 ease-clyro",
         scrolled
-          ? "border-black/[0.06] bg-background/80 shadow-[0_8px_24px_-20px_rgb(0_0_0/0.25)] backdrop-blur-xl"
-          : "border-transparent bg-background/0",
+          ? "border-transparent bg-paper/85 shadow-[0_0.7px_1.5px_rgb(0_0_0/0.015),0_3px_9px_rgb(0_0_0/0.03)] backdrop-blur-xl"
+          : "border-transparent bg-paper/0",
       )}
     >
       <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-2 px-4 sm:px-6">
@@ -95,7 +95,7 @@ export function SiteNav({
           <ClyroMark className="h-10 w-10" />
         </Link>
 
-        <nav className="hidden items-center gap-1.5 md:flex">
+        <nav className="hidden items-center gap-0.5 md:flex">
           {items.map((item) =>
             item.to ? (
               <Link key={item.label} to={item.to} className={pillClass(item.active)}>
@@ -138,24 +138,23 @@ export function SiteNav({
   );
 }
 
+/** Link de navegação do caderno: texto apagado que escurece no hover, sem pílula cinza. */
 const pillClass = (active?: boolean) =>
   cn(
-    "flex h-9 items-center rounded-lg px-3.5 text-[13px] font-medium tracking-[-0.01em] transition-[background-color,color,transform] duration-200 ease-clyro active:scale-[0.97]",
-    active
-      ? "bg-foreground text-background"
-      : "bg-surface-2 text-foreground hover:bg-edge",
+    "flex h-9 items-center rounded-lg px-3 text-[14px] font-medium tracking-[-0.01em] transition-[background-color,color,transform] duration-200 ease-out active:scale-[0.97]",
+    active ? "text-foreground" : "text-black/55 hover:bg-black/[0.04] hover:text-foreground",
   );
 
 /** Ação principal: laranja cheio, canto de 8px. */
 export const buttonPrimary = (extra?: string) =>
   cn(
-    "inline-flex items-center justify-center gap-2 rounded-md bg-brand px-4 text-[14px] font-medium text-white transition-[background-color,transform] duration-200 ease-clyro hover:bg-brand-strong active:translate-y-px active:scale-[0.98]",
+    "inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 text-[14px] font-medium text-white transition-[background-color,transform] duration-200 ease-clyro hover:bg-brand-strong active:translate-y-px active:scale-[0.98]",
     extra,
   );
 
 /** Ação secundária: transparente com borda. */
 export const buttonGhost = (extra?: string) =>
   cn(
-    "inline-flex items-center justify-center gap-2 rounded-md bg-background px-4 text-[14px] font-medium text-foreground shadow-[0_0_0_1px_var(--edge-strong)] transition-[background-color,box-shadow,transform] duration-200 ease-clyro hover:bg-surface-1 hover:shadow-[0_0_0_1px_#a8a8a8] active:translate-y-px active:scale-[0.98]",
+    "inline-flex items-center justify-center gap-2 rounded-lg bg-[#fbe6d6] px-4 text-[14px] font-medium text-brand-ink transition-[background-color,transform] duration-200 ease-out hover:bg-peach active:translate-y-px active:scale-[0.98]",
     extra,
   );

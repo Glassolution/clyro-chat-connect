@@ -27,6 +27,8 @@
   --font-display: var(--font-sans);
   /* Fonte pixelada só para a palavra de contraste do título. */
   --font-pixel: "VT323", var(--font-mono);
+  /* Serifa editorial: só nos subtítulos e aberturas de seção. */
+  --font-serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
   --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-grid-line: var(--grid-line);
   --color-surface-1: var(--surface-1);
@@ -34,6 +36,14 @@
   --color-edge: var(--edge);
   --color-edge-strong: var(--edge-strong);
   --color-ink-2: var(--ink-2);
+  --color-paper: var(--paper);
+  --color-graphite: var(--graphite);
+  --color-marigold: var(--marigold);
+  --color-sky: var(--sky);
+  --color-sky-tint: var(--sky-tint);
+  --color-midnight: var(--midnight);
+  --color-peach: var(--peach);
+  --color-brand-ink: var(--brand-ink);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -150,6 +160,20 @@
   --edge-strong: #d4d4d4;
   /* Texto de leitura em cartões: um passo abaixo do preto, 8.4:1 no branco. */
   --ink-2: #4d4d4d;
+  /*
+   * Caderno ao sol da tarde: papel morno como fundo, cartões brancos por cima,
+   * e um elenco de cores de post-it pintando os painéis. O laranja da marca
+   * fica só na ação principal; as cores do elenco nunca viram botão.
+   */
+  --paper: #f6f5f4;
+  --graphite: #615d59;
+  --marigold: #ffb110;
+  --sky: #62aef0;
+  --sky-tint: #e6f3fe;
+  --midnight: #02093a;
+  --peach: #f6d5b8;
+  /* Laranja escuro para texto sobre o pêssego/laranja-claro: 7:1. */
+  --brand-ink: #9a3a00;
   --card-shadow: rgba(0, 0, 0, 0.1) 0px 4px 6px -1px, rgba(0, 0, 0, 0.1) 0px 2px 4px -2px;
 }
 
@@ -711,7 +735,7 @@
  */
 @utility hairline-card {
   background: #ffffff;
-  border-radius: 6px;
+  border-radius: 12px;
   box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
   transition:
     box-shadow 0.3s var(--ease-clyro),
@@ -914,4 +938,85 @@
 
 @utility caret-blink {
   animation: clyro-caret 1s steps(1) infinite;
+}
+
+/* ------------------------------------------------------------------ */
+/* Caderno: molas só nos personagens e no hero; o resto, 200ms e pronto. */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes clyro-mark-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.6) rotate(-12deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.06) rotate(3deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* Personagem que entra com mola. */
+@utility mark-pop {
+  animation: clyro-mark-pop 0.7s var(--ease-spring) both;
+  animation-delay: var(--d, 0ms);
+  @media (prefers-reduced-motion: reduce) {
+    animation: clyro-fade-only 0.3s ease-out both;
+  }
+}
+
+@keyframes clyro-mark-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(2deg);
+  }
+}
+
+/* Personagem solto que balança devagar perto do produto. */
+@utility mark-bob {
+  animation: clyro-mark-bob 5s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes clyro-pill-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* A pílula do verbo cresce com mola quando o título chega. */
+@utility pill-pop {
+  animation: clyro-pill-pop 0.7s var(--ease-spring) both;
+  animation-delay: var(--d, 0ms);
+  @media (prefers-reduced-motion: reduce) {
+    animation: clyro-fade-only 0.3s ease-out both;
+  }
+}
+
+/* Os cartões do quadro de pedidos chegam um a um depois do produto. */
+@utility board-card {
+  animation: clyro-rise 0.6s var(--ease-out-expo) both;
+  animation-delay: var(--d, 0ms);
+  @media (prefers-reduced-motion: reduce) {
+    animation: clyro-fade-only 0.3s ease-out both;
+  }
 }
