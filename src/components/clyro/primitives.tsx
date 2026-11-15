@@ -1,27 +1,54 @@
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 import { useMediaUrl } from "@/lib/profile-media";
 import type { PresenceStatus, Profile } from "@/lib/clyro-types";
 import { initialsOf } from "@/lib/clyro-types";
 
-export function ClyroMark({
-  className,
-  glyphClassName,
-}: {
-  className?: string;
-  glyphClassName?: string;
-}) {
+/**
+ * Símbolo do Clyro: o mascote laranja, redesenhado em vetor para ficar nítido
+ * em qualquer tamanho (o PNG antigo tinha 256px e vinha borrado). O vidro é um
+ * degradê radial com um brilho no alto; os olhos são duas pílulas brancas.
+ * `glyphClassName` ficou do desenho antigo e é ignorado.
+ */
+export function ClyroMark({ className }: { className?: string; glyphClassName?: string }) {
+  const id = useId().replace(/:/g, "");
   return (
-    <svg viewBox="0 0 32 32" className={cn("h-6 w-6 text-white", className)} aria-hidden="true">
-      <path
-        d="M8 4h16a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H12l-7 5.5V24a5 5 0 0 1-1-3V9a5 5 0 0 1 4-5Z"
-        fill="currentColor"
+    <svg
+      viewBox="0 0 64 64"
+      aria-hidden="true"
+      className={cn("h-6 w-6 shrink-0 select-none", className)}
+    >
+      <defs>
+        <radialGradient id={`${id}-body`} cx="44%" cy="62%" r="68%">
+          <stop offset="0" stopColor="#f04a14" />
+          <stop offset="0.5" stopColor="#ff6a13" />
+          <stop offset="0.82" stopColor="#ff8d3a" />
+          <stop offset="1" stopColor="#ffb25e" />
+        </radialGradient>
+        <radialGradient id={`${id}-shine`} cx="34%" cy="22%" r="42%">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id={`${id}-rim`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.5" />
+          <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
+          <stop offset="1" stopColor="#b8360a" stopOpacity="0.35" />
+        </linearGradient>
+      </defs>
+      <rect x="5" y="5" width="54" height="54" rx="19" fill={`url(#${id}-body)`} />
+      <rect x="5" y="5" width="54" height="54" rx="19" fill={`url(#${id}-shine)`} />
+      <rect
+        x="5.6"
+        y="5.6"
+        width="52.8"
+        height="52.8"
+        rx="18.4"
+        fill="none"
+        stroke={`url(#${id}-rim)`}
+        strokeWidth="1.2"
       />
-      <g className={cn("text-rail", glyphClassName)} fill="currentColor">
-        <rect x="8.1" y="10.2" width="4.6" height="1.5" rx="0.75" />
-        <rect x="9.7" y="8.6" width="1.5" height="4.6" rx="0.75" />
-        <rect x="15.2" y="12.4" width="2.9" height="7" rx="1.45" />
-        <rect x="20.6" y="12.4" width="2.9" height="7" rx="1.45" />
-      </g>
+      <rect x="21.5" y="20" width="5.5" height="12" rx="2.75" fill="#fff" />
+      <rect x="37" y="20" width="5.5" height="12" rx="2.75" fill="#fff" />
     </svg>
   );
 }

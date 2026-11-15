@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowLeft, Camera, ChevronRight, Plus, X } from "lucide-react";
+import { ArrowLeft, Camera, ChevronRight, Plus, X } from "@/components/icons";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";

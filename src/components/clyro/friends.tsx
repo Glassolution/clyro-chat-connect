@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, Phone, Search, Send, UserPlus, Users, Video, X } from "lucide-react";
+import { Check, Phone, Search, Send, UserPlus, Users, Video, X } from "@/components/icons";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";

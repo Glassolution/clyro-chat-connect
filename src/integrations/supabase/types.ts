@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_requests: {
+        Row: {
+          answers: Json
+          created_at: string
+          id: string
+          message: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          server_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          answers?: Json
+          created_at?: string
+          id?: string
+          message?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          server_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          id?: string
+          message?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          server_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_requests_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channels: {
         Row: {
           created_at: string
@@ -255,6 +299,13 @@ export type Database = {
           is_public: boolean
           name: string
           owner_id: string
+          access_questions: Json
+          category: string | null
+          cover_url: string | null
+          looking_for: string[]
+          stage: string | null
+          tagline: string | null
+          website: string | null
         }
         Insert: {
           created_at?: string
@@ -265,6 +316,13 @@ export type Database = {
           is_public?: boolean
           name: string
           owner_id: string
+          access_questions?: Json
+          category?: string | null
+          cover_url?: string | null
+          looking_for?: string[]
+          stage?: string | null
+          tagline?: string | null
+          website?: string | null
         }
         Update: {
           created_at?: string
@@ -275,8 +333,85 @@ export type Database = {
           is_public?: boolean
           name?: string
           owner_id?: string
+          access_questions?: Json
+          category?: string | null
+          cover_url?: string | null
+          looking_for?: string[]
+          stage?: string | null
+          tagline?: string | null
+          website?: string | null
         }
         Relationships: []
+      }
+      teams: {
+        Row: {
+          color: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          server_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          server_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          server_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       voice_states: {
         Row: {
@@ -326,11 +461,84 @@ export type Database = {
           },
         ]
       }
+      workspace_invites: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          invited_by: string
+          responded_at: string | null
+          role: string
+          server_id: string
+          status: string
+          team_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          invited_by: string
+          responded_at?: string | null
+          role?: string
+          server_id: string
+          status?: string
+          team_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          invited_by?: string
+          responded_at?: string | null
+          role?: string
+          server_id?: string
+          status?: string
+          team_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_invites_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_invites_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      cancel_access_request: { Args: { _request_id: string }; Returns: undefined }
+      discover_projects: {
+        Args: { _category?: string | null; _limit?: number; _search?: string | null }
+        Returns: {
+          id: string
+          name: string
+          tagline: string | null
+          description: string | null
+          icon_url: string | null
+          cover_url: string | null
+          category: string | null
+          stage: string | null
+          looking_for: string[]
+          member_count: number
+          is_member: boolean
+          request_status: string | null
+          created_at: string
+        }[]
+      }
       discover_servers: {
         Args: { _limit?: number; _search?: string; _sort?: string }
         Returns: {
@@ -351,7 +559,80 @@ export type Database = {
         Args: { _server_id: string; _user_id: string }
         Returns: boolean
       }
+      get_project: {
+        Args: { _id: string }
+        Returns: {
+          id: string
+          name: string
+          tagline: string | null
+          description: string | null
+          icon_url: string | null
+          cover_url: string | null
+          category: string | null
+          stage: string | null
+          looking_for: string[]
+          member_count: number
+          is_member: boolean
+          request_status: string | null
+          created_at: string
+          website: string | null
+          access_questions: Json
+          is_public: boolean
+          owner_id: string
+          owner_name: string | null
+          owner_avatar: string | null
+        }[]
+      }
+      invite_to_workspace: {
+        Args: { _identifier: string; _role?: string; _server_id: string; _team_id?: string | null }
+        Returns: {
+          created_at: string
+          email: string | null
+          id: string
+          invited_by: string
+          responded_at: string | null
+          role: string
+          server_id: string
+          status: string
+          team_id: string | null
+          user_id: string | null
+        }
+      }
+      is_workspace_admin: {
+        Args: { _server_id: string; _user_id: string }
+        Returns: boolean
+      }
       join_server_by_invite: { Args: { _code: string }; Returns: string }
+      remove_from_workspace: {
+        Args: { _server_id: string; _user_id: string }
+        Returns: undefined
+      }
+      request_access: {
+        Args: { _answers?: Json; _message?: string | null; _server_id: string }
+        Returns: {
+          answers: Json
+          created_at: string
+          id: string
+          message: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          server_id: string
+          status: string
+          user_id: string
+        }
+      }
+      respond_to_invite: {
+        Args: { _accept: boolean; _invite_id: string }
+        Returns: string
+      }
+      review_access_request: {
+        Args: { _approve: boolean; _request_id: string }
+        Returns: string
+      }
+      set_workspace_role: {
+        Args: { _role: string; _server_id: string; _user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -8,17 +8,16 @@ export const Route = createFileRoute("/app")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Clyro — conversas, voz e vídeo em tempo real" },
+      { title: "Clyro — o workspace da sua startup" },
       {
         name: "description",
         content:
-          "Clyro reúne servidores, canais de texto e voz, mensagens diretas e chamadas com vídeo e compartilhamento de tela em uma interface minimalista.",
+          "Workspace para founders: equipe, convites, salas de chat e reuniões por voz e o dia a dia de quem faz o quê.",
       },
-      { property: "og:title", content: "Clyro — conversas, voz e vídeo em tempo real" },
+      { property: "og:title", content: "Clyro — o workspace da sua startup" },
       {
         property: "og:description",
-        content:
-          "Servidores, canais, DMs e chamadas com vídeo e compartilhamento de tela em uma interface minimalista.",
+        content: "Equipe, salas de chat, reuniões por voz e o dia a dia de quem faz o quê.",
       },
     ],
   }),

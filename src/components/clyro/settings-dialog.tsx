@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Mic, MonitorUp, Upload } from "lucide-react";
+import { Mic, MonitorUp, Upload } from "@/components/icons";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";

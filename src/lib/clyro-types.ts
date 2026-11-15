@@ -8,6 +8,7 @@ export type Server = {
   icon_url: string | null;
   owner_id: string;
   invite_code: string;
+  description?: string | null;
 };
 
 export type Channel = {

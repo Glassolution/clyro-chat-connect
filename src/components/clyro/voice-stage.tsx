@@ -16,7 +16,7 @@ import {
   Video,
   VideoOff,
   Volume2,
-} from "lucide-react";
+} from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,

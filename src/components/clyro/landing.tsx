@@ -17,7 +17,7 @@ import {
   Users,
   Volume2,
   X,
-} from "lucide-react";
+} from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ClyroMark, ClyroWordmark } from "@/components/clyro/primitives";

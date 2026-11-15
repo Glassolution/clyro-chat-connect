@@ -1,4 +1,4 @@
-import { MessageSquare, Phone, Video, X } from "lucide-react";
+import { MessageSquare, Phone, Video, X } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useMutualServers, useProfiles } from "@/lib/clyro-queries";

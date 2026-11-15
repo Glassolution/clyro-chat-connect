@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Hash, Search } from "lucide-react";
+import { Plus, Hash, Search } from "@/components/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { ClyroMark, MediaImage } from "./primitives";

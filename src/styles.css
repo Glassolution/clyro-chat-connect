@@ -23,8 +23,17 @@
    * que dá o ar arredondado da gg sans nos tamanhos de interface.
    */
   --font-sans:
-    "Figtree", "Noto Sans", "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+    "Inter", "Figtree", "Noto Sans", "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-sans);
+  /* Fonte pixelada só para a palavra de contraste do título. */
+  --font-pixel: "VT323", var(--font-mono);
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-grid-line: var(--grid-line);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-edge: var(--edge);
+  --color-edge-strong: var(--edge-strong);
+  --color-ink-2: var(--ink-2);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -70,12 +79,86 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --shadow-panel: 0 1px 2px oklch(0 0 0 / 0.4), 0 8px 24px oklch(0 0 0 / 0.35);
-  --shadow-float: 0 12px 40px oklch(0 0 0 / 0.5);
+  --shadow-card: var(--card-shadow);
+  --shadow-pill: var(--pill-shadow);
+  --shadow-float: var(--float-shadow);
+  --shadow-violet: var(--violet-shadow);
+  --color-mascot: var(--mascot);
   /* Curva única de todo o movimento do produto. */
   --ease-clyro: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root {
+  /*
+   * Clyro para founders — claro e de alto contraste. Fundo branco,
+   * superfícies em degraus de cinza, texto preto e um só laranja para a ação
+   * e o foco.
+   */
+  --radius: 0.5rem;
+  /* Laranja vivo do mascote, escolhido pela marca; o hover escurece um passo. */
+  --brand: #ff6a13;
+  --brand-strong: #e85a05;
+  --brand-soft: #fff1e8;
+  --brand-abyss: oklch(0.16 0.006 271.2);
+  --mascot: oklch(0.76 0.16 55);
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #000000;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #000000;
+  --muted: #f5f5f5;
+  --muted-foreground: #6b6b6b;
+  --accent: #f5f5f5;
+  --accent-foreground: #000000;
+  --destructive: oklch(0.6 0.21 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: #ebebeb;
+  --input: #ebebeb;
+  --ring: #c94a00;
+  --rail: #ffffff;
+  --rail-foreground: #000000;
+  --panel: #ffffff;
+  --panel-foreground: #000000;
+  --surface: #ffffff;
+  --stage: oklch(0.2 0.006 270);
+  --stage-foreground: oklch(0.98 0 0);
+  --online: oklch(0.66 0.16 152);
+  --idle: oklch(0.79 0.15 75);
+  --dnd: oklch(0.62 0.21 25);
+  --offline: oklch(0.72 0.012 264);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #000000;
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: #f5f5f5;
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #ffffff;
+  --sidebar-ring: #c94a00;
+  --pill-shadow: rgba(0, 0, 0, 0.06) 0px 2px 8px 0px;
+  --float-shadow: rgba(0, 0, 0, 0.12) 0px 4px 24px 0px;
+  --violet-shadow: rgba(201, 74, 0, 0.28) 0px 4px 20px 0px;
+  /* Blueprint: grade fina, superfícies em degraus (sem sombra) e um só laranja. */
+  --grid-line: #f2f2f2;
+  --surface-1: #fafafa;
+  --surface-2: #f3f3f3;
+  --edge: #e6e6e6;
+  --edge-strong: #d4d4d4;
+  /* Texto de leitura em cartões: um passo abaixo do preto, 8.4:1 no branco. */
+  --ink-2: #4d4d4d;
+  --card-shadow: rgba(0, 0, 0, 0.1) 0px 4px 6px -1px, rgba(0, 0, 0, 0.1) 0px 2px 4px -2px;
+}
+
+/*
+ * O tema escuro de antes continua valendo na landing e no login, que foram
+ * desenhados em cima dele.
+ */
+.dark,
+.clyro-classic {
   --radius: 0.5rem;
   /*
    * Paleta do Discord (tema escuro), convertida de sRGB para oklch:
@@ -126,55 +209,10 @@
   --sidebar-ring: oklch(0.577 0.209 273.9);
 }
 
-.dark {
-  --radius: 0.5rem;
-  /*
-   * Paleta do Discord (tema escuro), convertida de sRGB para oklch:
-   * #1E1F22 trilha · #232428 cartão · #2B2D31 barra · #313338 conversa
-   * #5865F2 blurple · #00A8FC link · #23A55A online · #F23F43 ocupado
-   */
-  --brand: oklch(0.577 0.209 273.9);
-  --brand-strong: oklch(0.497 0.176 273.9);
-  --brand-soft: oklch(0.701 0.166 242);
-  --brand-abyss: oklch(0.16 0.006 271.2);
-  --background: oklch(0.321 0.009 268.4);
-  --foreground: oklch(0.964 0.003 264.5);
-  --card: oklch(0.261 0.008 274.7);
-  --card-foreground: oklch(0.964 0.003 264.5);
-  --popover: oklch(0.321 0.009 268.4);
-  --popover-foreground: oklch(0.964 0.003 264.5);
-  --primary: oklch(0.577 0.209 273.9);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.349 0.011 271.1);
-  --secondary-foreground: oklch(0.964 0.003 264.5);
-  --muted: oklch(0.337 0.009 268.4);
-  --muted-foreground: oklch(0.687 0.015 254.6);
-  --accent: oklch(0.38 0.012 273.1);
-  --accent-foreground: oklch(0.964 0.003 264.5);
-  --destructive: oklch(0.637 0.215 24.7);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.376 0.011 271.1);
-  --input: oklch(0.349 0.011 271.1);
-  --ring: oklch(0.577 0.209 273.9);
-  --rail: oklch(0.239 0.006 271.2);
-  --rail-foreground: oklch(0.964 0.003 264.5);
-  --panel: oklch(0.297 0.008 264.4);
-  --panel-foreground: oklch(0.964 0.003 264.5);
-  --surface: oklch(0.321 0.009 268.4);
-  --stage: oklch(0.239 0.006 271.2);
-  --stage-foreground: oklch(0.964 0.003 264.5);
-  --online: oklch(0.637 0.155 152.3);
-  --idle: oklch(0.801 0.151 80.5);
-  --dnd: oklch(0.637 0.215 24.7);
-  --offline: oklch(0.613 0.016 268.4);
-  --sidebar: oklch(0.297 0.008 264.4);
-  --sidebar-foreground: oklch(0.964 0.003 264.5);
-  --sidebar-primary: oklch(0.577 0.209 273.9);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.38 0.012 273.1);
-  --sidebar-accent-foreground: oklch(0.964 0.003 264.5);
-  --sidebar-border: oklch(0.376 0.011 271.1);
-  --sidebar-ring: oklch(0.577 0.209 273.9);
+.clyro-classic {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: "Figtree", ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
@@ -186,11 +224,18 @@
     scroll-behavior: smooth;
   }
 
+  /* Sem palavra sozinha na última linha dos parágrafos. */
+  p,
+  li {
+    text-wrap: pretty;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-optical-sizing: auto;
+    letter-spacing: -0.02em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -582,4 +627,291 @@
   .speaking-halo {
     transition: none;
   }
+}
+
+/* Mascote: flutua devagar, como se estivesse respirando. */
+@keyframes mascot-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(1deg);
+  }
+}
+
+@utility mascot-float {
+  animation: mascot-float 4.8s ease-in-out infinite;
+}
+
+/* Cartão do painel: branco, canto largo, sombra baixa e difusa. */
+@utility ws-card {
+  border-radius: 28px;
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* Pílula de navegação no topo (workspaces, abas). */
+@utility ws-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 3.25rem;
+  padding: 0 1.25rem 0 0.375rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s var(--ease-clyro),
+    color 0.2s var(--ease-clyro),
+    box-shadow 0.2s var(--ease-clyro);
+
+  &[data-active="true"] {
+    background: var(--color-primary);
+    color: var(--color-primary-foreground);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-card), 0 0 0 4px var(--color-primary);
+  }
+}
+
+/*
+ * Grade de planta (blueprint): linhas de 1px a cada 48px, que somem no centro
+ * para o conteúdo respirar e aparecem nas bordas.
+ */
+@utility blueprint-grid {
+  background-image:
+    linear-gradient(to right, var(--color-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: center top;
+  mask-image: radial-gradient(ellipse 70% 65% at 50% 45%, transparent 30%, black 85%);
+}
+
+/* Rótulo carimbado: mono, caixa alta, tracking largo. */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+/* Seleção e cursor com a cor da marca, não o azul do navegador. */
+::selection {
+  background: var(--color-brand-soft);
+  color: var(--color-foreground);
+}
+
+/*
+ * Cartão de linha fina: borda desenhada por anel de 1px, não por borda,
+ * para sobreviver a qualquer fundo. No hover sobe 2px e ganha sombra macia.
+ */
+@utility hairline-card {
+  background: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
+  transition:
+    box-shadow 0.3s var(--ease-clyro),
+    transform 0.3s var(--ease-clyro);
+}
+
+/* O link fica parado; quem sobe é o cartão de dentro, para não fugir do ponteiro. */
+@utility hairline-lift {
+  .group:hover &,
+  .group:focus-visible & {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px rgb(0 0 0 / 0.14),
+      0 12px 28px -16px rgb(0 0 0 / 0.18);
+  }
+}
+
+/* O registro do pedido de acesso: cada linha entra depois da anterior. */
+@keyframes clyro-log-line {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@utility log-line {
+  html.motion-ready & {
+    opacity: 0;
+  }
+  [data-played="true"] & {
+    animation: clyro-log-line 0.6s var(--ease-clyro) both;
+    animation-delay: calc(var(--i, 0) * 420ms);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    opacity: 1;
+    [data-played="true"] & {
+      animation: none;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Movimento da landing                                                 */
+/* Uma curva só para chegadas confiantes; tudo parte de um estado      */
+/* visível, e quem prefere menos movimento recebe só a troca de opacidade. */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes clyro-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+}
+
+@keyframes clyro-fade-only {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A tecla cai, é pressionada e volta: um toque de teclado. */
+@keyframes clyro-key-press {
+  0% {
+    opacity: 0;
+    transform: translateY(-38%) rotate(-7deg) scale(1.06);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(5%) rotate(1deg) scale(0.96);
+  }
+  78% {
+    transform: translateY(-1.5%) rotate(0deg) scale(1.01);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* "sozinho" é digitado em pixel, letra por letra. */
+@keyframes clyro-type {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* Entrada do hero, só no carregamento. `--d` é o atraso de cada peça. */
+@utility hero-in {
+  animation: clyro-rise 0.8s var(--ease-out-expo) both;
+  animation-delay: var(--d, 0ms);
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: clyro-fade-only;
+    animation-duration: 0.4s;
+  }
+}
+
+@utility key-in {
+  transform-origin: 50% 80%;
+  animation: clyro-key-press 0.95s var(--ease-out-expo) both;
+  animation-delay: var(--d, 0ms);
+  @media (prefers-reduced-motion: reduce) {
+    animation: clyro-fade-only 0.4s ease-out both;
+  }
+}
+
+@utility type-in {
+  animation: clyro-type 0.56s steps(7, end) both;
+  animation-delay: var(--d, 0ms);
+  @media (prefers-reduced-motion: reduce) {
+    animation: clyro-fade-only 0.4s ease-out both;
+    animation-delay: var(--d, 0ms);
+  }
+}
+
+/*
+ * Revelação ao rolar. O conteúdo só se esconde depois que o JS marca a página
+ * (`html.motion-ready`) — sem script, tudo continua visível. Quem já está na
+ * tela ao carregar é marcado antes, então nada pisca.
+ */
+@utility reveal {
+  html.motion-ready &:not([data-inview="true"]) {
+    opacity: 0;
+    transform: translateY(18px);
+    filter: blur(4px);
+  }
+  html.motion-ready & {
+    transition:
+      opacity 0.7s var(--ease-out-expo),
+      transform 0.8s var(--ease-out-expo),
+      filter 0.7s var(--ease-out-expo);
+    transition-delay: calc(min(var(--i, 0), 6) * 70ms);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html.motion-ready &:not([data-inview="true"]) {
+      transform: none;
+      filter: none;
+    }
+  }
+}
+
+/* Anel de quem está falando na prévia da chamada, em laranja. */
+@keyframes clyro-speaking-brand {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--brand);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px var(--brand),
+      0 0 0 6px color-mix(in oklch, var(--brand) 22%, transparent);
+  }
+}
+
+@utility speaking-brand {
+  animation: clyro-speaking-brand 1.6s ease-in-out infinite;
+  [data-inview="false"] & {
+    animation-play-state: paused;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--brand);
+  }
+}
+
+/* Palavra da busca que troca: sai para cima, a próxima entra de baixo. */
+@keyframes clyro-word-in {
+  from {
+    opacity: 0;
+    transform: translateY(60%);
+    filter: blur(3px);
+  }
+}
+
+@utility word-in {
+  display: inline-block;
+  animation: clyro-word-in 0.45s var(--ease-out-expo) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: clyro-fade-only 0.3s ease-out both;
+  }
+}
+
+@keyframes clyro-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+@utility caret-blink {
+  animation: clyro-caret 1s steps(1) infinite;
 }

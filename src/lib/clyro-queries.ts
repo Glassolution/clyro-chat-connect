@@ -36,7 +36,7 @@ export function useServers(userId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("server_members")
-        .select("servers(id, name, icon_url, owner_id, invite_code)")
+        .select("servers(id, name, icon_url, owner_id, invite_code, description)")
         .eq("user_id", userId as string);
       if (error) throw error;
       return (data ?? [])
@@ -293,7 +293,7 @@ export function useMutualServers(otherUserId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("server_members")
-        .select("servers(id, name, icon_url, owner_id, invite_code)")
+        .select("servers(id, name, icon_url, owner_id, invite_code, description)")
         .eq("user_id", otherUserId as string);
       if (error) throw error;
       return (data ?? [])

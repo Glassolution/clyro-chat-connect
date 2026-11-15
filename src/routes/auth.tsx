@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/components/icons";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
@@ -10,22 +10,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { ClyroMark } from "@/components/clyro/primitives";
+import { Mascot } from "@/components/workspace/mascot";
+
+/** Para onde voltar depois de entrar — só caminhos internos. */
+function safeNext(value: unknown) {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
+    ? value
+    : undefined;
+}
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>): { next?: string } => {
+    const next = safeNext(search["next"]);
+    return next ? { next } : {};
+  },
   head: () => ({
     meta: [
-      { title: "Sign in to Clyro" },
+      { title: "Entrar no Clyro" },
       {
         name: "description",
-        content:
-          "Sign in to Clyro or create your account to publish updates and follow the projects you care about.",
+        content: "Entre no Clyro ou crie sua conta para montar o workspace da sua startup.",
       },
-      { property: "og:title", content: "Sign in to Clyro" },
+      { property: "og:title", content: "Entrar no Clyro" },
       {
         property: "og:description",
-        content:
-          "Sign in to Clyro or create your account to publish updates and follow the projects you care about.",
+        content: "Entre no Clyro ou crie sua conta para montar o workspace da sua startup.",
       },
     ],
   }),
@@ -37,6 +47,7 @@ type Mode = "signin" | "signup";
 function AuthPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,8 +55,8 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) void navigate({ to: "/app" });
-  }, [loading, user, navigate]);
+    if (!loading && user) void navigate({ to: next ?? "/app" });
+  }, [loading, user, navigate, next]);
 
   const signIn = async () => {
     setBusy(true);
@@ -56,7 +67,7 @@ function AuthPage() {
 
   const signUp = async () => {
     if (!username.trim()) {
-      toast.error("Pick a username first.");
+      toast.error("Escolha um nome de usuário.");
       return;
     }
     setBusy(true);
@@ -76,160 +87,187 @@ function AuthPage() {
       toast.error(error.message);
       return;
     }
-    toast.success("Account created. Welcome to Clyro!");
+    toast.success("Conta criada. Bem-vindo ao Clyro!");
   };
 
   const google = async () => {
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: `${window.location.origin}/app`,
+      redirect_uri: `${window.location.origin}${next ?? "/app"}`,
     });
-    if (result.error) toast.error("Could not sign in with Google.");
+    if (result.error) toast.error("Não foi possível entrar com o Google.");
   };
 
   const submit = () => void (mode === "signin" ? signIn() : signUp());
 
   return (
-    <main className="clyro-auth-field relative isolate flex min-h-screen items-center justify-center overflow-hidden px-4 py-16">
-      <Orbits />
-
-      <Link
-        to="/"
-        className="clyro-fade-in absolute left-6 top-6 inline-flex items-center gap-2 text-sm text-white/60 transition-colors duration-200 hover:text-white sm:left-10 sm:top-10"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to clyro.app
-      </Link>
-
-      {/*
-        Cantos assimétricos como na referência: curva ampla em cima à esquerda e
-        embaixo à direita, quase reta nos outros dois.
-      */}
-      <section className="clyro-glass clyro-enter relative w-full max-w-3xl rounded-bl-xl rounded-br-[3.5rem] rounded-tl-[3.5rem] rounded-tr-xl px-7 py-12 sm:px-12 sm:py-14">
-        <ClyroMark className="mx-auto h-10 w-10" />
-
-        <h1 className="mt-6 text-center text-[clamp(1.9rem,3.4vw,2.6rem)] font-light leading-[1.05] tracking-[-0.03em] text-white">
-          {mode === "signin" ? "Welcome back" : "Create your account"}
-        </h1>
-        <p className="mx-auto mt-3 max-w-sm text-center text-sm leading-relaxed text-white/60">
-          {mode === "signin"
-            ? "Pick up where your community left off."
-            : "Claim your space and publish the first update."}
-        </p>
-
-        <div className="mt-10 grid gap-10 md:grid-cols-2 md:gap-0">
-          {/* e-mail e senha */}
-          <div className="md:pr-10">
-            <h2 className="text-center text-sm text-white/70 md:text-left">
-              {mode === "signin" ? "Sign in with email" : "Sign up with email"}
-            </h2>
-
-            <form
-              className="mt-5 space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                submit();
-              }}
-            >
-              {mode === "signup" && (
-                <Field
-                  id="username"
-                  label="Username"
-                  placeholder="Username"
-                  value={username}
-                  onChange={setUsername}
-                  autoComplete="username"
-                />
-              )}
-              <Field
-                id="email"
-                label="Email"
-                placeholder="Email address"
-                type="email"
-                value={email}
-                onChange={setEmail}
-                autoComplete="email"
-              />
-              <Field
-                id="password"
-                label="Password"
-                placeholder="Your password"
-                type="password"
-                value={password}
-                onChange={setPassword}
-                autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              />
-
-              <Button
-                type="submit"
-                disabled={busy}
-                className="h-12 w-full rounded-xl bg-brand text-[15px] font-medium text-white hover:bg-brand-strong"
-              >
-                {mode === "signin" ? "Sign in" : "Create account"}
-              </Button>
-            </form>
-          </div>
-
-          {/* método alternativo */}
-          <div className="relative md:pl-10">
-            <span
-              aria-hidden="true"
-              className="absolute -top-5 left-1/2 h-px w-full -translate-x-1/2 bg-white/10 md:left-0 md:top-0 md:h-full md:w-px md:translate-x-0"
-            />
-            <h2 className="text-center text-sm text-white/70 md:text-left">Or keep it one click</h2>
-
-            <div className="mt-5 flex flex-col items-center gap-5 md:items-start">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => void google()}
-                className="h-12 w-full rounded-xl border border-white/15 bg-white/[0.06] text-[15px] font-medium text-white hover:bg-white/[0.12] hover:text-white"
-              >
-                <GoogleGlyph />
-                Continue with Google
-              </Button>
-
-              <p className="max-w-[15rem] text-center text-[13px] leading-relaxed text-white/55 md:text-left">
-                No password to remember. We only read your name and email to set up the account.
-              </p>
-
-              <p className="max-w-[15rem] text-center text-[13px] leading-relaxed text-white/40 md:text-left">
-                Clyro is free while in open beta — every project space, update and member included.
-              </p>
-            </div>
-          </div>
+    <main className="flex min-h-screen bg-card text-foreground">
+      {/* Formulário */}
+      <section className="flex w-full flex-col px-6 py-8 sm:px-12 lg:w-[52%] lg:px-20">
+        <div className="flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2.5">
+            <ClyroMark className="h-10 w-10" />
+            <span className="text-lg font-bold tracking-tight">Clyro</span>
+          </Link>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Link>
         </div>
 
-        <p className="mt-11 text-center text-sm text-white/60">
-          {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
-          <button
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-12 clyro-enter">
+          <h1 className="text-[clamp(2rem,3.6vw,2.75rem)] font-bold leading-[1.05] tracking-[-0.03em]">
+            {mode === "signin" ? "Bom te ver de novo." : "Monte o workspace da sua startup."}
+          </h1>
+          <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+            {mode === "signin"
+              ? "Seu time, suas salas e o dia de cada um estão te esperando."
+              : "Equipe, convites, salas de voz e quem faz o quê — de graça enquanto estamos em beta."}
+          </p>
+
+          <Button
             type="button"
-            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            className="cursor-pointer text-white underline-offset-4 transition-opacity duration-200 hover:underline hover:opacity-80"
+            variant="outline"
+            onClick={() => void google()}
+            className="mt-8 h-14 w-full rounded-2xl border-border text-[15px] font-medium shadow-card"
           >
-            {mode === "signin" ? "Register" : "Sign in"}
-          </button>
+            <GoogleGlyph />
+            Continuar com Google
+          </Button>
+
+          <div className="my-6 flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            ou com email
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submit();
+            }}
+          >
+            {mode === "signup" && (
+              <Field
+                id="username"
+                label="Usuário"
+                placeholder="Seu nome de usuário"
+                value={username}
+                onChange={setUsername}
+                autoComplete="username"
+              />
+            )}
+            <Field
+              id="email"
+              label="Email"
+              placeholder="nome@empresa.com"
+              type="email"
+              value={email}
+              onChange={setEmail}
+              autoComplete="email"
+            />
+            <Field
+              id="password"
+              label="Senha"
+              placeholder="Sua senha"
+              type="password"
+              value={password}
+              onChange={setPassword}
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            />
+
+            <Button type="submit" disabled={busy} className="h-14 w-full rounded-2xl text-[15px]">
+              {mode === "signin" ? "Entrar" : "Criar conta"}
+            </Button>
+          </form>
+
+          <p className="mt-8 text-center text-sm text-muted-foreground">
+            {mode === "signin" ? "Ainda não tem conta? " : "Já tem conta? "}
+            <button
+              type="button"
+              onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+              className="font-semibold text-foreground underline-offset-4 hover:underline"
+            >
+              {mode === "signin" ? "Criar agora" : "Entrar"}
+            </button>
+          </p>
+        </div>
+
+        <p className="text-center text-xs text-muted-foreground lg:text-left">
+          Convidado para um workspace? Entre com o mesmo email do convite e ele aparece para você.
         </p>
       </section>
+
+      {/* Vitrine */}
+      <aside className="relative hidden flex-1 p-4 lg:flex">
+        <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden rounded-[40px] bg-background px-12">
+          <AuthPreview />
+        </div>
+      </aside>
     </main>
   );
 }
 
-/** Órbitas de fundo — duas elipses e dois pontos, como na referência. */
-function Orbits() {
+/** Um pedaço do painel, com os mascotes em volta, para mostrar o que vem depois do login. */
+function AuthPreview() {
+  const people = [
+    { name: "Ana", role: "Produto", status: "Em call · Daily", tone: "oklch(0.93 0.035 262)" },
+    { name: "Léo", role: "Engenharia", status: "Revisando o deploy", tone: "oklch(0.95 0.05 60)" },
+    { name: "Bia", role: "Growth", status: "Online", tone: "oklch(0.95 0.05 155)" },
+  ];
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 1200 700"
-      preserveAspectRatio="xMidYMid slice"
-      className="pointer-events-none absolute inset-0 h-full w-full text-white/[0.13]"
-    >
-      <g fill="none" stroke="currentColor" strokeWidth="1">
-        <ellipse cx="600" cy="350" rx="520" ry="250" transform="rotate(-12 600 350)" />
-        <ellipse cx="600" cy="350" rx="430" ry="300" transform="rotate(14 600 350)" />
-      </g>
-      <circle cx="905" cy="168" r="6" className="fill-white/70" />
-      <circle cx="565" cy="629" r="7" className="fill-white/55" />
-    </svg>
+    <div className="relative w-full max-w-md">
+      <Mascot pose="estrela" size={120} float className="absolute -left-14 -top-20" />
+      <Mascot pose="chuva" size={130} float className="absolute -bottom-24 -right-12" />
+
+      <div className="ws-card relative space-y-4 p-6">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Olá, Rafa!</span>
+          <span className="rounded-full bg-brand px-3 py-1 text-xs font-medium text-white">
+            Agora
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-background">
+            <Mascot pose="neutro" size={48} />
+          </span>
+          <div>
+            <p className="text-xl font-bold tracking-tight">Acme Labs</p>
+            <p className="text-sm text-muted-foreground">8 pessoas · 3 equipes</p>
+          </div>
+        </div>
+        <ul className="space-y-2">
+          {people.map((p) => (
+            <li
+              key={p.name}
+              className="flex items-center gap-3 rounded-2xl bg-secondary px-3 py-2.5"
+            >
+              <span
+                className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold"
+                style={{ background: p.tone }}
+              >
+                {p.name[0]}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">{p.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">{p.status}</span>
+              </span>
+              <span className="text-xs text-muted-foreground">{p.role}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <p className="relative mt-16 text-center text-2xl font-bold tracking-tight">
+        Seu time inteiro, num lugar só.
+      </p>
+      <p className="relative mt-2 text-center text-[15px] text-muted-foreground">
+        Veja quem está online, o que cada um está fazendo e chame para uma sala com um clique.
+      </p>
+    </div>
   );
 }
 
@@ -283,8 +321,8 @@ function Field({
         autoComplete={autoComplete}
         onChange={(event) => onChange(event.target.value)}
         className={cn(
-          "h-12 rounded-xl border-white/12 bg-white/[0.05] px-4 text-[15px] text-white",
-          "placeholder:text-white/40 focus-visible:border-white/25 focus-visible:ring-brand/40",
+          "h-14 rounded-2xl border-border bg-background px-5 text-[15px]",
+          "focus-visible:bg-card",
         )}
       />
     </div>

@@ -1,53 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useAuth } from "@/hooks/useAuth";
-import {
-  LandingBenefits,
-  LandingCta,
-  LandingFeatures,
-  LandingFlow,
-  LandingFooter,
-  LandingHero,
-  LandingNav,
-  LandingShowcase,
-} from "@/components/clyro/landing";
+import { DiscoverHome } from "@/components/discover/discover-home";
 
 export const Route = createFileRoute("/")({
   ssr: false,
+  // `?publicar=1` reabre o formulário de publicação depois do login.
+  validateSearch: (search: Record<string, unknown>): { publicar?: true } =>
+    search["publicar"] === 1 || search["publicar"] === "1" || search["publicar"] === true
+      ? { publicar: true }
+      : {},
   head: () => ({
     meta: [
-      { title: "Clyro — where every project finds its community" },
+      { title: "Clyro — startups procurando gente" },
       {
         name: "description",
         content:
-          "Clyro gives your project a public home: post updates, share videos and behind-the-scenes of what you are building, and follow the discussion of the people who use it.",
+          "Encontre startups e comunidades que estão montando o time. Peça para entrar, ou publique o seu projeto e escolha quem entra.",
       },
-      { property: "og:title", content: "Clyro — where every project finds its community" },
+      { property: "og:title", content: "Clyro — startups procurando gente" },
       {
         property: "og:description",
-        content:
-          "A public space for every project: updates, videos, inline comments and community.",
+        content: "Publique o seu projeto, receba pedidos e toque junto com o time.",
       },
     ],
   }),
-  component: Landing,
+  component: DiscoverHome,
 });
-
-function Landing() {
-  const { user } = useAuth();
-  const signedIn = Boolean(user);
-
-  return (
-    <div className="min-h-screen bg-surface">
-      <LandingNav signedIn={signedIn} />
-      <main>
-        <LandingHero signedIn={signedIn} />
-        <LandingShowcase />
-        <LandingFlow />
-        <LandingFeatures />
-        <LandingBenefits />
-        <LandingCta signedIn={signedIn} />
-      </main>
-      <LandingFooter signedIn={signedIn} />
-    </div>
-  );
-}

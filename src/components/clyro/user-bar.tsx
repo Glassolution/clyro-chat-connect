@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { Mic, MicOff, Headphones, HeadphoneOff, Settings, LogOut, ChevronDown } from "lucide-react";
+import {
+  Mic,
+  MicOff,
+  Headphones,
+  HeadphoneOff,
+  Settings,
+  LogOut,
+  ChevronDown,
+} from "@/components/icons";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";

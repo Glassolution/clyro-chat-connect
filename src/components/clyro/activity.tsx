@@ -1,4 +1,4 @@
-import { Headphones, MonitorUp, Sparkles } from "lucide-react";
+import { Headphones, MonitorUp, Sparkles } from "@/components/icons";
 import { useAuth } from "@/hooks/useAuth";
 import { useFriendships, useProfiles } from "@/lib/clyro-queries";
 import { useVoiceStates } from "@/lib/voice-presence";

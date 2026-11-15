@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AtSign, Bold, Italic, SendHorizonal, Smile, Strikethrough, Code } from "lucide-react";
+import {
+  AtSign,
+  Bold,
+  Italic,
+  SendHorizonal,
+  Smile,
+  Strikethrough,
+  Code,
+} from "@/components/icons";
 import { supabase } from "@/integrations/supabase/client";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";

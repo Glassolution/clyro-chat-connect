@@ -1,4 +1,4 @@
-import { Users, Plus, Search, X } from "lucide-react";
+import { Users, Plus, Search, X } from "@/components/icons";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
