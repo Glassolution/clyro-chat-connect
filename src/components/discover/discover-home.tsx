@@ -31,7 +31,6 @@ export function DiscoverHome() {
   const [draft, setDraft] = useState("");
   const [publishOpen, setPublishOpen] = useState(false);
   const categoriesRef = useRef<HTMLDivElement>(null);
-  const recentRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLElement>(null);
 
   const { data: all = [], isLoading } = useDiscoverProjects("", null);
@@ -116,10 +115,6 @@ export function DiscoverHome() {
             label: "Categorias",
             onClick: () => scrollTo(categoriesRef.current),
           },
-          {
-            label: "Recentes",
-            onClick: () => scrollTo(recentRef.current ?? categoriesRef.current),
-          },
           { label: "Minhas comunidades", to: "/app" },
         ]}
       />
@@ -140,9 +135,6 @@ export function DiscoverHome() {
         {!isLoading && all.length > 0 ? (
           <div className="mx-auto flex max-w-[1200px] flex-col gap-24 px-4 py-24 sm:px-6 lg:gap-32 lg:py-32">
             {byCategory.length > 0 && <CategoryBands bands={byCategory} />}
-            <div ref={recentRef} className="scroll-mt-24">
-              <Recent projects={all} />
-            </div>
           </div>
         ) : null}
 
@@ -462,77 +454,6 @@ function CategoryBands({
                 );
               })}
             </div>
-          </Reveal>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ProjectRow({ project }: { project: ProjectCard }) {
-  const cat = categoryOf(project.category);
-  return (
-    <Link
-      to="/p/$projectId"
-      params={{ projectId: project.id }}
-      className="group block h-full rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-    >
-      <div className="hairline-card hairline-lift flex h-full flex-col overflow-hidden">
-        <div className="aspect-[4/3] overflow-hidden border-b border-black/[0.06]">
-          <ProjectArt
-            project={project}
-            mascotSize={88}
-            className="transition-transform duration-700 ease-clyro group-hover:scale-[1.03]"
-          />
-        </div>
-        <div className="flex flex-1 flex-col p-4">
-          <div className="flex items-center gap-2">
-            <p className="min-w-0 flex-1 truncate text-[15px] font-medium tracking-[-0.015em]">
-              {project.name}
-            </p>
-            {project.stage && (
-              <span className="shrink-0 rounded-[4px] bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-ink-2">
-                {project.stage}
-              </span>
-            )}
-          </div>
-          {project.tagline && (
-            <p className="mt-1.5 line-clamp-2 text-sm leading-[1.55] text-ink-2">
-              {project.tagline}
-            </p>
-          )}
-          <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-4">
-            {cat && (
-              <span className="flex items-center gap-1 text-xs font-medium">
-                <Mascot pose={cat.pose} size={14} />
-                {cat.label}
-              </span>
-            )}
-            {project.looking_for.length > 0 && (
-              <span className="truncate text-xs text-muted-foreground">
-                · Procura {project.looking_for.slice(0, 2).join(", ")}
-                {project.looking_for.length > 2 ? ` +${project.looking_for.length - 2}` : ""}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function Recent({ projects }: { projects: ProjectCard[] }) {
-  return (
-    <section aria-labelledby="recentes">
-      <SectionHead
-        id="recentes"
-        title="Acabaram de abrir vagas"
-        aside="Os projetos publicados por último, com as funções que ainda procuram."
-      />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {projects.slice(0, 16).map((p, i) => (
-          <Reveal key={p.id} i={i % 4}>
-            <ProjectRow project={p} />
           </Reveal>
         ))}
       </div>

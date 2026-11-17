@@ -24,7 +24,14 @@ export type ProjectCard = {
   is_member: boolean;
   request_status: RequestStatus | null;
   created_at: string;
+  /** Foto de perfil de quem criou: o logo de quem ainda não subiu um. */
+  owner_avatar?: string | null;
 };
+
+/** O logo da comunidade; sem logo, a foto de perfil de quem criou. */
+export function projectLogo(project: { icon_url?: string | null; owner_avatar?: string | null }) {
+  return project.icon_url || project.owner_avatar || null;
+}
 
 export type ProjectDetail = ProjectCard & {
   website: string | null;
@@ -233,6 +240,8 @@ export function useDiscoverProjects(search: string, category: string | null) {
         ...p,
         looking_for: p.looking_for ?? [],
         request_status: (p.request_status as RequestStatus | null) ?? null,
+        // Vem da função da vitrine depois da migração 20261117000000; antes, fica vazio.
+        owner_avatar: (p as { owner_avatar?: string | null }).owner_avatar ?? null,
       }));
     },
   });

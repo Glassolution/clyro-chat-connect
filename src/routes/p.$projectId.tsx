@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Global, Lock1, People, TickCircle } from "iconsax-react";
@@ -31,7 +31,16 @@ function ProjectPage() {
   const { projectId } = Route.useParams();
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
   const { data: project, isLoading } = useProject(projectId);
+
+  // Volta para onde a pessoa estava (o catálogo, com a busca e os filtros);
+  // quem abriu o link direto vai para a lista de comunidades.
+  const goBack = () => {
+    if (canGoBack) router.history.back();
+    else void navigate({ to: "/buscar" });
+  };
   const [requestOpen, setRequestOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -54,12 +63,13 @@ function ProjectPage() {
       <SiteRail active="discover" profile={profile} onPublish={publish} />
       <div className="min-w-0 flex-1 py-2 pr-2 sm:py-3 sm:pr-3">
         <div className="min-h-full rounded-[28px] bg-card px-4 pb-20 pt-6 sm:px-10">
-          <Link
-            to="/"
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-border px-4 text-sm shadow-pill hover:bg-secondary"
+          <button
+            type="button"
+            onClick={goBack}
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-border px-4 text-sm shadow-pill transition-[background-color,transform] duration-150 ease-clyro hover:bg-secondary active:scale-[0.97]"
           >
-            <ArrowLeft size={18} color="currentColor" /> Descobrir
-          </Link>
+            <ArrowLeft size={18} color="currentColor" /> Voltar
+          </button>
 
           {isLoading ? (
             <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">

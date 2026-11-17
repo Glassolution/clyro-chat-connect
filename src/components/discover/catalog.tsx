@@ -8,6 +8,7 @@ import {
   ROLES,
   STAGES,
   categoryOf,
+  projectLogo,
   useDiscoverProjects,
   useOwnedProject,
   type ProjectCard,
@@ -374,6 +375,8 @@ const ratioOf = (id: string) => {
 function CatalogCard({ project }: { project: ProjectCard }) {
   const cat = categoryOf(project.category);
   const looking = project.looking_for.slice(0, 3);
+  // Sem logo da comunidade, vale a foto de perfil de quem criou.
+  const logo = projectLogo(project);
   return (
     <Link
       to="/p/$projectId"
@@ -391,11 +394,19 @@ function CatalogCard({ project }: { project: ProjectCard }) {
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 pb-11 pt-4 text-center sm:gap-3 sm:px-5">
-            <Mascot
-              pose={cat?.pose ?? "neutro"}
-              size={60}
-              className="shrink-0 transition-transform duration-500 ease-clyro group-hover:-rotate-6 group-hover:scale-105"
-            />
+            {logo ? (
+              <MediaImage
+                src={logo}
+                alt=""
+                className="h-[60px] w-[60px] shrink-0 rounded-full object-cover shadow-[0_0_0_3px_rgb(255_255_255/0.7)] transition-transform duration-500 ease-clyro group-hover:scale-105"
+              />
+            ) : (
+              <Mascot
+                pose={cat?.pose ?? "neutro"}
+                size={60}
+                className="shrink-0 transition-transform duration-500 ease-clyro group-hover:-rotate-6 group-hover:scale-105"
+              />
+            )}
             <span
               className="line-clamp-3 text-[15px] font-semibold leading-tight tracking-[-0.02em] sm:text-[17px]"
               style={{ color: cat?.ink }}
@@ -418,9 +429,9 @@ function CatalogCard({ project }: { project: ProjectCard }) {
       </div>
 
       <div className="flex items-start gap-2.5 px-1 pt-2.5">
-        {project.icon_url && (
+        {logo && (
           <MediaImage
-            src={project.icon_url}
+            src={logo}
             alt=""
             className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover"
           />

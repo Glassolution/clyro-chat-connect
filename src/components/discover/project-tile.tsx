@@ -1,19 +1,21 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import { categoryOf, type ProjectCard } from "@/lib/project-queries";
+import { categoryOf, projectLogo, type ProjectCard } from "@/lib/project-queries";
 import { MediaImage } from "@/components/clyro/primitives";
 import { Mascot } from "@/components/workspace/mascot";
 
 /**
- * A "foto" do projeto. Com capa, a capa; sem, a cor da categoria com o mascote
- * — assim a vitrine nunca tem buraco cinza.
+ * A "foto" do projeto. Com capa, a capa; sem, o logo (ou a foto de quem
+ * criou) no centro; sem nenhum dos dois, o mascote — assim a vitrine nunca tem
+ * buraco cinza.
  */
 export function ProjectArt({
   project,
   className,
   mascotSize = 96,
 }: {
-  project: Pick<ProjectCard, "cover_url" | "category" | "name">;
+  project: Pick<ProjectCard, "cover_url" | "category" | "name"> &
+    Partial<Pick<ProjectCard, "icon_url" | "owner_avatar">>;
   className?: string;
   mascotSize?: number;
 }) {
@@ -27,12 +29,22 @@ export function ProjectArt({
       />
     );
   }
+  const logo = projectLogo(project);
   return (
     <div
       className={cn("flex h-full w-full items-center justify-center", className)}
       style={{ background: "var(--surface-2)" }}
     >
-      <Mascot pose={cat?.pose ?? "neutro"} size={mascotSize} />
+      {logo ? (
+        <MediaImage
+          src={logo}
+          alt=""
+          className="rounded-full object-cover shadow-[0_0_0_4px_var(--card)]"
+          style={{ width: mascotSize, height: mascotSize }}
+        />
+      ) : (
+        <Mascot pose={cat?.pose ?? "neutro"} size={mascotSize} />
+      )}
     </div>
   );
 }
