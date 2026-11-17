@@ -347,6 +347,96 @@ export type Database = {
         }
         Relationships: []
       }
+      room_access: {
+        Row: {
+          channel_id: string
+          created_at: string
+          decided_by: string | null
+          server_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          decided_by?: string | null
+          server_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          decided_by?: string | null
+          server_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_access_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_access_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_settings: {
+        Row: {
+          channel_id: string
+          created_at: string
+          created_by: string | null
+          locked: boolean
+          server_id: string
+          topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          created_by?: string | null
+          locked?: boolean
+          server_id: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          created_by?: string | null
+          locked?: boolean
+          server_id?: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_settings_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: true
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_settings_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       server_members: {
         Row: {
           created_at: string
@@ -660,9 +750,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_room: {
+        Args: { _channel_id: string; _user_id: string }
+        Returns: boolean
+      }
       cancel_access_request: {
         Args: { _request_id: string }
         Returns: undefined
+      }
+      channel_in_server: {
+        Args: { _channel_id: string; _server_id: string }
+        Returns: boolean
       }
       discover_projects: {
         Args: { _category?: string; _limit?: number; _search?: string }
