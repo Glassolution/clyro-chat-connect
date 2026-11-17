@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794874931013,
+      "tag": "0000_channel_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794874937298,
+      "tag": "0001_voice_states_heartbeat",
+      "breakpoints": true
+    }
+  ]
+}
