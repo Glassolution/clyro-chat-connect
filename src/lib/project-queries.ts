@@ -224,8 +224,8 @@ export function useDiscoverProjects(search: string, category: string | null) {
     retry: 1,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("discover_projects", {
-        _search: search || undefined,
-        _category: category ?? undefined,
+        ...(search ? { _search: search } : {}),
+        ...(category ? { _category: category } : {}),
         _limit: 120,
       });
       if (error) return [] as ProjectCard[];
