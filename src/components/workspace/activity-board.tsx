@@ -273,6 +273,7 @@ function FeedCard({
   nameOf: (id: string | null | undefined) => string;
 }) {
   const [open, setOpen] = useState(false);
+  const activityOf = useLiveActivity();
   const taskActions = useTaskActions(workspace.id);
   const s = event.source;
   const BadgeIcon = ICON[s.type];
