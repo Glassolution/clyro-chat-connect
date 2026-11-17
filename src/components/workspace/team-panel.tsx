@@ -43,6 +43,7 @@ import {
   type WorkspaceMember,
 } from "@/lib/workspace-queries";
 import { useTasks } from "@/lib/activity-queries";
+import { useLiveActivity } from "@/lib/voice-presence";
 import { StatusDot, UserAvatar } from "@/components/clyro/primitives";
 import { EmptyState } from "./mascot";
 
@@ -63,9 +64,10 @@ export function TeamChip({ team, className }: { team: Team; className?: string }
 }
 
 /** O que a pessoa está fazendo agora, em uma linha. */
-export function activityLine(profile: Profile | undefined) {
+export function activityLine(profile: Profile | undefined, live?: string | null) {
   if (!profile) return "";
-  if (profile.activity) return profile.activity;
+  const activity = live === undefined ? profile.activity : live;
+  if (activity) return activity;
   return STATUS_LABEL[profile.status] ?? "Offline";
 }
 
@@ -107,10 +109,11 @@ export function MemberCard({
   menu?: React.ReactNode;
 }) {
   const presence = presenceOf(profile);
+  const activityOf = useLiveActivity();
   const total = load?.total ?? 0;
   const done = load?.done ?? 0;
   const pct = total ? Math.round((done / total) * 100) : 0;
-  const now = load?.doing ?? profile?.activity ?? null;
+  const now = load?.doing ?? activityOf(profile) ?? null;
   return (
     <div className="ws-card group relative flex flex-col p-4 clyro-lift">
       <div className="flex items-center gap-3">
