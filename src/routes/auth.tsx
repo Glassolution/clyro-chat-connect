@@ -19,6 +19,13 @@ function safeNext(value: unknown) {
     : undefined;
 }
 
+/** Domínios servidos pelo Lovable, onde o login dele funciona. */
+const LOVABLE_HOSTS = ["lovable.app", "lovableproject.com", "lovableproject-dev.com"];
+
+function isLovableHost(host: string) {
+  return LOVABLE_HOSTS.some((zone) => host === zone || host.endsWith(`.${zone}`));
+}
+
 export const Route = createFileRoute("/auth")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>): { next?: string } => {
@@ -96,9 +103,19 @@ function AuthPage() {
   };
 
   const google = async () => {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: `${window.location.origin}${next ?? "/app"}`,
-    });
+    const redirect = `${window.location.origin}${next ?? "/app"}`;
+    // O login do Lovable depende de uma rota que só existe na hospedagem dele
+    // (/~oauth). Em qualquer outro domínio, como a Vercel, vai direto pelo
+    // Supabase, com o cliente Google configurado no backend.
+    if (!isLovableHost(window.location.hostname)) {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: redirect },
+      });
+      if (error) toast.error("O login com Google ainda não está disponível neste endereço.");
+      return;
+    }
+    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: redirect });
     if (result.error) toast.error("Não foi possível entrar com o Google.");
   };
 
