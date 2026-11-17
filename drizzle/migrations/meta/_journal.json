@@ -50,6 +50,13 @@
       "when": 1794875211818,
       "tag": "0006_owner_requests_invite_links",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794877208767,
+      "tag": "0007_profile_media_read_authenticated",
+      "breakpoints": true
     }
   ]
 }
