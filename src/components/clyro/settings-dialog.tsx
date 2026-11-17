@@ -393,16 +393,7 @@ export function SettingsDialog({
                 >
                   Tratamento do microfone
                 </h2>
-                <AudioToggle
-                  field="voiceFilter"
-                  title="Filtro de voz"
-                  body="Reduz sons de teclado, ventilador, TV e conversas ao fundo. O processamento acontece no navegador."
-                />
-                <AudioToggle
-                  field="noiseSuppression"
-                  title="Supressão de ruído do navegador"
-                  body="Usa a redução de ruído do navegador enquanto o filtro de voz está desligado."
-                />
+                <NoiseSuppressionSetting />
                 <AudioToggle
                   field="echoCancellation"
                   title="Cancelamento de eco"
@@ -752,6 +743,78 @@ function useMicLevel(active: boolean, deviceId: string) {
   return level;
 }
 
+type NoiseMode = "strong" | "standard" | "browser" | "off";
+
+const NOISE_MODES: { value: NoiseMode; label: string; body: string }[] = [
+  {
+    value: "strong",
+    label: "Forte",
+    body: "Tira teclado, ventilador, TV e vozes ao fundo, mesmo enquanto você fala.",
+  },
+  {
+    value: "standard",
+    label: "Leve",
+    body: "Filtra menos e deixa a voz com mais agudos. Bom para sala silenciosa.",
+  },
+  {
+    value: "browser",
+    label: "Do navegador",
+    body: "A redução simples do navegador. Tira só ruído constante, como chiado.",
+  },
+  {
+    value: "off",
+    label: "Desligada",
+    body: "Sua voz sai sem tratamento. Para microfone bom em sala silenciosa.",
+  },
+];
+
+/** As três preferências de ruído vistas como uma escolha só, como no Discord. */
+function noiseModeOf(settings: MediaSettings): NoiseMode {
+  if (settings.voiceFilter) return settings.voiceFilterModel;
+  return settings.noiseSuppression ? "browser" : "off";
+}
+
+function applyNoiseMode(mode: NoiseMode) {
+  if (mode === "strong" || mode === "standard") {
+    setMediaSetting("voiceFilterModel", mode);
+    setMediaSetting("voiceFilter", true);
+    return;
+  }
+  setMediaSetting("voiceFilter", false);
+  setMediaSetting("noiseSuppression", mode === "browser");
+}
+
+function NoiseSuppressionSetting() {
+  const settings = useMediaSettings();
+  const mode = noiseModeOf(settings);
+  const current = NOISE_MODES.find((option) => option.value === mode) ?? NOISE_MODES[0];
+
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3">
+      <div className="min-w-0">
+        <Label htmlFor="noise-mode" className="text-sm font-medium">
+          Supressão de ruído
+        </Label>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {current?.body} O processamento acontece no navegador.
+        </p>
+      </div>
+      <Select value={mode} onValueChange={(value) => applyNoiseMode(value as NoiseMode)}>
+        <SelectTrigger id="noise-mode" className={cn(SETTINGS_CONTROL, "w-[150px] shrink-0")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {NOISE_MODES.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 /** Só as preferências de tratamento — as de dispositivo não são interruptores. */
 type AudioToggleField = {
   [K in keyof MediaSettings]: MediaSettings[K] extends boolean ? K : never;
@@ -767,9 +830,6 @@ function AudioToggle({
   body: string;
 }) {
   const settings = useMediaSettings();
-  // A supressão do navegador não se acumula com o filtro: enquanto ele estiver
-  // ligado, este controle fica de fora do caminho e o botão mostra isso.
-  const supersededByFilter = field === "noiseSuppression" && settings.voiceFilter;
 
   return (
     <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3">
@@ -781,8 +841,7 @@ function AudioToggle({
       </div>
       <Switch
         id={field}
-        disabled={supersededByFilter}
-        checked={supersededByFilter ? false : settings[field]}
+        checked={settings[field]}
         onCheckedChange={(checked) => setMediaSetting(field, checked)}
       />
     </div>

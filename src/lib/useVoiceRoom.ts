@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { createVoiceFilter, FILTER_SAMPLE_RATE, type VoiceFilterNode } from "@/lib/voice-filter";
+import {
+  createVoiceFilter,
+  FILTER_SAMPLE_RATE,
+  type VoiceFilterModel,
+  type VoiceFilterNode,
+} from "@/lib/voice-filter";
 import {
   playPeerJoinSound,
   playPeerLeaveSound,
@@ -72,7 +77,8 @@ function withTimeout(promise: Promise<unknown>, ms: number) {
 /**
  * Atraso entre a medição e o portão. É o que permite abrir a passagem antes de
  * o começo da palavra chegar nela — sem isso a primeira consoante sai decepada.
- * Trinta milissegundos ninguém percebe numa conversa.
+ * Só entra no caminho com o portão ligado: sem portão ele era atraso puro, somado
+ * a toda frase de todo mundo.
  */
 const GATE_LOOKAHEAD_SECONDS = 0.03;
 
@@ -327,6 +333,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     source: MediaStreamAudioSourceNode;
     /** Nulo quando o navegador não suporta o filtro. */
     filter: VoiceFilterNode | null;
+    /** Modelo que está no `filter` agora. */
+    filterModel: VoiceFilterModel | null;
     rumble: BiquadFilterNode;
     delay: DelayNode;
     gain: GainNode;
@@ -412,11 +420,51 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
    * direto no corte grave. Trocar de ideia no meio da chamada é só isto — os
    * outros nós, e a faixa que sai daqui, continuam os mesmos.
    */
+  const filterSwapRef = useRef<VoiceFilterModel | null>(null);
   const wireMicInput = useCallback(() => {
     const graph = micGraphRef.current;
     if (!graph) return;
     const { source, filter, rumble } = graph;
-    const useFilter = mediaSettingsRef.current.voiceFilter && !!filter;
+    const { voiceFilter, voiceFilterModel } = mediaSettingsRef.current;
+    const useFilter = voiceFilter && !!filter;
+
+    /*
+     * Trocar de modelo no meio da call: o novo é montado ao lado, e só quando
+     * está pronto entra no lugar do antigo. Até lá a voz segue pelo filtro que já
+     * estava — ninguém fica sem som enquanto o wasm carrega.
+     */
+    if (
+      voiceFilter &&
+      graph.filterModel !== voiceFilterModel &&
+      filterSwapRef.current !== voiceFilterModel
+    ) {
+      filterSwapRef.current = voiceFilterModel;
+      void createVoiceFilter(source.context, voiceFilterModel).then((next) => {
+        if (filterSwapRef.current === voiceFilterModel) filterSwapRef.current = null;
+        const current = micGraphRef.current;
+        const wanted = mediaSettingsRef.current.voiceFilterModel;
+        if (!next) return;
+        if (current !== graph || wanted !== voiceFilterModel) {
+          next.destroy();
+          return;
+        }
+        const old = graph.filter;
+        try {
+          graph.source.disconnect(old ?? graph.rumble);
+        } catch {
+          /* não estava ligado assim */
+        }
+        try {
+          old?.disconnect();
+        } catch {
+          /* idem */
+        }
+        old?.destroy();
+        graph.filter = next;
+        graph.filterModel = voiceFilterModel;
+        wireMicInput();
+      });
+    }
 
     // Desconectar por destino preserva o analisador, que também sai da fonte.
     try {
@@ -446,10 +494,39 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   }, []);
 
   /**
+   * Liga o portão conforme a preferência. Com ele ligado a voz passa pelo
+   * atraso de antecipação; desligado, vai direto — o atraso só existe para o
+   * portão abrir a tempo, sem portão ele era só demora.
+   */
+  const wireGate = useCallback(() => {
+    const graph = micGraphRef.current;
+    if (!graph) return;
+    const { rumble, delay, gain } = graph;
+    for (const target of [delay, gain]) {
+      try {
+        rumble.disconnect(target);
+      } catch {
+        /* não estava ligado assim */
+      }
+    }
+    try {
+      delay.disconnect();
+    } catch {
+      /* idem */
+    }
+    if (mediaSettingsRef.current.noiseGate) {
+      rumble.connect(delay);
+      delay.connect(gain);
+    } else {
+      rumble.connect(gain);
+    }
+  }, []);
+
+  /**
    * Monta (ou refaz a entrada de) o grafo do microfone e devolve o stream que
    * vai para os outros:
    *
-   *   captura → filtro de voz → corte grave → atraso → portão → envio
+   *   captura → filtro de voz → corte grave → (atraso → portão) → envio
    *
    * O filtro é quem faz o trabalho pesado — separa a voz do ruído dentro do som,
    * inclusive enquanto você fala. O portão vem depois e é opcional: com o filtro
@@ -493,8 +570,6 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         gain.gain.value = mediaSettingsRef.current.noiseGate ? 0 : 1;
         const destination = ctx.createMediaStreamDestination();
 
-        rumble.connect(delay);
-        delay.connect(gain);
         gain.connect(destination);
 
         /*
@@ -509,16 +584,26 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
 
         // O filtro entra no grafo mesmo desligado nas preferências: montar custa
         // uma vez, e ligar depois vira só uma religada de fios.
-        const filter = await createVoiceFilter(ctx);
+        const model = mediaSettingsRef.current.voiceFilterModel;
+        const filter = await createVoiceFilter(ctx, model);
 
-        micGraphRef.current = { source, filter, rumble, delay, gain, destination };
+        micGraphRef.current = {
+          source,
+          filter,
+          filterModel: filter ? model : null,
+          rumble,
+          delay,
+          gain,
+          destination,
+        };
+        wireGate();
         wireMicInput();
         return destination.stream;
       } catch {
         return null;
       }
     },
-    [ensureAudioContext, wireMicInput],
+    [ensureAudioContext, wireMicInput, wireGate],
   );
 
   /**
@@ -1386,13 +1471,14 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   // Ligar ou desligar o portão vale na hora: desligado, a passagem fica aberta;
   // ligado, fecha até a próxima palavra — o laço reabre em um quadro.
   useEffect(() => {
+    wireGate();
     applyGate(!mediaSettings.noiseGate);
-  }, [mediaSettings.noiseGate, applyGate]);
+  }, [mediaSettings.noiseGate, applyGate, wireGate]);
 
-  // O filtro entra e sai do caminho sem reabrir o microfone.
+  // O filtro entra, sai ou troca de modelo sem reabrir o microfone.
   useEffect(() => {
     wireMicInput();
-  }, [mediaSettings.voiceFilter, wireMicInput]);
+  }, [mediaSettings.voiceFilter, mediaSettings.voiceFilterModel, wireMicInput]);
 
   /**
    * As faixas da voz de quem fala mais alto agora, para o medidor da call: grave,

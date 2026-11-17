@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import type { VoiceFilterModel } from "@/lib/voice-filter";
 
 export type MediaSettings = {
   /** Corta ruído de fundo constante (ventilador, teclado, rua). */
@@ -24,6 +25,8 @@ export type MediaSettings = {
    * filtra em vez de cortar.
    */
   voiceFilter: boolean;
+  /** Qual rede filtra: a forte (tipo Krisp) ou a leve, de voz mais aberta. */
+  voiceFilterModel: VoiceFilterModel;
   /** Só manda áudio enquanto você estiver falando: o resto não sai daqui. */
   noiseGate: boolean;
 };
@@ -46,6 +49,7 @@ export const MEDIA_DEFAULTS: MediaSettings = {
   screenFps: 30,
   sounds: true,
   voiceFilter: true,
+  voiceFilterModel: "strong",
   // Desligado por padrão: com o filtro de voz fazendo o trabalho, o portão vira
   // um segundo corte no caminho — e corte é o que engolia o começo das frases.
   noiseGate: false,
@@ -206,13 +210,18 @@ export const SCREEN_AUDIO_BITRATE = 256_000;
  */
 export function trackMatchesSettings(track: MediaStreamTrack, settings: MediaSettings) {
   const applied = track.getSettings();
-  const same = (got: boolean | string | undefined, want: boolean) => got === undefined || got === want;
+  const same = (got: boolean | string | undefined, want: boolean) =>
+    got === undefined || got === want;
   const deviceOk = !settings.inputDeviceId || applied.deviceId === settings.inputDeviceId;
+  // A comparação é com o que foi pedido de fato: com o filtro de voz ligado a
+  // supressão do navegador vai desligada. Comparar com a preferência crua fazia
+  // toda entrada na call reabrir o microfone e renegociar com todo mundo.
+  const wanted = audioConstraints(settings);
   // Estéreo é um pedido, não uma exigência: com o tratamento de voz ligado o
   // navegador entrega mono e insistir só faria a captura reabrir sem parar.
   return (
     deviceOk &&
-    same(applied.noiseSuppression, settings.noiseSuppression) &&
+    same(applied.noiseSuppression, wanted.noiseSuppression === true) &&
     same(applied.echoCancellation, settings.echoCancellation) &&
     same(applied.autoGainControl, settings.autoGainControl)
   );
