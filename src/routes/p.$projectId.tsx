@@ -413,7 +413,7 @@ function RequestDialog({
     const { error } = await supabase.rpc("request_access", {
       _server_id: project.id,
       _answers: answers,
-      _message: message.trim() || null,
+      ...(message.trim() ? { _message: message.trim() } : {}),
     });
     setBusy(false);
     if (error) {

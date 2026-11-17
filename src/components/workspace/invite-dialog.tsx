@@ -89,7 +89,7 @@ export function InviteDialog({
     const { data, error } = await supabase.rpc("invite_to_workspace", {
       _server_id: workspace.id,
       _identifier: target,
-      _team_id: teamId === NO_TEAM ? null : teamId,
+      ...(teamId === NO_TEAM ? {} : { _team_id: teamId }),
       _role: role,
     });
     setBusy(false);
