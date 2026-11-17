@@ -51,7 +51,7 @@ export function ProfilePage({
   ];
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-2 sm:px-7 clyro-scroll">
+    <div className="min-h-0 flex-1 overflow-y-auto p-4 clyro-scroll sm:p-6">
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(320px,400px)_minmax(0,1fr)] xl:gap-7">
         <div className="lg:sticky lg:top-0">
           <ProfilePanel

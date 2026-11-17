@@ -196,7 +196,7 @@ export function RoomsBoard({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto clyro-scroll">
-      <div className="flex flex-col gap-4 px-4 pb-10 pt-1 sm:px-6 lg:pl-0 lg:pr-5">
+      <div className="flex flex-col gap-4 p-4 pb-8 sm:p-6">
         <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

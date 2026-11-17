@@ -110,7 +110,7 @@ export function Dashboard({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto clyro-scroll">
-      <div className="grid content-start items-start gap-x-6 gap-y-5 px-4 pb-10 pt-1 sm:px-6 lg:pl-0 lg:pr-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="grid content-start items-start gap-x-6 gap-y-5 p-4 pb-8 sm:p-6 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="flex min-w-0 flex-col gap-3">
           {/* Seletor em pílula e a data, como a cabeça do feed. */}
           <div className="flex items-center gap-3">

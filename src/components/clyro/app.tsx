@@ -60,6 +60,7 @@ import { ProjectDialog } from "@/components/discover/project-dialog";
 import { useProject, useProjectRequests } from "@/lib/project-queries";
 import { useNavigate } from "@tanstack/react-router";
 import { ComingSoon, IncomingInvites, WelcomeScreen } from "@/components/workspace/onboarding";
+import { PageFrame } from "@/components/workspace/page-frame";
 
 type VoiceSession = {
   roomKey: string;
@@ -621,22 +622,24 @@ export function ClyroApp() {
                 <div className="flex min-h-0 flex-1">
                   <div className="flex min-w-0 flex-1 flex-col">
                     {profilePageId ? (
-                      <ProfilePage
-                        profileId={profilePageId}
-                        onClose={() => setProfilePageId(null)}
-                        onOpenDM={(id) => void openDM(id)}
-                        onCall={(id, video) => void callUser(id, video)}
-                        onEditProfile={() => setSettingsOpen(true)}
-                        onOpenMessages={() => changeSection("messages")}
-                        onOpenProject={(p) => {
-                          if (servers.some((s) => s.id === p.id)) {
-                            selectWorkspace(p.id);
-                            changeSection("dashboard");
-                          } else {
-                            void navigate({ to: "/p/$projectId", params: { projectId: p.id } });
-                          }
-                        }}
-                      />
+                      <PageFrame>
+                        <ProfilePage
+                          profileId={profilePageId}
+                          onClose={() => setProfilePageId(null)}
+                          onOpenDM={(id) => void openDM(id)}
+                          onCall={(id, video) => void callUser(id, video)}
+                          onEditProfile={() => setSettingsOpen(true)}
+                          onOpenMessages={() => changeSection("messages")}
+                          onOpenProject={(p) => {
+                            if (servers.some((s) => s.id === p.id)) {
+                              selectWorkspace(p.id);
+                              changeSection("dashboard");
+                            } else {
+                              void navigate({ to: "/p/$projectId", params: { projectId: p.id } });
+                            }
+                          }}
+                        />
+                      </PageFrame>
                     ) : needsWorkspace ? (
                       <WelcomeScreen
                         name={
@@ -645,186 +648,192 @@ export function ClyroApp() {
                         onCreate={() => setCreateOpen(true)}
                       />
                     ) : section === "dashboard" && workspace ? (
-                      <Dashboard
-                        key={workspace.id}
-                        workspace={workspace}
-                        members={members}
-                        teams={teams}
-                        invites={invites}
-                        profiles={profiles_}
-                        userId={userId ?? ""}
-                        canManage={canManage}
-                        canReview={isWorkspaceOwner}
-                        onInvite={openInvite}
-                        onCreateTeam={() => setCreateTeamOpen(true)}
-                        onJoinVoice={openVoice}
-                        onOpenChannel={(channelId) => {
-                          setSelection({ kind: "channel", serverId: workspace.id, channelId });
-                          setSection("rooms");
-                          setRoomsGrid(false);
-                        }}
-                        onNavigate={changeSection}
-                        onOpenProfile={setProfilePageId}
-                        requests={requests}
-                        questions={project?.access_questions ?? []}
-                      />
+                      <PageFrame>
+                        <Dashboard
+                          key={workspace.id}
+                          workspace={workspace}
+                          members={members}
+                          teams={teams}
+                          invites={invites}
+                          profiles={profiles_}
+                          userId={userId ?? ""}
+                          canManage={canManage}
+                          canReview={isWorkspaceOwner}
+                          onInvite={openInvite}
+                          onCreateTeam={() => setCreateTeamOpen(true)}
+                          onJoinVoice={openVoice}
+                          onOpenChannel={(channelId) => {
+                            setSelection({ kind: "channel", serverId: workspace.id, channelId });
+                            setSection("rooms");
+                            setRoomsGrid(false);
+                          }}
+                          onNavigate={changeSection}
+                          onOpenProfile={setProfilePageId}
+                          requests={requests}
+                          questions={project?.access_questions ?? []}
+                        />
+                      </PageFrame>
                     ) : section === "team" && workspace ? (
-                      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-6 pt-2 sm:px-7 clyro-scroll">
-                        <div className="ws-frame flex-1 p-4 sm:p-5">
-                          <TeamManager
-                            workspace={workspace}
-                            members={members}
-                            teams={teams}
-                            invites={invites}
-                            profiles={profiles_}
-                            userId={userId ?? ""}
-                            canManage={canManage}
-                            onInvite={openInvite}
-                            onCreateTeam={() => setCreateTeamOpen(true)}
-                            onOpenProfile={setProfilePageId}
-                          />
-                        </div>
-                      </div>
+                      <PageFrame scroll>
+                        <TeamManager
+                          workspace={workspace}
+                          members={members}
+                          teams={teams}
+                          invites={invites}
+                          profiles={profiles_}
+                          userId={userId ?? ""}
+                          canManage={canManage}
+                          onInvite={openInvite}
+                          onCreateTeam={() => setCreateTeamOpen(true)}
+                          onOpenProfile={setProfilePageId}
+                        />
+                      </PageFrame>
                     ) : section === "tasks" ? (
-                      <ComingSoon
-                        pose="energia"
-                        title="Tasks da equipe"
-                        body="Distribua o trabalho do dia, acompanhe o que travou e veja a semana de cada equipe num quadro só."
-                        bullets={[
-                          "Criar tasks e atribuir para pessoas ou equipes",
-                          "Quadro por status: a fazer, fazendo, feito",
-                          "Prazos, prioridade e o que cada um puxou hoje",
-                        ]}
-                      />
+                      <PageFrame>
+                        <ComingSoon
+                          pose="energia"
+                          title="Tasks da equipe"
+                          body="Distribua o trabalho do dia, acompanhe o que travou e veja a semana de cada equipe num quadro só."
+                          bullets={[
+                            "Criar tasks e atribuir para pessoas ou equipes",
+                            "Quadro por status: a fazer, fazendo, feito",
+                            "Prazos, prioridade e o que cada um puxou hoje",
+                          ]}
+                        />
+                      </PageFrame>
                     ) : section === "rooms" && roomsGrid && workspace ? (
-                      <RoomsBoard
-                        key={workspace.id}
-                        workspace={workspace}
-                        channels={channels}
-                        members={members}
-                        profiles={profiles_}
-                        userId={userId ?? ""}
-                        isAdmin={canManage}
-                        rooms={rooms}
-                        expired={expiredRooms}
-                        currentChannelId={voice?.channelId ?? null}
-                        onEnter={openVoice}
-                        onOpenText={(channelId) => {
-                          setSelection({ kind: "channel", serverId: workspace.id, channelId });
-                          setRoomsGrid(false);
-                        }}
-                      />
+                      <PageFrame>
+                        <RoomsBoard
+                          key={workspace.id}
+                          workspace={workspace}
+                          channels={channels}
+                          members={members}
+                          profiles={profiles_}
+                          userId={userId ?? ""}
+                          isAdmin={canManage}
+                          rooms={rooms}
+                          expired={expiredRooms}
+                          currentChannelId={voice?.channelId ?? null}
+                          onEnter={openVoice}
+                          onOpenText={(channelId) => {
+                            setSelection({ kind: "channel", serverId: workspace.id, channelId });
+                            setRoomsGrid(false);
+                          }}
+                        />
+                      </PageFrame>
                     ) : section === "messages" ? (
                       /*
-                       * Mensagens, como na referência: a coluna das conversas e
-                       * o chat em balões direto na página, sem moldura. No
+                       * Mensagens: a coluna das conversas e o chat em balões
+                       * num painel branco dentro da moldura das páginas. No
                        * celular, uma coisa de cada vez, com voltar no cabeçalho.
                        */
-                      <div className="flex min-h-0 flex-1 overflow-hidden bg-card">
-                        <ConversationList
-                          conversations={conversations}
-                          selection={selection}
-                          friendsActive={selection.kind !== "dm"}
-                          workspace={workspace}
-                          onSelect={(next) => {
-                            setFriendsPane(false);
-                            setSelection(next);
-                          }}
-                          onOpenDM={(id) => {
-                            setFriendsPane(false);
-                            void openDM(id);
-                          }}
-                          onOpenFriends={() => {
-                            setSelection({ kind: "friends" });
-                            setFriendsPane(true);
-                          }}
-                          footer={
-                            voiceDock ? (
-                              <div className="border-t border-black/[0.06]">{userBar}</div>
-                            ) : null
-                          }
-                          className={cn(
-                            "w-full md:w-[300px] md:shrink-0 md:border-r md:border-black/[0.07] xl:w-[320px]",
-                            (activeConversation || friendsPane) && "hidden md:flex",
-                          )}
-                        />
+                      <PageFrame className="p-2">
+                        <div className="flex min-h-0 flex-1 overflow-hidden rounded-[28px] bg-card">
+                          <ConversationList
+                            conversations={conversations}
+                            selection={selection}
+                            friendsActive={selection.kind !== "dm"}
+                            workspace={workspace}
+                            onSelect={(next) => {
+                              setFriendsPane(false);
+                              setSelection(next);
+                            }}
+                            onOpenDM={(id) => {
+                              setFriendsPane(false);
+                              void openDM(id);
+                            }}
+                            onOpenFriends={() => {
+                              setSelection({ kind: "friends" });
+                              setFriendsPane(true);
+                            }}
+                            footer={
+                              voiceDock ? (
+                                <div className="border-t border-black/[0.06]">{userBar}</div>
+                              ) : null
+                            }
+                            className={cn(
+                              "w-full md:w-[300px] md:shrink-0 md:border-r md:border-black/[0.07] xl:w-[320px]",
+                              (activeConversation || friendsPane) && "hidden md:flex",
+                            )}
+                          />
 
-                        <main
-                          className={cn(
-                            "min-w-0 flex-1 flex-col overflow-hidden",
-                            activeConversation || friendsPane ? "flex" : "hidden md:flex",
-                          )}
-                        >
-                          {!activeConversation && (
-                            <>
-                              <div className="flex h-12 shrink-0 items-center border-b border-black/[0.06] px-2 md:hidden">
-                                <button
-                                  type="button"
-                                  onClick={() => setFriendsPane(false)}
-                                  className="flex h-9 items-center gap-1 rounded-full px-2 text-[14px] font-medium transition-colors hover:bg-secondary"
-                                >
-                                  <ArrowLeft2 size={17} color="currentColor" /> Conversas
-                                </button>
-                              </div>
-                              <FriendsPanel
-                                onOpenDM={(id) => void openDM(id)}
-                                onSelectProfile={setProfilePageId}
-                                onCall={(id, video) => void callUser(id, video)}
-                              />
-                            </>
-                          )}
-
-                          {/* Numa call da conversa o palco divide a tela com o chat. */}
-                          {activeConversation &&
-                            voice?.conversationId === activeConversation.id && (
-                              <div className="flex h-[45%] shrink-0 flex-col border-b border-black/[0.06]">
-                                <VoiceStage
-                                  title={voice.label}
-                                  rtc={rtc}
-                                  profiles={profiles}
-                                  selfProfile={profile ?? undefined}
-                                  onLeave={() => setVoice(null)}
+                          <main
+                            className={cn(
+                              "min-w-0 flex-1 flex-col overflow-hidden",
+                              activeConversation || friendsPane ? "flex" : "hidden md:flex",
+                            )}
+                          >
+                            {!activeConversation && (
+                              <>
+                                <div className="flex h-12 shrink-0 items-center border-b border-black/[0.06] px-2 md:hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => setFriendsPane(false)}
+                                    className="flex h-9 items-center gap-1 rounded-full px-2 text-[14px] font-medium transition-colors hover:bg-secondary"
+                                  >
+                                    <ArrowLeft2 size={17} color="currentColor" /> Conversas
+                                  </button>
+                                </div>
+                                <FriendsPanel
+                                  onOpenDM={(id) => void openDM(id)}
+                                  onSelectProfile={setProfilePageId}
+                                  onCall={(id, video) => void callUser(id, video)}
                                 />
-                              </div>
+                              </>
                             )}
 
-                          {activeConversation && (
-                            <ChatPanel
-                              key={activeConversation.id}
-                              variant="bubbles"
-                              showAuthors={activeConversation.is_group}
-                              scopeKey={activeConversation.id}
-                              conversationId={activeConversation.id}
-                              placeholder="Escreva uma mensagem…"
-                              header={(typing) => (
-                                <DirectChatHeader
-                                  conversation={activeConversation}
-                                  profiles={profiles}
-                                  selfId={userId}
-                                  typing={typing}
-                                  inCall={voice?.conversationId === activeConversation.id}
-                                  onBack={() => {
-                                    setFriendsPane(false);
-                                    setSelection({ kind: "friends" });
-                                  }}
-                                  onCall={startCall}
-                                  onOpenProfile={setProfilePageId}
-                                />
+                            {/* Numa call da conversa o palco divide a tela com o chat. */}
+                            {activeConversation &&
+                              voice?.conversationId === activeConversation.id && (
+                                <div className="flex h-[45%] shrink-0 flex-col border-b border-black/[0.06]">
+                                  <VoiceStage
+                                    title={voice.label}
+                                    rtc={rtc}
+                                    profiles={profiles}
+                                    selfProfile={profile ?? undefined}
+                                    onLeave={() => setVoice(null)}
+                                  />
+                                </div>
                               )}
-                            />
-                          )}
-                        </main>
 
-                        {!profileId && !activeConversation && (
-                          <div className="hidden min-h-0 2xl:flex">
-                            <ActivityPanel onSelectProfile={setProfilePageId} />
-                          </div>
-                        )}
-                      </div>
+                            {activeConversation && (
+                              <ChatPanel
+                                key={activeConversation.id}
+                                variant="bubbles"
+                                showAuthors={activeConversation.is_group}
+                                scopeKey={activeConversation.id}
+                                conversationId={activeConversation.id}
+                                placeholder="Escreva uma mensagem…"
+                                header={(typing) => (
+                                  <DirectChatHeader
+                                    conversation={activeConversation}
+                                    profiles={profiles}
+                                    selfId={userId}
+                                    typing={typing}
+                                    inCall={voice?.conversationId === activeConversation.id}
+                                    onBack={() => {
+                                      setFriendsPane(false);
+                                      setSelection({ kind: "friends" });
+                                    }}
+                                    onCall={startCall}
+                                    onOpenProfile={setProfilePageId}
+                                  />
+                                )}
+                              />
+                            )}
+                          </main>
+
+                          {!profileId && !activeConversation && (
+                            <div className="hidden min-h-0 2xl:flex">
+                              <ActivityPanel onSelectProfile={setProfilePageId} />
+                            </div>
+                          )}
+                        </div>
+                      </PageFrame>
                     ) : (
                       <>
                         {section === "rooms" && selection.kind !== "voice" && (
-                          <div className="flex shrink-0 px-3 pt-1 sm:px-7">
+                          <div className="flex shrink-0 px-5 pt-1 sm:px-7 lg:pl-2">
                             <button
                               type="button"
                               onClick={() => setRoomsGrid(true)}
@@ -841,13 +850,11 @@ export function ClyroApp() {
                          */}
                         <div
                           className={cn(
-                            "mx-3 mb-3 flex min-h-0 flex-1 overflow-hidden sm:mx-7 sm:mb-6",
-                            inCall ? "mt-0 lg:mt-1" : "mt-2",
-                            section === "rooms"
-                              ? selection.kind === "voice"
-                                ? ""
-                                : "rounded-[28px] border border-black/[0.06]"
-                              : "ws-frame gap-2 p-2",
+                            "flex min-h-0 flex-1 overflow-hidden",
+                            // A ligação fica sem moldura; o resto usa a das páginas.
+                            section === "rooms" && selection.kind === "voice"
+                              ? cn("mx-3 mb-3 sm:mx-7 sm:mb-6", inCall ? "mt-0 lg:mt-1" : "mt-2")
+                              : "ws-frame mx-3 mb-3 mt-1 gap-2 p-2 sm:mx-5 sm:mb-5 lg:ml-0 lg:mr-5",
                           )}
                         >
                           {section === "rooms" ? null : (

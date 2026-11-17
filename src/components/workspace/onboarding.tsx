@@ -135,8 +135,8 @@ export function ComingSoon({
   bullets: string[];
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-6 pt-2 sm:px-7">
-      <div className="ws-frame flex flex-1 items-start justify-center p-4 sm:p-8">
+    <div className="min-h-0 flex-1 overflow-y-auto p-4 clyro-scroll sm:p-8">
+      <div className="flex justify-center">
         <div className="ws-card flex w-full max-w-2xl flex-col items-center gap-4 px-8 py-12 text-center">
           <Mascot pose={pose} size={128} float />
           <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand-strong">
