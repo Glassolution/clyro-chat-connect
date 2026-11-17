@@ -19,6 +19,8 @@ export type Channel = {
   position: number;
   /** null = fora de categoria, cai nos grupos padrão de texto/voz. */
   category_id: string | null;
+  /** Vem da consulta de canais; serve para separar as salas criadas depois. */
+  created_at?: string | undefined;
 };
 
 export type ChannelCategory = {
@@ -60,6 +62,8 @@ export type VoiceState = {
   deafened: boolean;
   sharing_screen: boolean;
   camera_on: boolean;
+  /** Quando a pessoa entrou nesta call (vem da presença; pode faltar). */
+  joined_at?: string | undefined;
 };
 
 export type Selection =

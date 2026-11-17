@@ -10,7 +10,14 @@ import { Mascot } from "@/components/workspace/mascot";
  * Faixa laranja do topo: o único bloco de cor cheia da página. Texto em mono,
  * caixa alta, com os mascotes espiando nas pontas.
  */
-export function PromoBanner({ onClick }: { onClick: () => void }) {
+export function PromoBanner({
+  onClick,
+  workspaceName,
+}: {
+  onClick: () => void;
+  /** Quem já publicou vê o atalho para o próprio workspace, não o convite. */
+  workspaceName?: string | undefined;
+}) {
   const [open, setOpen] = useState(true);
   if (!open) return null;
   return (
@@ -25,10 +32,21 @@ export function PromoBanner({ onClick }: { onClick: () => void }) {
         className="group flex items-center gap-1.5 px-10 text-[14px] leading-none tracking-[-0.01em]"
       >
         {/* Sans em caixa normal: lê de relance, sem cara de terminal. */}
-        <span className="font-semibold">Tem uma startup?</span>
-        <span className="hidden font-medium text-white/95 sm:inline">
-          Publique e encontre o seu time
-        </span>
+        {workspaceName ? (
+          <>
+            <span className="max-w-[40vw] truncate font-semibold">{workspaceName}</span>
+            <span className="hidden font-medium text-white/95 sm:inline">
+              está no ar. Abrir o workspace
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-semibold">Tem uma startup?</span>
+            <span className="hidden font-medium text-white/95 sm:inline">
+              Publique e encontre o seu time
+            </span>
+          </>
+        )}
         <ArrowRight
           size={15}
           color="currentColor"
@@ -62,11 +80,13 @@ export function SiteNav({
   profile,
   signedIn,
   onPublish,
+  publishLabel = "Publicar projeto",
 }: {
   items: NavItem[];
   profile: UserProfile | null | undefined;
   signedIn: boolean;
   onPublish: () => void;
+  publishLabel?: string;
 }) {
   // Rolou a página: a barra ganha linha fina e sombra para se separar do conteúdo.
   const [scrolled, setScrolled] = useState(false);
@@ -130,7 +150,7 @@ export function SiteNav({
             </Link>
           )}
           <button type="button" onClick={onPublish} className={buttonPrimary("h-9")}>
-            Publicar projeto
+            {publishLabel}
           </button>
         </div>
       </div>

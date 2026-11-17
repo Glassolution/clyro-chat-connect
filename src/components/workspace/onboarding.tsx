@@ -135,25 +135,27 @@ export function ComingSoon({
   bullets: string[];
 }) {
   return (
-    <div className="flex flex-1 items-start justify-center overflow-y-auto px-5 pb-8 sm:px-8">
-      <div className="ws-card flex w-full max-w-2xl flex-col items-center gap-4 px-8 py-12 text-center">
-        <Mascot pose={pose} size={128} float />
-        <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand-strong">
-          Em construção
-        </span>
-        <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
-        <p className="max-w-md text-[15px] text-muted-foreground">{body}</p>
-        <ul className="mt-2 grid w-full max-w-md gap-2 text-left">
-          {bullets.map((b) => (
-            <li
-              key={b}
-              className="flex items-center gap-3 rounded-2xl bg-secondary px-4 py-3 text-sm"
-            >
-              <Check size={16} className="shrink-0 text-brand" />
-              {b}
-            </li>
-          ))}
-        </ul>
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-6 pt-2 sm:px-7">
+      <div className="ws-frame flex flex-1 items-start justify-center p-4 sm:p-8">
+        <div className="ws-card flex w-full max-w-2xl flex-col items-center gap-4 px-8 py-12 text-center">
+          <Mascot pose={pose} size={128} float />
+          <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand-strong">
+            Em construção
+          </span>
+          <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
+          <p className="max-w-md text-[15px] text-muted-foreground">{body}</p>
+          <ul className="mt-2 grid w-full max-w-md gap-2 text-left">
+            {bullets.map((b) => (
+              <li
+                key={b}
+                className="flex items-center gap-3 rounded-2xl bg-secondary px-4 py-3 text-sm"
+              >
+                <Check size={16} className="shrink-0 text-brand" />
+                {b}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );

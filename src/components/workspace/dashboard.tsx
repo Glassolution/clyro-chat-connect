@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
-import { Check, Copy, KeyRound, LogOut, MoreHorizontal, Plus, UserPlus } from "@/components/icons";
-import { Edit, Global } from "iconsax-react";
-import { toast } from "sonner";
+import { useState } from "react";
+import { ArrowDown2, Flash } from "iconsax-react";
+import { Check, Plus, UserPlus } from "@/components/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -10,358 +9,339 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Profile, Server } from "@/lib/clyro-types";
+import type { Channel, Profile, Server } from "@/lib/clyro-types";
 import type { Team, WorkspaceInvite, WorkspaceMember } from "@/lib/workspace-queries";
-import { MediaImage } from "@/components/clyro/primitives";
-import { EmptyState, Mascot } from "./mascot";
-import { MemberCard, PendingInvites, TeamCard } from "./team-panel";
+import { useActivityRealtime } from "@/lib/activity-queries";
+import { EmptyState } from "./mascot";
+import { AvatarStack, PendingInvites, TeamCard } from "./team-panel";
+import { FEED_FILTERS, useFeed, type FeedKind } from "@/lib/activity-feed";
+import { ActivityFeed, BoardAside } from "./activity-board";
+import type { Section } from "./sections";
 import { AccessRequests } from "./access-requests";
 import type { AccessQuestion, AccessRequest } from "@/lib/project-queries";
 
-type Tab = "now" | "teams" | "invites" | "requests";
+type View = "feed" | "teams" | "invites" | "requests";
 
 function isActive(p: Profile | undefined) {
   return p?.status === "online" || p?.status === "dnd";
 }
 
+const MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+/** "16 nov 26", no jeito curto da referência. */
+function shortDate(d: Date) {
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+}
+
 /**
- * O painel do workspace. À esquerda, o "cartão" do workspace — saudação, ícone,
- * convite e números do time —; à direita, quem está fazendo o quê agora.
+ * O Painel: um seletor em pílula escolhe o que ver, e o feed conta o que o
+ * time fez, um cartão por acontecimento. Ao lado, o que pede a sua atenção.
  */
 export function Dashboard({
   workspace,
-  profile,
   members,
   teams,
   invites,
   profiles,
   userId,
   canManage,
-  unread,
+  canReview = canManage,
   onInvite,
   onCreateTeam,
-  onOpenRooms,
+  onJoinVoice,
+  onOpenChannel,
+  onNavigate,
   onOpenProfile,
-  onLeft,
   requests,
   questions,
-  onEditProject,
-  onViewProject,
 }: {
   workspace: Server;
-  profile: Profile | undefined;
   members: WorkspaceMember[];
   teams: Team[];
   invites: WorkspaceInvite[];
   profiles: Map<string, Profile> | undefined;
   userId: string;
   canManage: boolean;
-  unread: number;
+  /** Ver e responder pedidos de entrada: só o dono do workspace. */
+  canReview?: boolean;
   onInvite: (teamId?: string) => void;
   onCreateTeam: () => void;
-  onOpenRooms: () => void;
+  onJoinVoice: (channel: Channel) => void;
+  onOpenChannel: (channelId: string) => void;
+  onNavigate: (section: Section) => void;
   onOpenProfile: (id: string) => void;
-  onLeft: () => void;
   requests: AccessRequest[];
   questions: AccessQuestion[];
-  onEditProject: () => void;
-  onViewProject: () => void;
 }) {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>(canManage && requests.length ? "requests" : "now");
-  const [copied, setCopied] = useState(false);
-  const firstName = (profile?.display_name || profile?.username || "").split(" ")[0];
+  const [view, setView] = useState<View>("feed");
+  const [filter, setFilter] = useState<FeedKind | "all">("all");
+  useActivityRealtime(workspace.id);
+  const { events, data } = useFeed({ workspace, members, teams, invites, requests, canManage });
 
   const online = members.filter((m) => isActive(profiles?.get(m.user_id))).length;
+  const countOf = (f: FeedKind | "all") =>
+    f === "all" ? events.length : events.filter((e) => e.kind === f).length;
 
-  // Quem está em atividade primeiro, depois online, depois o resto.
-  const sorted = useMemo(
-    () =>
-      [...members].sort((a, b) => {
-        const pa = profiles?.get(a.user_id);
-        const pb = profiles?.get(b.user_id);
-        const score = (p: Profile | undefined) => (p?.activity ? 2 : 0) + (isActive(p) ? 1 : 0);
-        return score(pb) - score(pa);
-      }),
-    [members, profiles],
-  );
+  const views: { id: Exclude<View, "feed">; label: string; count: number }[] = [
+    { id: "teams", label: "Equipes", count: teams.length },
+    { id: "invites", label: "Convites pendentes", count: invites.length },
+    ...(canReview
+      ? [{ id: "requests" as const, label: "Pedidos de acesso", count: requests.length }]
+      : []),
+  ];
 
-  const copyCode = async () => {
-    await navigator.clipboard.writeText(workspace.invite_code);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
-  };
+  const pill =
+    view === "feed"
+      ? {
+          label:
+            filter === "all"
+              ? "Atividade"
+              : (FEED_FILTERS.find((f) => f.id === filter)?.label ?? ""),
+          count: countOf(filter),
+        }
+      : (views.find((v) => v.id === view) ?? { label: "", count: 0 });
 
-  const leave = async () => {
-    if (!window.confirm(`Sair de ${workspace.name}?`)) return;
-    const { error } = await supabase
-      .from("server_members")
-      .delete()
-      .eq("server_id", workspace.id)
-      .eq("user_id", userId);
-    if (error) {
-      toast.error("Não foi possível sair.");
-      return;
-    }
-    void qc.invalidateQueries({ queryKey: ["servers", userId] });
-    onLeft();
-  };
+  const openRequests = () => setView("requests");
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 pb-8 sm:px-8 lg:flex-row clyro-scroll">
-      {/* Coluna do workspace */}
-      <aside className="flex w-full shrink-0 flex-col items-center rounded-[32px] bg-background px-6 pb-6 pt-6 lg:sticky lg:top-0 lg:w-[400px] lg:self-start">
-        <div className="flex w-full items-center justify-between">
-          <span className="text-[15px] text-muted-foreground">Olá, {firstName}!</span>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-xl" aria-label="Opções">
-                <MoreHorizontal size={20} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onViewProject}>
-                <Global size={14} /> Ver página do projeto
-              </DropdownMenuItem>
-              {canManage && (
-                <DropdownMenuItem onClick={onEditProject}>
-                  <Edit size={14} /> Editar projeto
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => void copyCode()}>
-                <KeyRound size={14} /> Copiar código de entrada
-              </DropdownMenuItem>
-              {workspace.owner_id !== userId && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive" onClick={() => void leave()}>
-                    <LogOut size={14} /> Sair do workspace
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+    <div className="min-h-0 flex-1 overflow-y-auto clyro-scroll">
+      <div className="grid content-start items-start gap-x-6 gap-y-5 px-4 pb-10 pt-1 sm:px-6 lg:pl-0 lg:pr-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="flex min-w-0 flex-col gap-3">
+          {/* Seletor em pílula e a data, como a cabeça do feed. */}
+          <div className="flex items-center gap-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="group inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-black/[0.09] bg-card pl-3 pr-3 text-[14px] font-medium tracking-[-0.01em] shadow-[0_1px_2px_rgb(0_0_0/0.04),0_3px_8px_-6px_rgb(0_0_0/0.12)] outline-none transition-[border-color,transform] duration-200 ease-clyro hover:border-black/20 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:border-black/20"
+                >
+                  <Flash size={16} color="var(--brand)" variant="Bold" className="shrink-0" />
+                  <span className="truncate">{pill.label}</span>
+                  <span className="font-normal tabular-nums text-[#a3a3a3]">
+                    {String(pill.count).padStart(2, "0")}
+                  </span>
+                  <ArrowDown2
+                    size={13}
+                    color="currentColor"
+                    className="shrink-0 text-muted-foreground transition-transform duration-200 ease-clyro group-data-[state=open]:rotate-180"
+                  />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                sideOffset={8}
+                className="w-60 rounded-[16px] p-1.5"
+              >
+                <DropdownMenuLabel className="px-2.5 text-[12px] font-normal text-muted-foreground">
+                  Atividade do time
+                </DropdownMenuLabel>
+                {FEED_FILTERS.map((f) => (
+                  <PillItem
+                    key={f.id}
+                    label={f.label}
+                    count={countOf(f.id)}
+                    selected={view === "feed" && filter === f.id}
+                    onSelect={() => {
+                      setView("feed");
+                      setFilter(f.id);
+                    }}
+                  />
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="px-2.5 text-[12px] font-normal text-muted-foreground">
+                  Gerenciar
+                </DropdownMenuLabel>
+                {views.map((v) => (
+                  <PillItem
+                    key={v.id}
+                    label={v.label}
+                    count={v.count}
+                    selected={view === v.id}
+                    highlight={v.id === "requests" && v.count > 0}
+                    onSelect={() => setView(v.id)}
+                  />
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-        <div className="mt-2 flex h-32 w-32 items-center justify-center overflow-hidden rounded-[32px] bg-card shadow-card">
-          {workspace.icon_url ? (
-            <MediaImage src={workspace.icon_url} className="h-full w-full object-cover" />
-          ) : (
-            <Mascot pose="neutro" size={92} />
-          )}
-        </div>
-
-        <h2 className="mt-5 text-center text-2xl font-bold tracking-tight">{workspace.name}</h2>
-        <p className="mt-0.5 text-[15px] text-muted-foreground">
-          {members.length} {members.length === 1 ? "pessoa" : "pessoas"} no time
-        </p>
-
-        <div className="mt-6 grid w-full grid-cols-2 gap-3">
-          <Button
-            className="h-14 rounded-2xl text-base"
-            onClick={() => (canManage ? onInvite() : void copyCode())}
-          >
-            {canManage ? "Convidar" : "Copiar código"}
-          </Button>
-          <Button
-            variant="outline"
-            className="h-14 justify-between rounded-2xl border-transparent bg-card px-6 text-base shadow-card hover:bg-card"
-            onClick={onOpenRooms}
-          >
-            Salas
-            {unread > 0 && <span className="text-sm font-semibold">{unread}</span>}
-          </Button>
-        </div>
-
-        <div className="mt-7 flex w-full items-center justify-center gap-8">
-          <Stat value={online} label="Online agora" />
-          <span className="h-10 w-px bg-foreground/80" />
-          <Stat value={teams.length} label={teams.length === 1 ? "Equipe" : "Equipes"} />
-        </div>
-
-        <button
-          type="button"
-          onClick={() => void copyCode()}
-          className="mt-7 flex h-14 w-full items-center gap-4 rounded-2xl border border-border px-5 text-left transition-colors hover:bg-card"
-        >
-          <KeyRound size={20} className="shrink-0" />
-          <span className="min-w-0 flex-1 truncate font-mono text-[15px] font-medium underline underline-offset-4">
-            {workspace.invite_code}
-          </span>
-          {copied ? <Check size={20} /> : <Copy size={20} />}
-        </button>
-
-        <div className="mt-5 w-full rounded-[28px] bg-card px-7 pb-4 pt-7 text-center">
-          <h3 className="text-lg font-semibold">Sobre o workspace</h3>
-          <p className="mt-3 text-[15px] leading-relaxed text-foreground/80">
-            {workspace.description ||
-              "Conte para o time o que vocês estão construindo. Por enquanto, o importante: todo mundo no mesmo lugar, sabendo quem faz o quê."}
-          </p>
-          <Button
-            variant="ghost"
-            className="mt-4 h-12 w-full rounded-2xl shadow-card"
-            onClick={() => setTab("teams")}
-          >
-            Ver equipes
-          </Button>
-        </div>
-      </aside>
-
-      {/* Coluna do time */}
-      <section className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-3 pb-5">
-          <TabButton active={tab === "now"} onClick={() => setTab("now")}>
-            Agora
-          </TabButton>
-          <TabButton active={tab === "teams"} onClick={() => setTab("teams")}>
-            Equipes
-          </TabButton>
-          <TabButton active={tab === "invites"} onClick={() => setTab("invites")}>
-            Convites
-            {invites.length > 0 && (
-              <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-xs text-foreground">
-                {invites.length}
-              </span>
-            )}
-          </TabButton>
-          {canManage && (
-            <TabButton active={tab === "requests"} onClick={() => setTab("requests")}>
-              Pedidos
-              {requests.length > 0 && (
-                <span className="ml-2 rounded-full bg-white/90 px-2 py-0.5 text-xs text-brand">
-                  {requests.length}
+            {view !== "feed" && canManage && view !== "requests" && (
+              <button
+                type="button"
+                onClick={() => (view === "teams" ? onCreateTeam() : onInvite())}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-[13.5px] font-medium transition-colors hover:bg-secondary"
+              >
+                {view === "teams" ? <Plus size={16} /> : <UserPlus size={16} />}
+                <span className="hidden sm:inline">
+                  {view === "teams" ? "Nova equipe" : "Convidar"}
                 </span>
-              )}
-            </TabButton>
+              </button>
+            )}
+
+            <span className="ml-auto shrink-0 text-[13.5px] tabular-nums text-muted-foreground">
+              {shortDate(new Date())}
+            </span>
+          </div>
+
+          {view === "feed" && (
+            <ActivityFeed
+              workspace={workspace}
+              events={events}
+              data={data}
+              filter={filter}
+              members={members}
+              teams={teams}
+              profiles={profiles}
+              userId={userId}
+              onJoinVoice={onJoinVoice}
+              onOpenChannel={onOpenChannel}
+              onOpenProfile={onOpenProfile}
+              onOpenRequests={openRequests}
+            />
           )}
-          {canManage && tab !== "requests" && (
-            <Button
-              variant="ghost"
-              className="ml-auto h-12 rounded-2xl"
-              onClick={() => (tab === "teams" ? onCreateTeam() : onInvite())}
-            >
-              {tab === "teams" ? <Plus size={18} /> : <UserPlus size={18} />}
-              {tab === "teams" ? "Nova equipe" : "Convidar"}
-            </Button>
+
+          {view === "teams" &&
+            (teams.length ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {teams.map((team) => (
+                  <TeamCard
+                    key={team.id}
+                    team={team}
+                    profiles={profiles}
+                    canManage={canManage}
+                    onInvite={() => onInvite(team.id)}
+                    onDelete={async () => {
+                      if (!window.confirm(`Apagar a equipe ${team.name}?`)) return;
+                      await supabase.from("teams").delete().eq("id", team.id);
+                      void qc.invalidateQueries({ queryKey: ["teams", workspace.id] });
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[20px] border border-black/[0.07]">
+                <EmptyState
+                  pose="estrela"
+                  title="Nenhuma equipe ainda"
+                  body="Produto, engenharia, vendas… separe o time e veja quem cuida do quê."
+                  action={
+                    canManage && (
+                      <Button className="rounded-full" onClick={onCreateTeam}>
+                        <Plus size={16} /> Criar equipe
+                      </Button>
+                    )
+                  }
+                />
+              </div>
+            ))}
+
+          {view === "requests" && canReview && (
+            <AccessRequests serverId={workspace.id} requests={requests} questions={questions} />
+          )}
+
+          {view === "invites" && (
+            <PendingInvites
+              invites={invites}
+              teams={teams}
+              profiles={profiles}
+              canManage={canManage}
+              onInvite={() => onInvite()}
+            />
           )}
         </div>
 
-        {tab === "now" &&
-          (members.length <= 1 ? (
-            <div className="ws-card">
-              <EmptyState
-                pose="energia"
-                title="Só você por aqui"
-                body="Chame o time para ver quem está online, o que cada um está fazendo e combinar o dia."
-                action={
-                  canManage && (
-                    <Button className="rounded-2xl" onClick={() => onInvite()}>
-                      <UserPlus size={16} /> Convidar pessoas
-                    </Button>
-                  )
-                }
-              />
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-              {sorted.map((m) => (
-                <MemberCard
-                  key={m.user_id}
-                  member={m}
-                  profile={profiles?.get(m.user_id)}
-                  teams={teams.filter((t) => t.member_ids.includes(m.user_id))}
-                  isSelf={m.user_id === userId}
-                  onOpen={() => onOpenProfile(m.user_id)}
-                />
-              ))}
-            </div>
-          ))}
-
-        {tab === "teams" &&
-          (teams.length ? (
-            <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-              {teams.map((team) => (
-                <TeamCard
-                  key={team.id}
-                  team={team}
-                  profiles={profiles}
-                  canManage={canManage}
-                  onInvite={() => onInvite(team.id)}
-                  onDelete={async () => {
-                    if (!window.confirm(`Apagar a equipe ${team.name}?`)) return;
-                    await supabase.from("teams").delete().eq("id", team.id);
-                    void qc.invalidateQueries({ queryKey: ["teams", workspace.id] });
-                  }}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="ws-card">
-              <EmptyState
-                pose="estrela"
-                title="Nenhuma equipe ainda"
-                body="Produto, engenharia, vendas… separe o time e veja quem cuida do quê."
-                action={
-                  canManage && (
-                    <Button className="rounded-2xl" onClick={onCreateTeam}>
-                      <Plus size={16} /> Criar equipe
-                    </Button>
-                  )
-                }
-              />
-            </div>
-          ))}
-
-        {tab === "requests" && canManage && (
-          <AccessRequests serverId={workspace.id} requests={requests} questions={questions} />
-        )}
-
-        {tab === "invites" && (
-          <PendingInvites
-            invites={invites}
-            teams={teams}
+        {/* Coluna lateral: o que pede atenção, tasks, agenda e o time. */}
+        <aside className="flex min-w-0 flex-col gap-3 xl:sticky xl:top-0">
+          <BoardAside
+            workspace={workspace}
+            data={data}
+            members={members}
+            requests={requests}
             profiles={profiles}
+            userId={userId}
             canManage={canManage}
-            onInvite={() => onInvite()}
+            onJoinVoice={onJoinVoice}
+            onOpenTasks={() => onNavigate("tasks")}
+            onOpenRequests={openRequests}
           />
-        )}
-      </section>
+
+          <section className="rounded-[18px] border border-black/[0.07] bg-card p-4">
+            <h3 className="text-[14px] font-medium tracking-[-0.01em]">Sobre o workspace</h3>
+            <p className="mt-1.5 text-pretty text-[13px] leading-[1.5] text-muted-foreground">
+              {workspace.description ||
+                "Conte para o time o que vocês estão construindo. Por enquanto, o importante: todo mundo no mesmo lugar, sabendo quem faz o quê."}
+            </p>
+            <dl className="mt-3 flex gap-5 text-[13px]">
+              <Stat value={members.length} label={members.length === 1 ? "pessoa" : "pessoas"} />
+              <Stat value={online} label="online" />
+              <Stat value={teams.length} label={teams.length === 1 ? "equipe" : "equipes"} />
+            </dl>
+            {members.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onNavigate("team")}
+                className="group mt-3 flex w-full items-center gap-2.5 rounded-[16px] text-left"
+              >
+                <AvatarStack
+                  ids={members.map((m) => m.user_id)}
+                  profiles={profiles}
+                  max={6}
+                  size={26}
+                />
+                <span className="text-[13px] font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+                  Ver o time
+                </span>
+              </button>
+            )}
+          </section>
+        </aside>
+      </div>
     </div>
+  );
+}
+
+function PillItem({
+  label,
+  count,
+  selected,
+  highlight = false,
+  onSelect,
+}: {
+  label: string;
+  count: number;
+  selected: boolean;
+  highlight?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <DropdownMenuItem
+      onSelect={onSelect}
+      className={cn("h-9 rounded-[10px] px-2.5 text-[13.5px]", selected && "font-medium")}
+    >
+      <span className="flex w-4 shrink-0 justify-center">{selected && <Check size={14} />}</span>
+      <span className="flex-1 truncate">{label}</span>
+      <span
+        className={cn(
+          "text-[13px] tabular-nums",
+          highlight ? "font-semibold text-brand" : "text-muted-foreground",
+        )}
+      >
+        {count}
+      </span>
+    </DropdownMenuItem>
   );
 }
 
 function Stat({ value, label }: { value: number; label: string }) {
   return (
-    <div className="text-center">
-      <p className="text-lg font-bold tabular-nums">{value}</p>
-      <p className="text-[15px] text-muted-foreground">{label}</p>
+    <div className="flex items-baseline gap-1.5">
+      <dt className="sr-only">{label}</dt>
+      <dd className="font-medium tabular-nums text-foreground">{value}</dd>
+      <dd className="text-muted-foreground">{label}</dd>
     </div>
-  );
-}
-
-/** Aba em pílula: a ativa é azul, como o "Posts" da referência. */
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex h-12 min-w-[8.5rem] items-center justify-center rounded-2xl px-6 text-[15px] font-medium transition-colors duration-200",
-        active ? "bg-brand text-white" : "bg-card text-foreground shadow-card hover:bg-accent",
-      )}
-    >
-      {children}
-    </button>
   );
 }

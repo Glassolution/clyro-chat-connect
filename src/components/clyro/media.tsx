@@ -6,12 +6,36 @@ export function StreamVideo({
   stream,
   muted = true,
   className,
+  onAspect,
 }: {
   stream: MediaStream | null;
   muted?: boolean;
   className?: string;
+  /** Avisa a proporção real do vídeo (largura ÷ altura) e cada vez que ela muda. */
+  onAspect?: (ratio: number) => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const onAspectRef = useRef(onAspect);
+  onAspectRef.current = onAspect;
+
+  // Quem compartilha pode trocar de aba ou redimensionar a janela no meio da
+  // transmissão: o evento `resize` do vídeo pega essas mudanças também.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const report = () => {
+      if (el.videoWidth > 0 && el.videoHeight > 0) {
+        onAspectRef.current?.(el.videoWidth / el.videoHeight);
+      }
+    };
+    report();
+    el.addEventListener("loadedmetadata", report);
+    el.addEventListener("resize", report);
+    return () => {
+      el.removeEventListener("loadedmetadata", report);
+      el.removeEventListener("resize", report);
+    };
+  }, []);
   useEffect(() => {
     const el = ref.current;
     if (!el || !stream) return;

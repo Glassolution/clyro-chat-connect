@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "@/components/icons";
 import { toast } from "sonner";
@@ -47,6 +47,7 @@ type Mode = "signin" | "signup";
 function AuthPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const router = useRouter();
   const { next } = Route.useSearch();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -55,8 +56,12 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) void navigate({ to: next ?? "/app" });
-  }, [loading, user, navigate, next]);
+    if (!loading && user) {
+      // `next` pode trazer busca ("/buscar?q=…"): o histórico leva a query inteira.
+      if (next) router.history.replace(next);
+      else void navigate({ to: "/app" });
+    }
+  }, [loading, user, navigate, router, next]);
 
   const signIn = async () => {
     setBusy(true);
@@ -118,6 +123,12 @@ function AuthPage() {
         </div>
 
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-12 clyro-enter">
+          {next?.startsWith("/buscar") && (
+            <p className="mb-5 flex items-center gap-2.5 rounded-xl bg-brand-soft px-3.5 py-2.5 text-[14px] font-medium text-brand-ink">
+              <Mascot pose="estrela" size={24} className="shrink-0" />
+              Entre ou crie sua conta para ver o catálogo de projetos.
+            </p>
+          )}
           <h1 className="text-[clamp(2rem,3.6vw,2.75rem)] font-bold leading-[1.05] tracking-[-0.03em]">
             {mode === "signin" ? "Bom te ver de novo." : "Monte o workspace da sua startup."}
           </h1>

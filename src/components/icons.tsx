@@ -62,6 +62,7 @@ export const AtSign = stroke([
   "M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1",
 ]);
 export const Minimize2 = stroke(["M4 14h6v6", "M20 10h-6V4", "M14 10l7-7", "M3 21l7-7"]);
+export const Pin = stroke(["M9 3.5h6", "M10 3.5v5.5l-3.5 4h11L14 9V3.5", "M12 13v7.5"]);
 export const Strikethrough = stroke([
   "M4 12h16",
   "M16.5 7.5c-.6-1.8-2.4-3-4.5-3-2.5 0-4.5 1.6-4.5 3.6 0 1.2.6 2.2 1.8 2.9",

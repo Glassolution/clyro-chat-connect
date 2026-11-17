@@ -201,7 +201,7 @@ export function ServerSidebar({
   const voiceChannels = loose.filter((c) => c.kind === "voice");
 
   return (
-    <div className="flex h-full w-[280px] shrink-0 flex-col border-r border-border bg-panel">
+    <div className="flex h-full w-[280px] shrink-0 flex-col overflow-hidden rounded-[28px] bg-panel">
       <header className="flex h-16 items-center border-b border-border px-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

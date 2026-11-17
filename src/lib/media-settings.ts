@@ -125,24 +125,62 @@ export function voiceBitrate(settings: MediaSettings) {
  * pela proporção 16:9 — é a forma de pedir "1440p" sem prender o formato da
  * janela que a pessoa escolher.
  */
-export function displayConstraints(settings: MediaSettings): DisplayMediaStreamOptions {
+export function displayConstraints(
+  settings: MediaSettings,
+  options: ShareOptions = {},
+): DisplayMediaStreamOptions {
   const height = settings.screenResolution;
-  return {
+  const withAudio = options.audio ?? true;
+  const request: ChromiumDisplayOptions = {
     video: {
       width: { ideal: Math.round((height * 16) / 9) },
       height: { ideal: height },
       frameRate: { ideal: settings.screenFps, max: settings.screenFps },
+      // Abre o seletor do navegador já na aba certa (aba, janela ou tela).
+      ...(options.surface ? { displaySurface: options.surface } : {}),
     },
     // Som da tela sem tratamento de voz e nos dois canais: música e vídeo
     // chegam do outro lado como saíram daqui.
-    audio: {
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false,
-      channelCount: { ideal: 2 },
-      sampleRate: { ideal: 48000 },
-    },
+    audio: withAudio
+      ? {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: { ideal: 2 },
+          sampleRate: { ideal: 48000 },
+        }
+      : false,
+    // A aba da própria chamada fica fora da lista: compartilhar o Clyro vira
+    // um espelho infinito. E dá para trocar de aba sem parar a transmissão.
+    selfBrowserSurface: "exclude",
+    surfaceSwitching: "include",
+    systemAudio: withAudio ? "include" : "exclude",
+    monitorTypeSurfaces: "include",
   };
+  return request;
+}
+
+/** O que a pessoa escolheu no painel de compartilhar, antes do seletor do navegador. */
+export type ShareSurface = "browser" | "window" | "monitor";
+export type ShareOptions = { surface?: ShareSurface; audio?: boolean };
+
+/**
+ * Opções do seletor que o Chromium entende e o TypeScript ainda não tipa.
+ * Os outros navegadores ignoram o que não conhecem.
+ */
+type ChromiumDisplayOptions = DisplayMediaStreamOptions & {
+  selfBrowserSurface?: "include" | "exclude";
+  surfaceSwitching?: "include" | "exclude";
+  systemAudio?: "include" | "exclude";
+  monitorTypeSurfaces?: "include" | "exclude";
+};
+
+/** O navegador consegue compartilhar a tela? No celular, quase nunca. */
+export function canShareScreen() {
+  return (
+    typeof navigator !== "undefined" &&
+    typeof navigator.mediaDevices?.getDisplayMedia === "function"
+  );
 }
 
 /**

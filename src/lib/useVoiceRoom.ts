@@ -17,6 +17,7 @@ import {
   voiceBitrate,
   SCREEN_AUDIO_BITRATE,
   type MediaSettings,
+  type ShareOptions,
 } from "@/lib/media-settings";
 
 /**
@@ -121,11 +122,45 @@ function tuneOpus(sdp: string | undefined, settings: MediaSettings) {
   );
 }
 
-/** Gera a descrição local (oferta ou resposta) já com o Opus ajustado. */
+/**
+ * Bitrate de partida do vídeo, em kbps. O Chrome começa toda faixa de vídeo em
+ * ~300 kbps e sobe aos poucos: os primeiros segundos de uma tela compartilhada
+ * chegavam em blocos, e quem entrava no meio via o mesmo. Partindo de 3 Mbps a
+ * imagem já nasce nítida; se a rede não aguentar, o controle de banda desce.
+ * Os parâmetros `x-google-*` são ignorados por quem não é Chromium.
+ */
+const VIDEO_START_KBPS = 3000;
+
+function tuneVideoSdp(sdp: string | undefined) {
+  if (!sdp) return sdp;
+  const codec = /a=rtpmap:(\d+) (?:VP8|VP9|H264|AV1)\/90000/gi;
+  let out = sdp;
+  for (const match of sdp.matchAll(codec)) {
+    const payload = match[1];
+    if (!payload) continue;
+    const fmtp = new RegExp(`a=fmtp:${payload} ([^\r\n]*)`);
+    const existing = fmtp.exec(out);
+    if (existing) {
+      if ((existing[1] ?? "").includes("x-google-start-bitrate")) continue;
+      out = out.replace(
+        fmtp,
+        `a=fmtp:${payload} ${existing[1]};x-google-start-bitrate=${VIDEO_START_KBPS}`,
+      );
+    } else {
+      out = out.replace(
+        new RegExp(`(a=rtpmap:${payload} [^\r\n]*)`),
+        `$1\r\na=fmtp:${payload} x-google-start-bitrate=${VIDEO_START_KBPS}`,
+      );
+    }
+  }
+  return out;
+}
+
+/** Gera a descrição local (oferta ou resposta) já com o Opus e o vídeo ajustados. */
 async function setLocalDescriptionForVoice(pc: RTCPeerConnection, settings: MediaSettings) {
   const description =
     pc.signalingState === "have-remote-offer" ? await pc.createAnswer() : await pc.createOffer();
-  const sdp = tuneOpus(description.sdp, settings);
+  const sdp = tuneVideoSdp(tuneOpus(description.sdp, settings));
   await pc.setLocalDescription(sdp ? { ...description, sdp } : description);
 }
 
@@ -139,22 +174,72 @@ function tuneSender(pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: 
   if (!sender) return;
   const params = sender.getParameters();
   if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+  const fps = track.kind === "video" ? Math.round(track.getSettings().frameRate ?? 0) : 0;
   if (track.kind === "video") {
     // Sob aperto de CPU ou de banda o navegador prefere baixar a resolução —
-    // é o que fazia o 4K chegar borrado do outro lado. Aqui a resolução é
-    // sagrada: o que cede é a taxa de quadros.
-    params.degradationPreference = "maintain-resolution";
+    // é o que fazia o 4K chegar borrado do outro lado. A resolução fica; a 60
+    // fps quem pediu fluidez é a taxa de quadros, então é ela que se segura.
+    params.degradationPreference = fps >= 50 ? "maintain-framerate" : "maintain-resolution";
   }
   params.encodings = params.encodings.map((e) => ({
     ...e,
     maxBitrate,
     ...(track.kind === "video"
-      ? { scaleResolutionDownBy: 1, networkPriority: "high" as RTCPriorityType }
+      ? {
+          scaleResolutionDownBy: 1,
+          priority: "high" as RTCPriorityType,
+          networkPriority: "high" as RTCPriorityType,
+          ...(fps > 0 ? { maxFramerate: fps } : {}),
+        }
       : {}),
   }));
   void sender.setParameters(params).catch(() => {
     /* alguns navegadores recusam; segue com o bitrate padrão */
   });
+}
+
+/**
+ * Ordem de codecs do vídeo: H.264 primeiro porque quase toda máquina codifica
+ * em hardware (VideoToolbox no Mac, Media Foundation no Windows) — a tela sai
+ * a 30/60 fps sem engasgar a CPU, mesmo mandando uma cópia para cada pessoa da
+ * sala. VP9 vem logo atrás (bom com texto), e VP8 fica de reserva. Nada sai da
+ * lista: o outro lado escolhe o melhor que os dois têm em comum.
+ */
+function preferVideoCodecs(pc: RTCPeerConnection, track: MediaStreamTrack) {
+  if (track.kind !== "video") return;
+  const transceiver = pc.getTransceivers().find((t) => t.sender.track === track);
+  const capabilities =
+    typeof RTCRtpReceiver !== "undefined" ? RTCRtpReceiver.getCapabilities?.("video") : null;
+  if (!transceiver?.setCodecPreferences || !capabilities) return;
+  const rank = (codec: RTCRtpCodec) => {
+    const mime = codec.mimeType.toLowerCase();
+    const fmtp = codec.sdpFmtpLine ?? "";
+    if (mime === "video/h264") {
+      if (!fmtp.includes("packetization-mode=1")) return 3;
+      // Perfil High (64) comprime melhor; o Baseline (42) é o que todo mundo lê.
+      return fmtp.includes("profile-level-id=64") ? 0 : 1;
+    }
+    if (mime === "video/vp9") return 2;
+    if (mime === "video/vp8") return 4;
+    if (mime === "video/av1") return 5;
+    return 6; // rtx, red, ulpfec: ficam, só no fim
+  };
+  const codecs = [...capabilities.codecs].sort((a, b) => rank(a) - rank(b));
+  try {
+    transceiver.setCodecPreferences(codecs);
+  } catch {
+    /* navegador sem suporte: segue com a ordem padrão */
+  }
+}
+
+/**
+ * Dica de conteúdo da tela. "detail" põe o codificador no modo de tela, que
+ * descarta quadros para guardar nitidez — era o "sem fluidez" a 30 fps. Só a
+ * 15 fps, quando a escolha já foi por texto parado, ele vale a pena; acima
+ * disso vai "motion", e a resolução fica presa pelo `maintain-resolution`.
+ */
+function screenHint(settings: MediaSettings) {
+  return settings.screenFps <= 15 ? "detail" : "motion";
 }
 
 export function userIdOfPeer(peerId: string) {
@@ -225,6 +310,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const extraTrackRef = useRef<Map<string, MediaStreamTrack>>(new Map());
+  /** Teto de bitrate de cada faixa extra, para quem entra depois receber igual. */
+  const extraBitrateRef = useRef<Map<string, number>>(new Map());
   // Cada faixa extra viaja dentro do próprio MediaStream: o outro lado recebe o
   // vídeo já agrupado e o player sabe que há algo novo para exibir.
   const extraStreamRef = useRef<Map<string, MediaStream>>(new Map());
@@ -247,6 +334,13 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const rawStreamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
+  /**
+   * Quanto cada um está falando agora, de 0 a 1, já descontado o ruído da sala.
+   * Fica num ref e não no estado: o medidor da call lê a cada quadro sem fazer
+   * o React redesenhar nada.
+   */
+  const voiceLevelsRef = useRef<Map<string, number>>(new Map());
+  const bandBufferRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const mutedRef = useRef(false);
   const deafenedRef = useRef(false);
   const preDeafenMuteRef = useRef(false);
@@ -536,10 +630,24 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         pc.addTrack(track, localStreamRef.current as MediaStream);
         if (track.kind === "audio") tuneSender(pc, track, voiceBitrate(mediaSettingsRef.current));
       });
+      // Quem entra com a tela já no ar recebe a mesma qualidade de quem já
+      // estava: antes a faixa ia sem teto nem codec, no padrão baixo do navegador.
+      const tuneExtras = () => {
+        extraTrackRef.current.forEach((track, key) => {
+          const bitrate = extraBitrateRef.current.get(key);
+          if (bitrate) tuneSender(pc, track, bitrate);
+        });
+      };
       extraTrackRef.current.forEach((track, key) => {
         const wrapper = extraStreamRef.current.get(key);
         if (wrapper) pc.addTrack(track, wrapper);
         else pc.addTrack(track);
+        preferVideoCodecs(pc, track);
+      });
+      tuneExtras();
+      // Cada negociação pode devolver os parâmetros ao padrão: reaplica no fim.
+      pc.addEventListener("signalingstatechange", () => {
+        if (pc.signalingState === "stable") tuneExtras();
       });
 
       const remoteStream = new MediaStream();
@@ -881,6 +989,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       extraTrackRef.current.forEach((t) => t.stop());
       extraTrackRef.current.clear();
       extraStreamRef.current.clear();
+      extraBitrateRef.current.clear();
       setScreenStream(null);
       setSharingScreen(false);
       sharingScreenRef.current = false;
@@ -1066,7 +1175,9 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         /* a origem da captura manda; vale na próxima transmissão */
       });
     }
+    track.contentHint = screenHint(mediaSettings);
     const bitrate = screenBitrate(mediaSettings);
+    extraBitrateRef.current.set("screen", bitrate);
     pcsRef.current.forEach((pc) => tuneSender(pc, track, bitrate));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharingScreen, mediaSettings.screenResolution, mediaSettings.screenFps]);
@@ -1178,10 +1289,17 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
 
     let selfSpeaking = false;
 
+    /** A energia acima do ruído, numa escala de 0 a 1 que a voz normal preenche. */
+    const voiceLevel = (id: string, rms: number) =>
+      Math.min(1, Math.max(0, (rms - noiseFloor(id) * 1.5) / 0.1));
+
     const loop = () => {
       const remote = new Map<string, number>();
+      const levels = new Map<string, number>();
       analysersRef.current.forEach((analyser, id) => {
         const rms = level(analyser, id);
+        const silenced = id === "__self" ? mutedRef.current : deafenedRef.current;
+        levels.set(id, silenced ? 0 : voiceLevel(id, rms));
         if (id === "__self") {
           // Sem truque de espectro nem espera de quadros: o que chega ao medidor
           // já passou pelo filtro, então energia aqui quer dizer voz.
@@ -1214,6 +1332,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         return changed ? next : prev;
       });
 
+      voiceLevelsRef.current = levels;
       rafRef.current = window.requestAnimationFrame(loop);
     };
     loop();
@@ -1221,6 +1340,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
       floorSamples.clear();
       lastPeak.clear();
+      voiceLevelsRef.current = new Map();
       setLocalSpeaking(false);
     };
   }, [roomKey, applyGate]);
@@ -1235,6 +1355,45 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   useEffect(() => {
     wireMicInput();
   }, [mediaSettings.voiceFilter, wireMicInput]);
+
+  /**
+   * As faixas da voz de quem fala mais alto agora, para o medidor da call: grave,
+   * médio-grave, médio e agudo da fala, cada uma de 0 a 1 e já multiplicada pelo
+   * volume, então silêncio dá zero. Devolve o volume. Lê direto do analisador,
+   * sem estado: quem chama decide o ritmo (um quadro por vez).
+   */
+  const readVoiceBands = useCallback((out: number[]) => {
+    let loudestId: string | null = null;
+    let loudest = 0;
+    voiceLevelsRef.current.forEach((value, id) => {
+      if (value > loudest) {
+        loudest = value;
+        loudestId = id;
+      }
+    });
+    const analyser = loudestId ? analysersRef.current.get(loudestId) : undefined;
+    if (!analyser || loudest < 0.04) {
+      out.fill(0);
+      return 0;
+    }
+    const size = analyser.frequencyBinCount;
+    if (!bandBufferRef.current || bandBufferRef.current.length !== size) {
+      bandBufferRef.current = new Uint8Array(size);
+    }
+    const bins = bandBufferRef.current;
+    analyser.getByteFrequencyData(bins);
+    // A fala mora entre ~100 Hz e ~4 kHz; cada faixa pega o pico do seu trecho.
+    const hz = analyser.context.sampleRate / analyser.fftSize;
+    const edges = [100, 300, 700, 1600, 4000].map((f) => Math.max(1, Math.round(f / hz)));
+    const gain = Math.min(1, loudest * 1.4);
+    for (let band = 0; band < out.length && band < 4; band += 1) {
+      let peak = 0;
+      const end = Math.min(size, Math.max(edges[band + 1] ?? size, (edges[band] ?? 1) + 1));
+      for (let bin = edges[band] ?? 1; bin < end; bin += 1) peak = Math.max(peak, bins[bin] ?? 0);
+      out[band] = (peak / 255) * gain;
+    }
+    return loudest;
+  }, []);
 
   // ---- controls -----------------------------------------------------------
   const applyAudioEnabled = useCallback(() => {
@@ -1274,11 +1433,14 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const addExtraTrack = useCallback(
     async (key: string, track: MediaStreamTrack, maxBitrate?: number) => {
       extraTrackRef.current.set(key, track);
+      if (maxBitrate) extraBitrateRef.current.set(key, maxBitrate);
+      else extraBitrateRef.current.delete(key);
       const wrapper = new MediaStream([track]);
       extraStreamRef.current.set(key, wrapper);
       pcsRef.current.forEach((pc) => {
         try {
           pc.addTrack(track, wrapper);
+          preferVideoCodecs(pc, track);
           if (maxBitrate) tuneSender(pc, track, maxBitrate);
         } catch {
           /* already added */
@@ -1305,6 +1467,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     track.stop();
     extraTrackRef.current.delete(key);
     extraStreamRef.current.delete(key);
+    extraBitrateRef.current.delete(key);
   }, []);
 
   const stopSharing = useCallback(() => {
@@ -1317,41 +1480,45 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     send("screen-share", { from: selfIdRef.current ?? "", sharing: false });
   }, [removeExtraTrack, send]);
 
-  const toggleScreen = useCallback(async () => {
-    if (sharingScreen) {
-      stopSharing();
-      return;
-    }
-    try {
-      // Resolução, taxa de quadros e bitrate saem das configurações; o som da
-      // tela vai em estéreo e sem tratamento de voz, para música e vídeo
-      // chegarem do outro lado como saíram daqui.
-      const preferences = mediaSettingsRef.current;
-      const display = await navigator.mediaDevices.getDisplayMedia(displayConstraints(preferences));
-      const track = display.getVideoTracks()[0];
-      if (!track) {
-        display.getTracks().forEach((t) => t.stop());
+  const toggleScreen = useCallback(
+    async (options?: ShareOptions) => {
+      if (sharingScreen) {
+        stopSharing();
         return;
       }
-      // A 60 fps a prioridade vira fluidez; abaixo disso, texto legível.
-      track.contentHint = preferences.screenFps >= 60 ? "motion" : "detail";
-      track.onended = stopSharing;
-      const audioTrack = display.getAudioTracks()[0];
-      if (audioTrack) {
-        // Se o som da aba parar (troca de aba, por exemplo), o vídeo continua.
-        audioTrack.onended = () => removeExtraTrack("screen-audio");
-        await addExtraTrack("screen-audio", audioTrack, SCREEN_AUDIO_BITRATE);
+      try {
+        // Resolução, taxa de quadros e bitrate saem das configurações; o som da
+        // tela vai em estéreo e sem tratamento de voz, para música e vídeo
+        // chegarem do outro lado como saíram daqui.
+        const preferences = mediaSettingsRef.current;
+        const display = await navigator.mediaDevices.getDisplayMedia(
+          displayConstraints(preferences, options),
+        );
+        const track = display.getVideoTracks()[0];
+        if (!track) {
+          display.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        track.contentHint = screenHint(preferences);
+        track.onended = stopSharing;
+        const audioTrack = display.getAudioTracks()[0];
+        if (audioTrack) {
+          // Se o som da aba parar (troca de aba, por exemplo), o vídeo continua.
+          audioTrack.onended = () => removeExtraTrack("screen-audio");
+          await addExtraTrack("screen-audio", audioTrack, SCREEN_AUDIO_BITRATE);
+        }
+        await addExtraTrack("screen", track, screenBitrate(preferences));
+        setScreenStream(display);
+        setSharingScreen(true);
+        sharingScreenRef.current = true;
+        playScreenShareSound();
+        send("screen-share", { from: selfIdRef.current ?? "", sharing: true });
+      } catch {
+        /* user cancelled */
       }
-      await addExtraTrack("screen", track, screenBitrate(preferences));
-      setScreenStream(display);
-      setSharingScreen(true);
-      sharingScreenRef.current = true;
-      playScreenShareSound();
-      send("screen-share", { from: selfIdRef.current ?? "", sharing: true });
-    } catch {
-      /* user cancelled */
-    }
-  }, [sharingScreen, addExtraTrack, removeExtraTrack, stopSharing, send]);
+    },
+    [sharingScreen, addExtraTrack, removeExtraTrack, stopSharing, send],
+  );
 
   const toggleCamera = useCallback(async () => {
     if (cameraOn) {
@@ -1418,5 +1585,6 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     toggleDeafen,
     toggleScreen,
     toggleCamera,
+    readVoiceBands,
   };
 }

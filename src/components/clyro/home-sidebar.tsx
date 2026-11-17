@@ -159,7 +159,7 @@ export function HomeSidebar({
   };
 
   return (
-    <div className="flex h-full w-[260px] shrink-0 flex-col border-r border-border bg-panel">
+    <div className="flex h-full w-[260px] shrink-0 flex-col overflow-hidden rounded-[28px] bg-panel">
       <div className="flex h-14 shrink-0 items-center border-b border-border px-3">
         <div className="relative w-full">
           <Search

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Hash, Volume2, Phone, Video, AtSign } from "@/components/icons";
+import { readSavedWorkspace, saveWorkspace } from "@/lib/workspace-memory";
+import { Hash, Volume2 } from "@/components/icons";
+import { ArrowLeft2 } from "iconsax-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -25,18 +28,32 @@ import {
   useWorkspaceRealtime,
 } from "@/lib/workspace-queries";
 import { HomeSidebar, conversationTitle, dedupeDirectConversations } from "./home-sidebar";
-import { ServerSidebar } from "./server-sidebar";
 import { ChatPanel } from "./chat";
+import { ConversationList } from "./conversation-list";
+import { DirectChatHeader } from "./direct-chat-header";
 import { FriendsPanel } from "./friends";
 import { ActivityPanel } from "./activity";
 import { ProfilePanel } from "./profile-panel";
+import { ProfilePage } from "./profile-page";
 import { VoiceStage, VoiceDock } from "./voice-stage";
 import { VoiceAudio } from "./media";
 import { UserBar } from "./user-bar";
 import { SettingsDialog } from "./settings-dialog";
-import { NavRail, type Section } from "@/components/workspace/nav-rail";
-import { WorkspaceTabs } from "@/components/workspace/workspace-tabs";
+import { TopNav, type Section } from "@/components/workspace/top-nav";
+import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
+import { ProfileMenu } from "@/components/workspace/profile-menu";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Dashboard } from "@/components/workspace/dashboard";
+import { RoomsBoard } from "@/components/workspace/rooms-board";
+import {
+  canEnterRoom,
+  canManageRoom,
+  emptyRooms,
+  useRoomActions,
+  useRooms,
+  useEmptyRoomSweep,
+  useRoomsRealtime,
+} from "@/lib/room-queries";
 import { TeamManager, CreateTeamDialog } from "@/components/workspace/team-panel";
 import { InviteDialog } from "@/components/workspace/invite-dialog";
 import { ProjectDialog } from "@/components/discover/project-dialog";
@@ -69,12 +86,18 @@ export function ClyroApp() {
   const [selection, setSelection] = useState<Selection>({ kind: "friends" });
   const [voice, setVoice] = useState<VoiceSession | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
+  // Perfil aberto como página: toma o lugar da tela atual até trocar de seção.
+  const [profilePageId, setProfilePageId] = useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(() => readSavedWorkspace());
   const [createOpen, setCreateOpen] = useState(false);
   const [invite, setInvite] = useState<{ teamId: string | null } | null>(null);
   const [createTeamOpen, setCreateTeamOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editProjectOpen, setEditProjectOpen] = useState(false);
+  // No celular e no tablet a sidebar mora num menu que desliza da esquerda.
+  const [menuOpen, setMenuOpen] = useState(false);
+  /** No celular, Amigos ocupa a tela no lugar da lista de conversas. */
+  const [friendsPane, setFriendsPane] = useState(false);
   const navigate = useNavigate();
 
   // O workspace aberto: o escolhido, se você ainda faz parte dele, ou o primeiro.
@@ -92,8 +115,15 @@ export function ClyroApp() {
   const { data: incoming = [] } = useIncomingInvites(userId, user?.email);
   const myRole = members.find((m) => m.user_id === userId)?.role;
   const canManage = !!workspace && (workspace.owner_id === userId || myRole === "admin");
+  /** Salas abre na grade de cartões; abrir uma sala troca para a call e o chat dela. */
+  const [roomsGrid, setRoomsGrid] = useState(true);
+  const { data: roomsData } = useRooms(activeServerId);
+  const rooms = roomsData ?? emptyRooms();
+  const roomActions = useRoomActions(activeServerId ?? "", userId);
   const { data: project } = useProject(canManage ? activeServerId : null);
-  const { data: requests = [] } = useProjectRequests(activeServerId, canManage);
+  // Pedidos de entrada: só quem é dono do workspace vê e responde.
+  const isWorkspaceOwner = !!workspace && workspace.owner_id === userId;
+  const { data: requests = [] } = useProjectRequests(activeServerId, isWorkspaceOwner);
   const rtc = useVoiceRoom(voice?.roomKey ?? null, userId ?? null);
 
   /**
@@ -118,6 +148,16 @@ export function ClyroApp() {
   );
 
   const voiceStates = useVoicePresence(userId, presence);
+
+  /** Sala vazia por 2 minutos some da aba (e é apagada por quem pode). */
+  const expiredRooms = useEmptyRoomSweep({
+    serverId: activeServerId,
+    channels,
+    rooms,
+    states: voiceStates,
+    userId,
+    isOwner: !!workspace && workspace.owner_id === userId,
+  });
 
   // Aviso sonoro de entrada e saída da própria chamada.
   const wasInVoiceRef = useRef(false);
@@ -159,13 +199,16 @@ export function ClyroApp() {
   const selectWorkspace = (id: string) => {
     setWorkspaceId(id);
     setProfileId(null);
+    setProfilePageId(null);
     if (section === "rooms") void openServer(id);
     else if (section === "messages") setSection("dashboard");
   };
 
   const changeSection = (next: Section) => {
     setProfileId(null);
+    setProfilePageId(null);
     if (next === "rooms" && workspace) {
+      setRoomsGrid(true);
       const inWorkspace =
         (selection.kind === "channel" || selection.kind === "voice") &&
         selection.serverId === workspace.id;
@@ -174,6 +217,7 @@ export function ClyroApp() {
         return;
       }
     }
+    if (next === "rooms") setRoomsGrid(true);
     if (next === "messages" && selection.kind !== "dm") setSelection({ kind: "friends" });
     setSection(next);
   };
@@ -229,9 +273,37 @@ export function ClyroApp() {
    * estiver conectado. Sair é só pelo botão de desligar — antes o mesmo clique
    * que abria o canal também derrubava a call de quem já estava dentro.
    */
-  const openVoice = (channel: Channel) => {
+  const openVoice = (channel: Channel, skipGate = false) => {
+    // Sala com pedido: quem não foi liberado fica na grade e pode pedir dali.
+    if (
+      !skipGate &&
+      channel.server_id === activeServerId &&
+      voice?.channelId !== channel.id &&
+      !canEnterRoom(rooms, channel.id, userId, canManage)
+    ) {
+      const mine = rooms.access.find((a) => a.channel_id === channel.id && a.user_id === userId);
+      setSection("rooms");
+      setRoomsGrid(true);
+      if (mine?.status === "pending") {
+        toast(`Seu pedido para ${channel.name} ainda está esperando.`);
+        return;
+      }
+      toast(`${channel.name} pede para entrar.`, {
+        description: "Quem cuida da sala recebe o pedido e libera.",
+        action: {
+          label: "Pedir",
+          onClick: () =>
+            void roomActions
+              .requestEntry(channel.id)
+              .then(() => toast.success("Pedido enviado."))
+              .catch(() => toast.error("Não foi possível enviar o pedido.")),
+        },
+      });
+      return;
+    }
     setSelection({ kind: "voice", serverId: channel.server_id, channelId: channel.id });
     setSection("rooms");
+    setRoomsGrid(false);
     if (voice?.channelId === channel.id) return;
     setVoice({
       roomKey: `voice-channel-${channel.id}`,
@@ -242,6 +314,85 @@ export function ClyroApp() {
     });
   };
 
+  /*
+   * Pedidos de entrada em tempo real: quem cuida da sala é avisado na hora e
+   * pode liberar do próprio aviso; quem pediu fica sabendo da resposta.
+   */
+  useRoomsRealtime(activeServerId, ({ type, row }) => {
+    if (type === "DELETE" || !userId) return;
+    const channel = channels.find((c) => c.id === row.channel_id);
+    const room = channel?.name ?? "a sala";
+    if (row.user_id === userId) {
+      if (type !== "UPDATE") return;
+      if (row.status === "approved") {
+        toast.success(`Você já pode entrar em ${room}.`, {
+          action: channel
+            ? { label: "Entrar", onClick: () => openVoice(channel, true) }
+            : undefined,
+        });
+      } else if (row.status === "denied") {
+        toast(`Seu pedido para ${room} não foi aceito.`);
+      }
+      return;
+    }
+    if (row.status !== "pending" || !canManageRoom(rooms, row.channel_id, userId, canManage))
+      return;
+    const person = profiles?.get(row.user_id);
+    toast(`${person?.display_name || person?.username || "Alguém"} pediu para entrar em ${room}.`, {
+      action: {
+        label: "Liberar",
+        onClick: () =>
+          void roomActions
+            .decide(row.channel_id, row.user_id, true)
+            .then(() => toast.success("Acesso liberado."))
+            .catch(() => toast.error("Não foi possível liberar agora.")),
+      },
+    });
+  });
+
+  /*
+   * Link de sala (/app?sala=<id>): descobre o workspace dela, abre a aba Salas
+   * e tenta entrar — a mesma porta de sempre, então sala com pedido vira pedido.
+   */
+  const [linkedRoom, setLinkedRoom] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("sala"),
+  );
+  useEffect(() => {
+    if (!linkedRoom || !userId) return;
+    if (typeof window !== "undefined" && window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    let cancelled = false;
+    void supabase
+      .from("channels")
+      .select("id, server_id")
+      .eq("id", linkedRoom)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (!data) {
+          toast.error("Essa sala não existe mais, ou você não está no workspace dela.");
+          setLinkedRoom(null);
+          return;
+        }
+        setWorkspaceId(data.server_id);
+        setSection("rooms");
+        setRoomsGrid(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedRoom, userId]);
+  useEffect(() => {
+    if (!linkedRoom || !roomsData) return;
+    const channel = channels.find((c) => c.id === linkedRoom);
+    if (!channel) return;
+    setLinkedRoom(null);
+    openVoice(channel);
+    // openVoice muda a cada render; o que importa é a sala e os dados chegarem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedRoom, roomsData, channels]);
+
   const activeConversation = useMemo(
     () =>
       selection.kind === "dm"
@@ -249,16 +400,6 @@ export function ClyroApp() {
         : null,
     [conversations, selection],
   );
-
-  /**
-   * Quem está falando agora, por usuário — o mesmo sinal que acende a borda no
-   * palco alimenta a bola verde da lista lateral e a do próprio perfil.
-   */
-  const speakingUserIds = useMemo(() => {
-    const ids = rtc.peers.filter((p) => p.speaking).map((p) => p.userId);
-    if (rtc.localSpeaking && !rtc.muted && userId) ids.push(userId);
-    return ids;
-  }, [rtc.peers, rtc.localSpeaking, rtc.muted, userId]);
 
   const selfSpeaking = rtc.localSpeaking && !rtc.muted && !!voice;
 
@@ -283,19 +424,17 @@ export function ClyroApp() {
     [profiles, voiceChannel, voiceStates],
   );
 
-  // Abrir uma conversa 1:1 já mostra o perfil de quem está do outro lado; fechar
-  // o painel mantém ele fechado até trocar de conversa ou clicar em outro card.
-  const dmPartnerId =
-    activeConversation && !activeConversation.is_group
-      ? (activeConversation.member_ids.find((id) => id !== userId) ?? null)
-      : null;
-
   useEffect(() => {
-    // Trocar de tela devolve o painel ao padrão daquela tela: numa DM, o perfil
-    // de quem está do outro lado; nas demais, nada. Cliques posteriores em cards
-    // ou na lista de voz continuam mandando, porque não mexem nestas deps.
-    setProfileId(dmPartnerId);
-  }, [selection, dmPartnerId]);
+    // Trocar de tela fecha o painel de perfil. Nas conversas ele não abre
+    // sozinho: o chat fica com a largura toda, e o perfil de quem está do
+    // outro lado abre pelo cabeçalho (nome ou "Ver perfil").
+    setProfileId(null);
+  }, [selection]);
+
+  // Abrir uma conversa, uma sala ou outra seção fecha a página de perfil.
+  useEffect(() => {
+    setProfilePageId(null);
+  }, [section, selection]);
 
   const startCall = (video: boolean) => {
     if (!activeConversation) return;
@@ -315,6 +454,7 @@ export function ClyroApp() {
       setWorkspaceId(voice.serverId);
       setSelection({ kind: "voice", serverId: voice.serverId, channelId: voice.channelId });
       setSection("rooms");
+      setRoomsGrid(false);
     } else if (voice.conversationId) {
       setSelection({ kind: "dm", conversationId: voice.conversationId });
       setSection("messages");
@@ -349,274 +489,480 @@ export function ClyroApp() {
   const memberIds = members.map((m) => m.user_id);
   const openInvite = (teamId?: string) => setInvite({ teamId: teamId ?? null });
 
-  const sectionTitle: Record<Section, string> = {
-    dashboard: "Painel",
-    tasks: "Tasks",
-    rooms: "Salas",
-    messages: "Mensagens",
-    team: "Equipe",
-  };
+  /** A mesma sidebar na coluna fixa (desktop) e no menu (celular e tablet). */
+  const profileActive = !!userId && profilePageId === userId;
+  // Dentro da call, a tela é só dela: o topo perde os links e a call sobe.
+  const inCall = section === "rooms" && !roomsGrid && selection.kind === "voice" && !profilePageId;
+  const badges = { dashboard: incoming.length + requests.length };
+
+  /** A sua conta, no canto superior direito do topo. */
+  const account = (
+    <ProfileMenu
+      profile={profile ?? undefined}
+      speaking={selfSpeaking}
+      profileActive={profileActive}
+      workspaces={servers}
+      workspace={workspace}
+      userId={userId ?? ""}
+      canManage={canManage}
+      onProfile={() => {
+        setMenuOpen(false);
+        if (userId) setProfilePageId(userId);
+      }}
+      onSettings={() => {
+        setMenuOpen(false);
+        setSettingsOpen(true);
+      }}
+      onSelectWorkspace={(id) => {
+        setMenuOpen(false);
+        selectWorkspace(id);
+      }}
+      onCreateWorkspace={() => {
+        setMenuOpen(false);
+        setCreateOpen(true);
+      }}
+      onViewProject={() => {
+        if (workspace) void navigate({ to: "/p/$projectId", params: { projectId: workspace.id } });
+      }}
+      onEditProject={() => {
+        setMenuOpen(false);
+        setEditProjectOpen(true);
+      }}
+      onLeft={() => setWorkspaceId(null)}
+    />
+  );
+
+  /** A mesma sidebar na coluna fixa (desktop) e no menu (celular e tablet). */
+  const sidebar = (
+    <WorkspaceSidebar
+      section={section}
+      onSection={(s) => {
+        changeSection(s);
+        setMenuOpen(false);
+      }}
+      badges={badges}
+      profileActive={profileActive}
+      workspace={workspace}
+      members={members}
+      teams={teams}
+      profiles={profiles_}
+      userId={userId ?? ""}
+      conversationCount={userId ? dedupeDirectConversations(conversations, userId).length : 0}
+      canManage={canManage}
+      onInvite={() => {
+        setMenuOpen(false);
+        openInvite();
+      }}
+    />
+  );
 
   // Telas que vivem dentro de um workspace: sem nenhum, a primeira coisa é criar.
   const needsWorkspace = section !== "messages" && !workspace;
 
-  const profileAside = profileId ? (
-    <ProfilePanel
-      profileId={profileId}
-      onClose={() => setProfileId(null)}
-      onOpenDM={(id) => void openDM(id)}
-      onCall={(id, video) => void callUser(id, video)}
-    />
-  ) : null;
+  const profileAside =
+    profileId && !profilePageId ? (
+      <ProfilePanel
+        profileId={profileId}
+        onClose={() => setProfileId(null)}
+        onOpenDM={(id) => void openDM(id)}
+        onCall={(id, video) => void callUser(id, video)}
+        onEditProfile={() => setSettingsOpen(true)}
+        onOpenMessages={() => {
+          setProfileId(null);
+          changeSection("messages");
+        }}
+      />
+    ) : null;
 
   return (
     <TooltipProvider delayDuration={200}>
       <VoicePresenceProvider value={voiceStates}>
-        <div className="flex h-screen w-full overflow-hidden bg-card text-foreground">
-          <NavRail
-            section={section}
-            onSection={changeSection}
-            badges={{ dashboard: incoming.length + requests.length }}
-            profile={profile ?? undefined}
-            speaking={selfSpeaking}
-            onSettings={() => setSettingsOpen(true)}
-            onProfile={() => userId && setProfileId(userId)}
-          />
-
+        {/* Fundo cinza e uma moldura branca de canto largo; no celular a moldura
+          ocupa a tela toda. */}
+        <div className="flex h-dvh w-full overflow-hidden bg-[#f5f5f5] text-foreground lg:p-3">
           {/* O áudio dos participantes fica fora de qualquer tela: a call continua
             tocando ao navegar entre painel, equipe e salas. */}
           {voice && <VoiceAudio peers={rtc.peers} deafened={rtc.deafened} />}
 
-          <div className="flex min-w-0 flex-1 flex-col">
-            {servers.length > 0 && (
-              <WorkspaceTabs
-                title={sectionTitle[section]}
-                workspaces={servers}
-                activeId={section === "messages" ? null : (workspace?.id ?? null)}
-                onSelect={selectWorkspace}
-                onCreate={() => setCreateOpen(true)}
-              />
-            )}
-
-            {(section === "dashboard" || needsWorkspace) && (
-              <IncomingInvites
-                invites={incoming}
-                userId={userId ?? ""}
-                onJoined={(id) => {
-                  setWorkspaceId(id);
-                  setSection("dashboard");
-                }}
-              />
-            )}
+          <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-card lg:rounded-[28px] lg:shadow-[0_0_0_1px_rgb(0_0_0/0.04),0_1px_3px_rgb(0_0_0/0.04)]">
+            <TopNav
+              section={section}
+              badges={badges}
+              onMenu={() => setMenuOpen(true)}
+              onOpenWorkspace={() => changeSection("dashboard")}
+              profileActive={profileActive}
+              compact={inCall}
+              account={account}
+            />
 
             <div className="flex min-h-0 flex-1">
+              <aside
+                aria-label="Seções do workspace"
+                className={cn(
+                  "hidden w-[232px] shrink-0 flex-col overflow-y-auto px-3 pb-4 pt-1 clyro-scroll lg:flex xl:w-[248px] xl:px-4",
+                  inCall && "lg:pt-[68px]",
+                )}
+              >
+                {sidebar}
+              </aside>
+
               <div className="flex min-w-0 flex-1 flex-col">
-                {needsWorkspace ? (
-                  <WelcomeScreen
-                    name={(profile?.display_name || profile?.username || "").split(" ")[0] ?? ""}
-                    onCreate={() => setCreateOpen(true)}
-                  />
-                ) : section === "dashboard" && workspace ? (
-                  <Dashboard
-                    workspace={workspace}
-                    profile={profile ?? undefined}
-                    members={members}
-                    teams={teams}
-                    invites={invites}
-                    profiles={profiles_}
+                {!profilePageId && (section === "dashboard" || needsWorkspace) && (
+                  <IncomingInvites
+                    invites={incoming}
                     userId={userId ?? ""}
-                    canManage={canManage}
-                    unread={0}
-                    onInvite={openInvite}
-                    onCreateTeam={() => setCreateTeamOpen(true)}
-                    onOpenRooms={() => changeSection("rooms")}
-                    onOpenProfile={setProfileId}
-                    onLeft={() => setWorkspaceId(null)}
-                    requests={requests}
-                    questions={project?.access_questions ?? []}
-                    onEditProject={() => setEditProjectOpen(true)}
-                    onViewProject={() =>
-                      void navigate({ to: "/p/$projectId", params: { projectId: workspace.id } })
-                    }
+                    onJoined={(id) => {
+                      setWorkspaceId(id);
+                      setSection("dashboard");
+                    }}
                   />
-                ) : section === "team" && workspace ? (
-                  <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-10 sm:px-8 clyro-scroll">
-                    <TeamManager
-                      workspace={workspace}
-                      members={members}
-                      teams={teams}
-                      invites={invites}
-                      profiles={profiles_}
-                      userId={userId ?? ""}
-                      canManage={canManage}
-                      onInvite={openInvite}
-                      onCreateTeam={() => setCreateTeamOpen(true)}
-                      onOpenProfile={setProfileId}
-                    />
-                  </div>
-                ) : section === "tasks" ? (
-                  <ComingSoon
-                    pose="energia"
-                    title="Tasks da equipe"
-                    body="Distribua o trabalho do dia, acompanhe o que travou e veja a semana de cada equipe num quadro só."
-                    bullets={[
-                      "Criar tasks e atribuir para pessoas ou equipes",
-                      "Quadro por status: a fazer, fazendo, feito",
-                      "Prazos, prioridade e o que cada um puxou hoje",
-                    ]}
-                  />
-                ) : (
-                  <div className="mx-3 mb-3 flex min-h-0 flex-1 overflow-hidden rounded-[28px] border border-border bg-card sm:mx-6 sm:mb-6">
-                    {section === "rooms" && activeServer ? (
-                      <ServerSidebar
-                        server={activeServer}
-                        channels={channels}
-                        selection={selection}
-                        onSelect={setSelection}
-                        onOpenVoice={openVoice}
-                        onSelectProfile={setProfileId}
-                        activeVoiceChannelId={voice?.channelId ?? null}
-                        speakingUserIds={speakingUserIds}
-                        currentUserId={userId ?? ""}
-                        onIconChanged={() =>
-                          void qc.invalidateQueries({ queryKey: ["servers", userId] })
-                        }
-                        footer={userBar}
-                      />
-                    ) : (
-                      <HomeSidebar
-                        conversations={conversations}
-                        servers={servers}
-                        selection={selection}
-                        onSelect={(next) => {
-                          setSelection(next);
-                          if (next.kind === "channel" || next.kind === "voice") {
-                            setWorkspaceId(next.serverId);
-                            setSection("rooms");
+                )}
+
+                <div className="flex min-h-0 flex-1">
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    {profilePageId ? (
+                      <ProfilePage
+                        profileId={profilePageId}
+                        onClose={() => setProfilePageId(null)}
+                        onOpenDM={(id) => void openDM(id)}
+                        onCall={(id, video) => void callUser(id, video)}
+                        onEditProfile={() => setSettingsOpen(true)}
+                        onOpenMessages={() => changeSection("messages")}
+                        onOpenProject={(p) => {
+                          if (servers.some((s) => s.id === p.id)) {
+                            selectWorkspace(p.id);
+                            changeSection("dashboard");
+                          } else {
+                            void navigate({ to: "/p/$projectId", params: { projectId: p.id } });
                           }
                         }}
-                        onOpenDM={(id) => void openDM(id)}
-                        onOpenServer={(id) => void openServer(id)}
-                        footer={userBar}
                       />
-                    )}
-
-                    <main className="flex min-w-0 flex-1 flex-col bg-background/40">
-                      {section === "rooms" && selection.kind === "voice" && voiceChannel && (
-                        <VoiceStage
-                          title={voiceChannel.name}
-                          subtitle={activeServer?.name}
-                          rtc={rtc}
-                          profiles={profiles}
-                          selfProfile={profile ?? undefined}
-                          onLeave={() => setVoice(null)}
-                          connected={voice?.channelId === voiceChannel.id}
-                          members={voiceChannelMembers}
-                          onJoin={() => openVoice(voiceChannel)}
-                        />
-                      )}
-
-                      {section === "rooms" && selection.kind === "channel" && activeChannel && (
-                        <ChatPanel
-                          scopeKey={activeChannel.id}
-                          channelId={activeChannel.id}
-                          placeholder={`Conversar em #${activeChannel.name}`}
-                          header={
-                            <span className="flex min-w-0 items-center gap-2">
-                              {activeChannel.kind === "voice" ? (
-                                <Volume2 size={20} className="shrink-0 text-muted-foreground" />
-                              ) : (
-                                <Hash size={20} className="shrink-0 text-muted-foreground" />
-                              )}
-                              <span className="truncate text-base font-semibold">
-                                {activeChannel.name}
-                              </span>
-                            </span>
+                    ) : needsWorkspace ? (
+                      <WelcomeScreen
+                        name={
+                          (profile?.display_name || profile?.username || "").split(" ")[0] ?? ""
+                        }
+                        onCreate={() => setCreateOpen(true)}
+                      />
+                    ) : section === "dashboard" && workspace ? (
+                      <Dashboard
+                        key={workspace.id}
+                        workspace={workspace}
+                        members={members}
+                        teams={teams}
+                        invites={invites}
+                        profiles={profiles_}
+                        userId={userId ?? ""}
+                        canManage={canManage}
+                        canReview={isWorkspaceOwner}
+                        onInvite={openInvite}
+                        onCreateTeam={() => setCreateTeamOpen(true)}
+                        onJoinVoice={openVoice}
+                        onOpenChannel={(channelId) => {
+                          setSelection({ kind: "channel", serverId: workspace.id, channelId });
+                          setSection("rooms");
+                          setRoomsGrid(false);
+                        }}
+                        onNavigate={changeSection}
+                        onOpenProfile={setProfilePageId}
+                        requests={requests}
+                        questions={project?.access_questions ?? []}
+                      />
+                    ) : section === "team" && workspace ? (
+                      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-6 pt-2 sm:px-7 clyro-scroll">
+                        <div className="ws-frame flex-1 p-4 sm:p-5">
+                          <TeamManager
+                            workspace={workspace}
+                            members={members}
+                            teams={teams}
+                            invites={invites}
+                            profiles={profiles_}
+                            userId={userId ?? ""}
+                            canManage={canManage}
+                            onInvite={openInvite}
+                            onCreateTeam={() => setCreateTeamOpen(true)}
+                            onOpenProfile={setProfilePageId}
+                          />
+                        </div>
+                      </div>
+                    ) : section === "tasks" ? (
+                      <ComingSoon
+                        pose="energia"
+                        title="Tasks da equipe"
+                        body="Distribua o trabalho do dia, acompanhe o que travou e veja a semana de cada equipe num quadro só."
+                        bullets={[
+                          "Criar tasks e atribuir para pessoas ou equipes",
+                          "Quadro por status: a fazer, fazendo, feito",
+                          "Prazos, prioridade e o que cada um puxou hoje",
+                        ]}
+                      />
+                    ) : section === "rooms" && roomsGrid && workspace ? (
+                      <RoomsBoard
+                        key={workspace.id}
+                        workspace={workspace}
+                        channels={channels}
+                        members={members}
+                        profiles={profiles_}
+                        userId={userId ?? ""}
+                        isAdmin={canManage}
+                        rooms={rooms}
+                        expired={expiredRooms}
+                        currentChannelId={voice?.channelId ?? null}
+                        onEnter={openVoice}
+                        onOpenText={(channelId) => {
+                          setSelection({ kind: "channel", serverId: workspace.id, channelId });
+                          setRoomsGrid(false);
+                        }}
+                      />
+                    ) : section === "messages" ? (
+                      /*
+                       * Mensagens, como na referência: a coluna das conversas e
+                       * o chat em balões direto na página, sem moldura. No
+                       * celular, uma coisa de cada vez, com voltar no cabeçalho.
+                       */
+                      <div className="flex min-h-0 flex-1 overflow-hidden bg-card">
+                        <ConversationList
+                          conversations={conversations}
+                          selection={selection}
+                          friendsActive={selection.kind !== "dm"}
+                          workspace={workspace}
+                          onSelect={(next) => {
+                            setFriendsPane(false);
+                            setSelection(next);
+                          }}
+                          onOpenDM={(id) => {
+                            setFriendsPane(false);
+                            void openDM(id);
+                          }}
+                          onOpenFriends={() => {
+                            setSelection({ kind: "friends" });
+                            setFriendsPane(true);
+                          }}
+                          footer={
+                            voiceDock ? (
+                              <div className="border-t border-black/[0.06]">{userBar}</div>
+                            ) : null
                           }
+                          className={cn(
+                            "w-full md:w-[300px] md:shrink-0 md:border-r md:border-black/[0.07] xl:w-[320px]",
+                            (activeConversation || friendsPane) && "hidden md:flex",
+                          )}
                         />
-                      )}
 
-                      {section === "messages" && selection.kind !== "dm" && (
-                        <FriendsPanel
-                          onOpenDM={(id) => void openDM(id)}
-                          onSelectProfile={setProfileId}
-                          onCall={(id, video) => void callUser(id, video)}
-                        />
-                      )}
+                        <main
+                          className={cn(
+                            "min-w-0 flex-1 flex-col overflow-hidden",
+                            activeConversation || friendsPane ? "flex" : "hidden md:flex",
+                          )}
+                        >
+                          {!activeConversation && (
+                            <>
+                              <div className="flex h-12 shrink-0 items-center border-b border-black/[0.06] px-2 md:hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => setFriendsPane(false)}
+                                  className="flex h-9 items-center gap-1 rounded-full px-2 text-[14px] font-medium transition-colors hover:bg-secondary"
+                                >
+                                  <ArrowLeft2 size={17} color="currentColor" /> Conversas
+                                </button>
+                              </div>
+                              <FriendsPanel
+                                onOpenDM={(id) => void openDM(id)}
+                                onSelectProfile={setProfilePageId}
+                                onCall={(id, video) => void callUser(id, video)}
+                              />
+                            </>
+                          )}
 
-                      {/* Numa call de DM o palco divide a tela com o chat. */}
-                      {section === "messages" &&
-                        activeConversation &&
-                        voice?.conversationId === activeConversation.id && (
-                          <div className="flex h-[45%] shrink-0 flex-col border-b border-border">
-                            <VoiceStage
-                              title={voice.label}
-                              rtc={rtc}
-                              profiles={profiles}
-                              selfProfile={profile ?? undefined}
-                              onLeave={() => setVoice(null)}
+                          {/* Numa call da conversa o palco divide a tela com o chat. */}
+                          {activeConversation &&
+                            voice?.conversationId === activeConversation.id && (
+                              <div className="flex h-[45%] shrink-0 flex-col border-b border-black/[0.06]">
+                                <VoiceStage
+                                  title={voice.label}
+                                  rtc={rtc}
+                                  profiles={profiles}
+                                  selfProfile={profile ?? undefined}
+                                  onLeave={() => setVoice(null)}
+                                />
+                              </div>
+                            )}
+
+                          {activeConversation && (
+                            <ChatPanel
+                              key={activeConversation.id}
+                              variant="bubbles"
+                              showAuthors={activeConversation.is_group}
+                              scopeKey={activeConversation.id}
+                              conversationId={activeConversation.id}
+                              placeholder="Escreva uma mensagem…"
+                              header={(typing) => (
+                                <DirectChatHeader
+                                  conversation={activeConversation}
+                                  profiles={profiles}
+                                  selfId={userId}
+                                  typing={typing}
+                                  inCall={voice?.conversationId === activeConversation.id}
+                                  onBack={() => {
+                                    setFriendsPane(false);
+                                    setSelection({ kind: "friends" });
+                                  }}
+                                  onCall={startCall}
+                                  onOpenProfile={setProfilePageId}
+                                />
+                              )}
                             />
+                          )}
+                        </main>
+
+                        {!profileId && !activeConversation && (
+                          <div className="hidden min-h-0 2xl:flex">
+                            <ActivityPanel onSelectProfile={setProfilePageId} />
                           </div>
                         )}
+                      </div>
+                    ) : (
+                      <>
+                        {section === "rooms" && selection.kind !== "voice" && (
+                          <div className="flex shrink-0 px-3 pt-1 sm:px-7">
+                            <button
+                              type="button"
+                              onClick={() => setRoomsGrid(true)}
+                              className="-ml-2 flex h-8 items-center gap-1 rounded-full px-2 text-[13.5px] font-medium text-[#525252] transition-colors hover:bg-secondary hover:text-foreground"
+                            >
+                              <ArrowLeft2 size={15} color="currentColor" /> Todas as salas
+                            </button>
+                          </div>
+                        )}
+                        {/*
+                         * Numa sala, só a ligação, como no Meet: nada de lista de
+                         * canais nem cara de comunidade. A conversa da sala abre
+                         * ao lado da call pelo botão de chat.
+                         */}
+                        <div
+                          className={cn(
+                            "mx-3 mb-3 flex min-h-0 flex-1 overflow-hidden sm:mx-7 sm:mb-6",
+                            inCall ? "mt-0 lg:mt-1" : "mt-2",
+                            section === "rooms"
+                              ? selection.kind === "voice"
+                                ? ""
+                                : "rounded-[28px] border border-black/[0.06]"
+                              : "ws-frame gap-2 p-2",
+                          )}
+                        >
+                          {section === "rooms" ? null : (
+                            <HomeSidebar
+                              conversations={conversations}
+                              servers={servers}
+                              selection={selection}
+                              onSelect={(next) => {
+                                setSelection(next);
+                                if (next.kind === "channel" || next.kind === "voice") {
+                                  setWorkspaceId(next.serverId);
+                                  setSection("rooms");
+                                }
+                              }}
+                              onOpenDM={(id) => void openDM(id)}
+                              onOpenServer={(id) => void openServer(id)}
+                              footer={userBar}
+                            />
+                          )}
 
-                      {section === "messages" && activeConversation && (
-                        <ChatPanel
-                          scopeKey={activeConversation.id}
-                          conversationId={activeConversation.id}
-                          placeholder={`Conversar em ${conversationTitle(activeConversation, profiles, userId)}`}
-                          header={
-                            <>
-                              <span className="flex min-w-0 items-center gap-2">
-                                <AtSign size={15} className="shrink-0 text-muted-foreground" />
-                                <span className="truncate text-base font-semibold">
-                                  {conversationTitle(activeConversation, profiles, userId)}
-                                </span>
-                              </span>
-                              <div className="ml-auto flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  aria-label="Chamada de voz"
-                                  onClick={() => startCall(false)}
-                                >
-                                  <Phone size={16} />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  aria-label="Chamada de vídeo"
-                                  onClick={() => startCall(true)}
-                                >
-                                  <Video size={16} />
-                                </Button>
-                              </div>
-                            </>
-                          }
-                        />
-                      )}
-                    </main>
+                          <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-card">
+                            {section === "rooms" && selection.kind === "voice" && voiceChannel && (
+                              <VoiceStage
+                                title={voiceChannel.name}
+                                rtc={rtc}
+                                profiles={profiles}
+                                selfProfile={profile ?? undefined}
+                                onLeave={() => {
+                                  setVoice(null);
+                                  setRoomsGrid(true);
+                                }}
+                                connected={voice?.channelId === voiceChannel.id}
+                                members={voiceChannelMembers}
+                                onJoin={() => openVoice(voiceChannel)}
+                                onBack={() => setRoomsGrid(true)}
+                                hostId={rooms.settings.get(voiceChannel.id)?.created_by ?? null}
+                                onInvite={() => {
+                                  const link = `${window.location.origin}/app?sala=${voiceChannel.id}`;
+                                  void navigator.clipboard
+                                    .writeText(link)
+                                    .then(() => toast.success("Link da sala copiado."))
+                                    .catch(() => toast.error("Não foi possível copiar o link."));
+                                }}
+                                chat={
+                                  <ChatPanel
+                                    scopeKey={`room-${voiceChannel.id}`}
+                                    channelId={voiceChannel.id}
+                                    placeholder="Escreva uma mensagem…"
+                                    variant="stage"
+                                    header={null}
+                                  />
+                                }
+                              />
+                            )}
 
-                    {!profileId && section === "messages" && selection.kind !== "dm" && (
-                      <ActivityPanel onSelectProfile={setProfileId} />
+                            {section === "rooms" &&
+                              selection.kind === "channel" &&
+                              activeChannel && (
+                                <ChatPanel
+                                  scopeKey={activeChannel.id}
+                                  channelId={activeChannel.id}
+                                  placeholder={`Conversar em #${activeChannel.name}`}
+                                  header={
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      {activeChannel.kind === "voice" ? (
+                                        <Volume2
+                                          size={20}
+                                          className="shrink-0 text-muted-foreground"
+                                        />
+                                      ) : (
+                                        <Hash
+                                          size={20}
+                                          className="shrink-0 text-muted-foreground"
+                                        />
+                                      )}
+                                      <span className="truncate text-base font-semibold">
+                                        {activeChannel.name}
+                                      </span>
+                                    </span>
+                                  }
+                                />
+                              )}
+                          </main>
+                        </div>
+                      </>
                     )}
                   </div>
-                )}
-              </div>
 
-              {profileAside && (
-                <div className="mb-3 mr-3 flex shrink-0 overflow-hidden rounded-[28px] border border-border sm:mb-6 sm:mr-6">
-                  {profileAside}
+                  {profileAside && (
+                    <div className="mb-3 mr-3 mt-2 flex shrink-0 sm:mb-6 sm:mr-7">
+                      {profileAside}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetContent
+              side="left"
+              className="flex w-[86vw] max-w-[320px] flex-col overflow-y-auto border-r-0 px-3 pb-4 pt-14 clyro-scroll"
+            >
+              <SheetTitle className="sr-only">Menu</SheetTitle>
+              {sidebar}
+            </SheetContent>
+          </Sheet>
+
           {/* Fora das salas a call continua visível num cartão flutuante. */}
-          {voice && section !== "rooms" && section !== "messages" && (
-            <div className="fixed bottom-6 right-6 z-40 w-72 overflow-hidden rounded-[22px] border border-border bg-card shadow-card clyro-pop-in">
-              {voiceDock}
-            </div>
-          )}
+          {voice &&
+            (((section !== "rooms" || roomsGrid) && section !== "messages") || profilePageId) && (
+              <div className="fixed bottom-6 right-6 z-40 w-72 overflow-hidden rounded-[22px] border border-border bg-card shadow-card clyro-pop-in">
+                {voiceDock}
+              </div>
+            )}
         </div>
 
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
@@ -664,22 +1010,4 @@ export function ClyroApp() {
       </VoicePresenceProvider>
     </TooltipProvider>
   );
-}
-
-const WORKSPACE_KEY = "clyro:workspace";
-
-function readSavedWorkspace() {
-  try {
-    return window.localStorage.getItem(WORKSPACE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function saveWorkspace(id: string) {
-  try {
-    window.localStorage.setItem(WORKSPACE_KEY, id);
-  } catch {
-    /* navegador sem armazenamento: só não lembra o último workspace */
-  }
 }

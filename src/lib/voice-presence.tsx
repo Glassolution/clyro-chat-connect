@@ -26,7 +26,7 @@ export type VoicePresence = {
 /** Uma aba pode entrar em uma call só; a chave é o par usuário + aba. */
 const TAB_ID = Math.random().toString(36).slice(2, 10);
 
-type PresenceRow = VoicePresence & { tabId: string };
+type PresenceRow = VoicePresence & { tabId: string; joinedAt?: string };
 
 /**
  * Publica a sua presença (quando houver) e devolve a de todo mundo no formato
@@ -36,6 +36,7 @@ export function useVoicePresence(userId: string | undefined, presence: VoicePres
   const [rows, setRows] = useState<PresenceRow[]>([]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [ready, setReady] = useState(false);
+  const joinedRef = useRef<{ key: string; at: string } | null>(null);
 
   // O canal vive enquanto a sessão viver: entrar e sair de call é só mudar o
   // que está publicado, sem reabrir conexão.
@@ -76,8 +77,17 @@ export function useVoicePresence(userId: string | undefined, presence: VoicePres
   useEffect(() => {
     const channel = channelRef.current;
     if (!channel || !ready) return;
-    if (presence) void channel.track({ ...presence, tabId: TAB_ID });
-    else void channel.untrack();
+    if (!presence) {
+      joinedRef.current = null;
+      void channel.untrack();
+      return;
+    }
+    // A hora de entrada vale para a call inteira: mudar mudo ou câmera não zera.
+    const key = `${presence.channelId}|${presence.conversationId}`;
+    if (joinedRef.current?.key !== key) {
+      joinedRef.current = { key, at: new Date().toISOString() };
+    }
+    void channel.track({ ...presence, tabId: TAB_ID, joinedAt: joinedRef.current.at });
   }, [
     ready,
     presence?.userId,
@@ -105,6 +115,7 @@ export function useVoicePresence(userId: string | undefined, presence: VoicePres
         deafened: row.deafened,
         sharing_screen: row.sharingScreen,
         camera_on: row.cameraOn,
+        joined_at: row.joinedAt,
       });
     });
     return [...byUser.values()];

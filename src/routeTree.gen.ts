@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as BuscarRouteImport } from './routes/buscar'
+import { Route as ConviteCodeRouteImport } from './routes/convite.$code'
 import { Route as PProjectIdRouteImport } from './routes/p.$projectId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +31,16 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BuscarRoute = BuscarRouteImport.update({
+  id: '/buscar',
+  path: '/buscar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConviteCodeRoute = ConviteCodeRouteImport.update({
+  id: '/convite/$code',
+  path: '/convite/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PProjectIdRoute = PProjectIdRouteImport.update({
   id: '/p/$projectId',
   path: '/p/$projectId',
@@ -39,12 +51,16 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/buscar': typeof BuscarRoute
+  '/convite/$code': typeof ConviteCodeRoute
   '/p/$projectId': typeof PProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/buscar': typeof BuscarRoute
+  '/convite/$code': typeof ConviteCodeRoute
   '/p/$projectId': typeof PProjectIdRoute
 }
 export interface FileRoutesById {
@@ -52,20 +68,32 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/buscar': typeof BuscarRoute
+  '/convite/$code': typeof ConviteCodeRoute
   '/p/$projectId': typeof PProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/app' | '/auth' | '/p/$projectId'
+  fullPaths:
+    '/' | '/app' | '/auth' | '/buscar' | '/convite/$code' | '/p/$projectId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/app' | '/auth' | '/p/$projectId'
-  id: '__root__' | '/' | '/app' | '/auth' | '/p/$projectId'
+  to: '/' | '/app' | '/auth' | '/buscar' | '/convite/$code' | '/p/$projectId'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/buscar'
+    | '/convite/$code'
+    | '/p/$projectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
   AuthRoute: typeof AuthRoute
+  BuscarRoute: typeof BuscarRoute
+  ConviteCodeRoute: typeof ConviteCodeRoute
   PProjectIdRoute: typeof PProjectIdRoute
 }
 
@@ -92,6 +120,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/buscar': {
+      id: '/buscar'
+      path: '/buscar'
+      fullPath: '/buscar'
+      preLoaderRoute: typeof BuscarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/convite/$code': {
+      id: '/convite/$code'
+      path: '/convite/$code'
+      fullPath: '/convite/$code'
+      preLoaderRoute: typeof ConviteCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/p/$projectId': {
       id: '/p/$projectId'
       path: '/p/$projectId'
@@ -106,6 +148,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
   AuthRoute: AuthRoute,
+  BuscarRoute: BuscarRoute,
+  ConviteCodeRoute: ConviteCodeRoute,
   PProjectIdRoute: PProjectIdRoute,
 }
 export const routeTree = rootRouteImport

@@ -516,7 +516,9 @@ export function TwoSides({
   signedIn,
   empty,
   innerRef,
+  publishLabel,
 }: {
+  publishLabel?: string | undefined;
   onPublish: () => void;
   onJoin: () => void;
   signedIn: boolean;
@@ -541,7 +543,7 @@ export function TwoSides({
           ]}
           action={
             <button type="button" onClick={onPublish} className={buttonPrimary("h-10")}>
-              {empty ? "Publicar o primeiro projeto" : "Publicar projeto"}
+              {publishLabel ?? (empty ? "Publicar o primeiro projeto" : "Publicar projeto")}
             </button>
           }
           panel={<RequestPreview />}
@@ -646,7 +648,15 @@ export function Workspace() {
 /* Fechamento e rodapé.                                                 */
 /* ------------------------------------------------------------------ */
 
-export function Closing({ onPublish, onJoin }: { onPublish: () => void; onJoin: () => void }) {
+export function Closing({
+  onPublish,
+  onJoin,
+  publishLabel = "Publicar projeto",
+}: {
+  onPublish: () => void;
+  onJoin: () => void;
+  publishLabel?: string;
+}) {
   return (
     <section aria-labelledby="fechamento" className="relative overflow-hidden py-24 lg:py-32">
       <MarkBadge pose="energia" ring="#ffb110" doodle="sparkle" className="left-[12%] top-24" />
@@ -673,7 +683,7 @@ export function Closing({ onPublish, onJoin }: { onPublish: () => void; onJoin: 
             onClick={onPublish}
             className={buttonPrimary("h-11 px-5 text-[15px]")}
           >
-            Publicar projeto
+            {publishLabel}
           </button>
           <button type="button" onClick={onJoin} className={buttonGhost("h-11 px-5 text-[15px]")}>
             Quero entrar num time
@@ -687,9 +697,11 @@ export function Closing({ onPublish, onJoin }: { onPublish: () => void; onJoin: 
 export function NotebookFooter({
   onPublish,
   onCategory,
+  publishLabel = "Publicar projeto",
 }: {
   onPublish: () => void;
   onCategory: (id: string) => void;
+  publishLabel?: string;
 }) {
   const link =
     "w-fit text-left text-[14px] text-graphite transition-colors duration-200 hover:text-foreground";
@@ -710,7 +722,7 @@ export function NotebookFooter({
             Descobrir
           </Link>
           <button type="button" onClick={onPublish} className={link}>
-            Publicar projeto
+            {publishLabel}
           </button>
           <Link to="/app" className={link}>
             Minhas comunidades

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { inviteLink } from "@/lib/invite-link";
 import { Check, Copy, Mail, AtSign } from "@/components/icons";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -115,7 +116,7 @@ export function InviteDialog({
   };
 
   const copyCode = async () => {
-    await navigator.clipboard.writeText(workspace.invite_code);
+    await navigator.clipboard.writeText(inviteLink(workspace.invite_code));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
   };
@@ -226,8 +227,12 @@ export function InviteDialog({
 
         <div className="flex items-center gap-3 border-t border-border px-7 py-4">
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-muted-foreground">Ou mande o código de entrada</p>
-            <p className="truncate font-mono text-sm font-semibold">{workspace.invite_code}</p>
+            <p className="text-xs text-muted-foreground">
+              Ou mande o link: quem abrir entra direto
+            </p>
+            <p className="truncate font-mono text-sm font-semibold">
+              {inviteLink(workspace.invite_code)}
+            </p>
           </div>
           <Button variant="outline" className="rounded-xl" onClick={() => void copyCode()}>
             {copied ? <Check size={16} /> : <Copy size={16} />}

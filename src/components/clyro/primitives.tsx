@@ -112,6 +112,14 @@ export function MediaImage({
   return <img src={media.src} alt={alt} onError={media.onError} className={className} {...rest} />;
 }
 
+const AVATAR_POSES = ["neutro", "energia", "sorte", "brincando", "estrela"] as const;
+
+function mascotFor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_POSES[h % AVATAR_POSES.length];
+}
+
 export function UserAvatar({
   profile,
   size = 36,
@@ -130,6 +138,9 @@ export function UserAvatar({
   // A foto pode ser um link antigo do tempo em que o bucket era público: o
   // hook reassina na hora se o navegador recusar, sem esperar um recarregar.
   const avatar = useMediaUrl(profile?.avatar_url);
+  // Sem foto, o mascote faz as vezes de retrato: a pose sai do id, então a
+  // mesma pessoa tem sempre o mesmo bolinho e duas pessoas lado a lado variam.
+  const fallback = !avatar.src && profile ? mascotFor(profile.id) : null;
   return (
     <span
       className={cn("relative inline-flex shrink-0", className)}
@@ -137,7 +148,8 @@ export function UserAvatar({
     >
       <span
         className={cn(
-          "flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground font-medium transition-shadow duration-100 ease-clyro",
+          "flex h-full w-full items-center justify-center overflow-hidden rounded-full font-medium transition-shadow duration-100 ease-clyro",
+          fallback ? "bg-brand-soft" : "bg-primary text-primary-foreground",
           speaking && "speaking-ring",
         )}
         style={{ fontSize: Math.max(10, size * 0.36) }}
@@ -148,6 +160,13 @@ export function UserAvatar({
             alt={name}
             onError={avatar.onError}
             className="h-full w-full object-cover"
+          />
+        ) : fallback ? (
+          <img
+            src={`/mascot/${fallback}.png`}
+            alt={name}
+            draggable={false}
+            className="h-[82%] w-[82%] translate-y-[6%] select-none object-contain"
           />
         ) : (
           initialsOf(name) || "?"

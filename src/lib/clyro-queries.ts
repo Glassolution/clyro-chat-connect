@@ -55,7 +55,7 @@ export function useChannels(serverId: string | null) {
       // `category_id` só existe depois da migração channel_categories. Pedir a
       // coluna antes disso derruba a consulta inteira e a barra lateral fica
       // sem canal nenhum — por isso a tentativa com fallback.
-      const base = "id, server_id, name, kind, position";
+      const base = "id, server_id, name, kind, position, created_at";
       const withCategory = await supabase
         .from("channels")
         .select(`${base}, category_id`)
@@ -204,6 +204,10 @@ export function useRealtimeSync(userId: string | undefined) {
         const row = (payload.new ?? payload.old) as Message;
         const key = row?.channel_id ?? row?.conversation_id;
         if (key) void qc.invalidateQueries({ queryKey: ["messages", key] });
+        // A lista de conversas mostra a última mensagem de cada uma.
+        if (row?.conversation_id) void qc.invalidateQueries({ queryKey: ["dm-recent"] });
+        // E o cartão de cada sala, a conversa mais recente dela.
+        if (row?.channel_id) void qc.invalidateQueries({ queryKey: ["room-recent"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {
         void qc.invalidateQueries({ queryKey: ["profiles"] });

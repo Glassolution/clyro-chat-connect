@@ -67,7 +67,7 @@ export function HeroSearch({
       </label>
       <div
         className={cn(
-          "group/search flex h-12 items-center rounded-lg bg-white pl-4 pr-1.5 text-left",
+          "group/search flex h-12 items-center rounded-lg bg-white pl-4 pr-1.5 text-left [view-transition-name:busca]",
           "shadow-[0_0_0_1px_var(--edge-strong),0_1px_2px_rgb(0_0_0/0.04),0_10px_28px_-18px_rgb(0_0_0/0.22)]",
           "transition-shadow duration-300 ease-clyro hover:shadow-[0_0_0_1px_#a8a8a8,0_1px_2px_rgb(0_0_0/0.04),0_10px_28px_-18px_rgb(0_0_0/0.22)]",
           "focus-within:shadow-[0_0_0_1px_var(--brand),0_0_0_4px_var(--brand-soft),0_10px_28px_-18px_rgb(0_0_0/0.22)] focus-within:hover:shadow-[0_0_0_1px_var(--brand),0_0_0_4px_var(--brand-soft),0_10px_28px_-18px_rgb(0_0_0/0.22)]",

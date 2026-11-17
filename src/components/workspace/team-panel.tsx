@@ -87,21 +87,21 @@ export function MemberCard({
   const status = profile?.status;
   const busy = !!profile?.activity;
   return (
-    <div className="ws-card group relative flex flex-col gap-4 p-5 clyro-lift">
-      <div className="flex items-start gap-3">
+    <div className="ws-card group relative flex flex-col gap-3 p-4 clyro-lift">
+      <div className="flex items-center gap-3">
         <button type="button" onClick={onOpen} className="shrink-0" aria-label="Ver perfil">
-          <UserAvatar profile={profile} size={52} />
+          <UserAvatar profile={profile} size={44} />
         </button>
         <div className="min-w-0 flex-1">
           <button
             type="button"
             onClick={onOpen}
-            className="block max-w-full truncate text-left text-[15px] font-semibold hover:underline"
+            className="block max-w-full truncate text-left text-[14px] font-semibold hover:underline"
           >
             {profile?.display_name || profile?.username || "Alguém"}
             {isSelf && <span className="font-normal text-muted-foreground"> (você)</span>}
           </button>
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="mt-0.5 flex items-center gap-1 truncate text-[12px] text-muted-foreground">
             {member.role === "owner" && <Crown size={12} />}
             {member.role === "admin" && <ShieldCheck size={12} />}
             {ROLE_LABEL[member.role]} · @{profile?.username}
@@ -112,11 +112,11 @@ export function MemberCard({
 
       <div
         className={cn(
-          "flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm",
+          "flex items-center gap-2 rounded-[12px] px-3 py-2 text-[13px]",
           busy ? "bg-brand-soft text-brand-strong" : "bg-secondary text-muted-foreground",
         )}
       >
-        <StatusDot status={status} className="h-2.5 w-2.5 ring-0" />
+        <StatusDot status={status} className="h-2 w-2 ring-0" />
         <span className="truncate">{activityLine(profile)}</span>
       </div>
 
