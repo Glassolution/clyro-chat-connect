@@ -203,6 +203,8 @@ export function useRoomsRealtime(
   }, [serverId, qc]);
 }
 
+export const DEFAULT_ROOM_NAME = "Sala sem nome";
+
 /** Criar sala, pedir para entrar, aprovar, trancar e destrancar. */
 export function useRoomActions(serverId: string, userId: string | undefined) {
   const qc = useQueryClient();
@@ -219,13 +221,15 @@ export function useRoomActions(serverId: string, userId: string | undefined) {
       .eq("server_id", serverId)
       .order("position", { ascending: false })
       .limit(1);
+    const name = input.name.trim() || DEFAULT_ROOM_NAME;
+    const position = (last?.[0]?.position ?? 0) + 1;
     const { data, error } = await supabase
       .from("channels")
       .insert({
         server_id: serverId,
-        name: input.name.trim(),
+        name,
         kind: "voice",
-        position: (last?.[0]?.position ?? 0) + 1,
+        position,
       })
       .select("id")
       .single();
@@ -239,7 +243,7 @@ export function useRoomActions(serverId: string, userId: string | undefined) {
       topic: input.topic.trim() || null,
     });
     refresh();
-    return { id: data.id, settingsSaved: !settings.error };
+    return { id: data.id, name, position, settingsSaved: !settings.error };
   };
 
   const requestEntry = async (channelId: string) => {

@@ -1,25 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Add,
   ArrowDown2,
+  ArrowRight,
   Clock,
   Hashtag,
   InfoCircle,
   Link21,
   Lock1,
   Message,
+  Microphone2,
   Play,
   Setting4,
   TickCircle,
   Unlock,
+  CloseCircle,
 } from "iconsax-react";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +41,7 @@ import type { WorkspaceMember } from "@/lib/workspace-queries";
 import {
   canEnterRoom,
   canManageRoom,
+  DEFAULT_ROOM_NAME,
   isCreatedRoom,
   useRecentRoomMessages,
   useRoomActions,
@@ -341,9 +351,9 @@ export function RoomsBoard({
           onEnter({
             id: created.id,
             server_id: workspace.id,
-            name: input.name.trim(),
+            name: created.name,
             kind: "voice",
-            position: 0,
+            position: created.position,
             category_id: null,
           });
         }}
@@ -683,9 +693,10 @@ function CreateRoomDialog({
   const [topic, setTopic] = useState("");
   const [locked, setLocked] = useState(false);
   const [busy, setBusy] = useState(false);
+  const submitRef = useRef<HTMLButtonElement>(null);
 
   const submit = async () => {
-    if (!name.trim() || busy) return;
+    if (busy) return;
     setBusy(true);
     try {
       await onCreate({ name, topic, locked: lockable && locked });
@@ -701,71 +712,99 @@ function CreateRoomDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[440px] gap-0 rounded-[24px] p-6">
-        <DialogTitle className="text-[19px] font-semibold tracking-[-0.02em]">
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="bg-black/40 backdrop-blur-[3px] duration-200 motion-reduce:animate-none"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          submitRef.current?.focus({ preventScroll: true });
+        }}
+        className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[420px] gap-0 overflow-y-auto rounded-[24px] border-black/10 bg-card p-5 shadow-[0_24px_80px_-16px_rgb(0_0_0/0.28)] duration-300 ease-clyro data-[state=closed]:duration-150 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-3 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 motion-reduce:animate-none sm:rounded-[24px] sm:p-6"
+      >
+        <DialogClose className="absolute right-4 top-4 grid size-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand">
+          <CloseCircle size={20} color="currentColor" aria-hidden="true" />
+          <span className="sr-only">Fechar</span>
+        </DialogClose>
+        <div className="clyro-in-pop mb-3 grid size-11 place-items-center rounded-[14px] bg-brand-soft text-brand">
+          <Microphone2 size={24} color="currentColor" variant="Bold" aria-hidden="true" />
+        </div>
+        <DialogTitle className="text-[22px] font-semibold tracking-[-0.025em]">
           Nova sala
         </DialogTitle>
-        <DialogDescription className="mt-1 text-[13.5px] leading-[1.5] text-muted-foreground">
-          Todo mundo do time vê a sala. Você escolhe se entram direto ou pedem antes.
+        <DialogDescription className="mt-1.5 leading-relaxed">
+          A sala fica visível para todo o time.
         </DialogDescription>
 
         <form
           className="mt-5 flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
+          onSubmit={(event) => {
+            event.preventDefault();
             void submit();
           }}
         >
           <div className="space-y-1.5">
-            <Label htmlFor="room-name">Nome</Label>
+            <Label htmlFor="room-name">
+              Nome <span className="ml-1 text-xs font-normal text-muted-foreground">opcional</span>
+            </Label>
             <Input
               id="room-name"
-              autoFocus
               maxLength={48}
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex.: Daily do produto"
-              className="h-10 rounded-[12px]"
+              onChange={(event) => setName(event.target.value)}
+              placeholder={DEFAULT_ROOM_NAME}
+              className="h-10 rounded-[12px] bg-muted/35 shadow-none"
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="room-topic">Do que ela trata (opcional)</Label>
+            <Label htmlFor="room-topic">
+              Descrição{" "}
+              <span className="ml-1 text-xs font-normal text-muted-foreground">opcional</span>
+            </Label>
             <Textarea
               id="room-topic"
               maxLength={280}
               rows={2}
               value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="Ex.: a gente se encontra aqui todo dia às 10h"
-              className="resize-none rounded-[12px]"
+              onChange={(event) => setTopic(event.target.value)}
+              placeholder="Sobre o que é a sala?"
+              className="min-h-14 resize-y rounded-[12px] bg-muted/35 shadow-none"
             />
           </div>
 
-          <fieldset className="grid gap-2 sm:grid-cols-2">
-            <legend className="mb-1.5 text-sm font-medium">Quem entra</legend>
+          <fieldset className="grid grid-cols-2 gap-2">
+            <legend className="mb-1.5 text-sm font-medium">Quem pode entrar</legend>
             <AccessOption
-              selected={!locked}
+              selected={!locked || !lockable}
               onSelect={() => setLocked(false)}
-              icon={<Unlock size={18} color={LOCK_TONE} variant="Bold" />}
+              icon={<Unlock size={17} color="currentColor" variant="Bold" />}
               title="Aberta ao time"
-              body="Qualquer pessoa entra direto."
+              body="Entrada direta"
             />
             <AccessOption
-              selected={locked}
+              selected={lockable && locked}
               disabled={!lockable}
               onSelect={() => setLocked(true)}
-              icon={<Lock1 size={18} color={LOCK_TONE} variant="Bold" />}
+              icon={<Lock1 size={17} color="currentColor" variant="Bold" />}
               title="Com pedido"
-              body={lockable ? "Quem quiser entrar pede antes." : "Precisa da migração de acesso."}
+              body={lockable ? "Entrada com aprovação" : "Indisponível neste espaço"}
             />
           </fieldset>
 
           <button
+            ref={submitRef}
             type="submit"
-            disabled={!name.trim() || busy}
-            className="mt-1 flex h-11 items-center justify-center rounded-full bg-foreground text-[14px] font-medium text-background transition-[opacity,transform] duration-200 ease-clyro hover:opacity-90 active:scale-[0.98] disabled:opacity-40"
+            disabled={busy}
+            className="group mt-1 flex h-11 items-center justify-center gap-2 rounded-full bg-foreground px-4 text-sm font-medium text-background transition-[opacity,transform] duration-200 ease-clyro hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:scale-[0.98] disabled:opacity-50"
           >
             {busy ? "Criando…" : "Criar e entrar"}
+            {!busy && (
+              <ArrowRight
+                size={17}
+                color="currentColor"
+                className="transition-transform motion-safe:group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            )}
           </button>
         </form>
       </DialogContent>
@@ -789,21 +828,36 @@ function AccessOption({
   body: string;
 }) {
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      disabled={disabled}
-      onClick={onSelect}
+    <label
       className={cn(
-        "flex flex-col items-start gap-1.5 rounded-[16px] border p-3.5 text-left outline-none transition-[border-color,background-color] duration-200 ease-clyro focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-50",
-        selected ? "border-brand/60 bg-brand-soft/60" : "border-black/[0.08] hover:border-black/20",
+        "relative flex min-w-0 cursor-pointer flex-col items-start gap-1 rounded-[14px] border px-3 py-2.5 transition-colors duration-200 ease-clyro has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand",
+        selected ? "border-brand/50 bg-brand-soft/60" : "border-border",
+        disabled ? "cursor-not-allowed opacity-55" : "hover:border-brand/60",
       )}
     >
-      {icon}
-      <span className="text-[14px] font-medium">{title}</span>
-      <span className="text-[12.5px] leading-[1.45] text-muted-foreground">{body}</span>
-    </button>
+      <input
+        type="radio"
+        name="room-access"
+        checked={selected}
+        disabled={disabled}
+        onChange={onSelect}
+        className="sr-only"
+      />
+      <span aria-hidden="true" className="text-brand">
+        {icon}
+      </span>
+      {selected && (
+        <TickCircle
+          size={15}
+          color="var(--brand)"
+          variant="Bold"
+          className="absolute right-2.5 top-2.5"
+          aria-hidden="true"
+        />
+      )}
+      <span className="text-[13px] font-medium">{title}</span>
+      <span className="text-xs leading-snug text-muted-foreground">{body}</span>
+    </label>
   );
 }
 

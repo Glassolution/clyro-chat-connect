@@ -1,10 +1,10 @@
+import { useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Add,
   ArrowDown2,
   Edit,
-  Global,
   Key,
   Logout,
   ProfileCircle,
@@ -12,6 +12,7 @@ import {
   TickCircle,
 } from "iconsax-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { inviteLink } from "@/lib/invite-link";
 import { cn } from "@/lib/utils";
 import {
@@ -45,7 +46,6 @@ export function ProfileMenu({
   onSettings,
   onSelectWorkspace,
   onCreateWorkspace,
-  onViewProject,
   onEditProject,
   onLeft,
 }: {
@@ -60,11 +60,12 @@ export function ProfileMenu({
   onSettings: () => void;
   onSelectWorkspace: (id: string) => void;
   onCreateWorkspace: () => void;
-  onViewProject: () => void;
   onEditProject: () => void;
   onLeft: () => void;
 }) {
   const qc = useQueryClient();
+  const { signOut } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
   const name = profile?.display_name || profile?.username || "Você";
 
   const copyCode = async () => {
@@ -74,6 +75,18 @@ export function ProfileMenu({
       toast.success("Link de convite copiado. Quem abrir entra direto no workspace.");
     } catch {
       toast.error("Não foi possível copiar o link.");
+    }
+  };
+
+  const leaveAccount = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut("local");
+    } catch {
+      toast.error("Não foi possível sair da conta. Tente novamente.");
+    } finally {
+      setSigningOut(false);
     }
   };
 
@@ -174,9 +187,6 @@ export function ProfileMenu({
             <DropdownMenuLabel className="truncate px-2.5 text-[12px] font-normal text-muted-foreground">
               {workspace.name}
             </DropdownMenuLabel>
-            <DropdownMenuItem onSelect={onViewProject} className={MENU_ITEM}>
-              <Global size={16} color="currentColor" /> Ver página do projeto
-            </DropdownMenuItem>
             {canManage && (
               <DropdownMenuItem onSelect={onEditProject} className={MENU_ITEM}>
                 <Edit size={16} color="currentColor" /> Editar projeto
@@ -199,6 +209,17 @@ export function ProfileMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onSettings} className={MENU_ITEM}>
           <Setting2 size={16} color="currentColor" /> Configurações
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => void leaveAccount()}
+          disabled={signingOut}
+          className={cn(
+            MENU_ITEM,
+            "text-destructive focus:bg-destructive/10 focus:text-destructive",
+          )}
+        >
+          <Logout size={16} color="currentColor" />
+          {signingOut ? "Saindo…" : "Sair da conta"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

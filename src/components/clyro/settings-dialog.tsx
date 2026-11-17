@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Mic, MonitorUp, Upload } from "@/components/icons";
+import { useEffect, useId, useRef, useState } from "react";
+import { ProfileCircle } from "iconsax-react";
+import { ChevronDown, Mic, MonitorUp, Settings, Upload, X } from "@/components/icons";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,13 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -23,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import {
   getMediaSettings,
@@ -46,6 +42,12 @@ import { MediaImage, UserAvatar } from "./primitives";
 const BIO_LIMIT = 280;
 const DEFAULT_BANNER = "#2b2b2f";
 
+const SETTINGS_TAB =
+  "h-10 flex-1 justify-center gap-2 rounded-[12px] px-2 text-[13px] focus-visible:ring-brand focus-visible:ring-offset-0 data-[state=active]:bg-brand-soft data-[state=active]:text-brand-ink data-[state=active]:shadow-none md:w-full md:flex-none md:justify-start md:px-3";
+const SETTINGS_SCROLL = "min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain clyro-scroll";
+const SETTINGS_CONTENT = "mx-auto w-full max-w-5xl px-4 py-5 sm:px-7 sm:py-7 lg:px-10";
+const SETTINGS_CONTROL = "h-10 rounded-[12px] bg-muted/40 shadow-none";
+
 export function SettingsDialog({
   open,
   onOpenChange,
@@ -54,6 +56,9 @@ export function SettingsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { profile, refreshProfile } = useAuth();
+  const isMobile = useIsMobile();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const profileFormId = useId();
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [activity, setActivity] = useState("");
@@ -62,7 +67,8 @@ export function SettingsDialog({
   const [bannerColor, setBannerColor] = useState(DEFAULT_BANNER);
   const [bannerUrl, setBannerUrl] = useState("");
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState<"avatar" | "banner" | null>(null);
+  const [uploading, setUploading] = useState({ avatar: false, banner: false });
+  const isUploading = uploading.avatar || uploading.banner;
 
   // Recarrega os campos toda vez que o painel abre, para não editar valores velhos.
   useEffect(() => {
@@ -81,22 +87,26 @@ export function SettingsDialog({
    * é ele que vai para o perfil.
    */
   const uploadImage = async (file: File, kind: "avatar" | "banner") => {
-    if (!profile) return;
-    setUploading(kind);
-    const result = await uploadProfileImage(profile.id, file, kind);
-    setUploading(null);
-
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
+    if (!profile || busy || uploading[kind]) return;
+    setUploading((current) => ({ ...current, [kind]: true }));
+    try {
+      const result = await uploadProfileImage(profile.id, file, kind);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      if (kind === "avatar") setAvatarUrl(result.url);
+      else setBannerUrl(result.url);
+      toast.success("Imagem enviada. Salve para aplicar.");
+    } catch {
+      toast.error("Não foi possível enviar a imagem.");
+    } finally {
+      setUploading((current) => ({ ...current, [kind]: false }));
     }
-    if (kind === "avatar") setAvatarUrl(result.url);
-    else setBannerUrl(result.url);
-    toast.success("Imagem enviada. Salve para aplicar.");
   };
 
   const save = async () => {
-    if (!profile) return;
+    if (!profile || busy || isUploading) return;
     setBusy(true);
 
     const base = {
@@ -147,176 +157,283 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Configurações</DialogTitle>
-          <DialogDescription>
-            @{profile?.username} — este é o nome que as pessoas usam para te adicionar.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        showCloseButton={false}
+        aria-describedby={undefined}
+        overlayClassName="bg-black/40 backdrop-blur-[4px] duration-200 motion-reduce:animate-none"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          headingRef.current?.focus({ preventScroll: true });
+        }}
+        className="flex h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-none flex-col gap-0 overflow-hidden rounded-[22px] border-border bg-card p-0 shadow-[0_28px_90px_-18px_rgb(0_0_0/0.3)] duration-300 ease-clyro data-[state=closed]:duration-150 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 motion-reduce:animate-none sm:h-[calc(100dvh-2.5rem)] sm:w-[calc(100%-2.5rem)] sm:rounded-[28px]"
+      >
+        <header className="flex shrink-0 items-center gap-2.5 border-b border-border px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">
+          <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-brand-soft text-brand sm:size-10">
+            <Settings size={21} />
+          </span>
+          <DialogTitle
+            ref={headingRef}
+            tabIndex={-1}
+            className="min-w-0 flex-1 text-left text-[19px] font-semibold tracking-[-0.025em] outline-none sm:text-[21px]"
+          >
+            Configurações
+          </DialogTitle>
+          <DialogClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="rounded-full text-muted-foreground"
+              aria-label="Fechar configurações"
+            >
+              <X size={18} />
+            </Button>
+          </DialogClose>
+        </header>
 
-        <Tabs defaultValue="profile">
-          <TabsList className="w-full">
-            <TabsTrigger value="profile" className="flex-1">
-              Perfil
+        <Tabs
+          defaultValue="profile"
+          orientation={isMobile ? "horizontal" : "vertical"}
+          className="flex min-h-0 flex-1 flex-col md:flex-row"
+        >
+          <TabsList
+            aria-label="Seções das configurações"
+            className="flex h-auto shrink-0 items-stretch justify-start gap-1 rounded-none border-b border-border bg-muted/40 px-3 py-2 md:w-48 md:flex-col md:border-b-0 md:border-r md:p-3 lg:w-56 lg:p-4"
+          >
+            <TabsTrigger value="profile" className={SETTINGS_TAB}>
+              <ProfileCircle size={18} color="currentColor" aria-hidden="true" /> Perfil
             </TabsTrigger>
-            <TabsTrigger value="voice" className="flex-1">
-              Voz
+            <TabsTrigger value="voice" className={SETTINGS_TAB}>
+              <Mic size={18} /> Voz
             </TabsTrigger>
-            <TabsTrigger value="screen" className="flex-1">
-              Tela
+            <TabsTrigger value="screen" className={SETTINGS_TAB}>
+              <MonitorUp size={18} /> Tela
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="profile" className="pt-4">
-            <div className="grid gap-5 sm:grid-cols-[1fr_240px]">
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="display-name">Nome de exibição</Label>
-                  <Input
-                    id="display-name"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                  />
-                </div>
+          <TabsContent
+            value="profile"
+            className="mt-0 min-h-0 min-w-0 flex-1 flex-col focus-visible:ring-inset data-[state=active]:flex"
+          >
+            <div className={SETTINGS_SCROLL}>
+              <div
+                className={cn(
+                  SETTINGS_CONTENT,
+                  "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.65fr)]",
+                )}
+              >
+                <form
+                  id={profileFormId}
+                  className="min-w-0 space-y-5"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void save();
+                  }}
+                >
+                  <section aria-labelledby="settings-profile-heading" className="space-y-4">
+                    <h2
+                      id="settings-profile-heading"
+                      className="text-lg font-semibold tracking-tight"
+                    >
+                      Informações do perfil
+                    </h2>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="min-w-0 space-y-2">
+                        <Label htmlFor="display-name">Nome de exibição</Label>
+                        <Input
+                          id="display-name"
+                          value={displayName}
+                          onChange={(event) => setDisplayName(event.target.value)}
+                          className={SETTINGS_CONTROL}
+                        />
+                      </div>
+                      <div className="min-w-0 space-y-2">
+                        <Label htmlFor="pronouns">Pronomes</Label>
+                        <Input
+                          id="pronouns"
+                          value={pronouns}
+                          onChange={(event) => setPronouns(event.target.value.slice(0, 40))}
+                          placeholder="ele/dele, ela/dela, elu/delu…"
+                          className={SETTINGS_CONTROL}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <Label htmlFor="bio">Sobre mim</Label>
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {bio.length}/{BIO_LIMIT}
+                        </span>
+                      </div>
+                      <Textarea
+                        id="bio"
+                        value={bio}
+                        onChange={(event) => setBio(event.target.value.slice(0, BIO_LIMIT))}
+                        rows={3}
+                        placeholder="Uma linha sobre você."
+                        className="rounded-[12px] bg-muted/40 shadow-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="activity">Atividade atual</Label>
+                      <Input
+                        id="activity"
+                        value={activity}
+                        onChange={(event) => setActivity(event.target.value)}
+                        placeholder="Codando o Clyro"
+                        className={SETTINGS_CONTROL}
+                      />
+                    </div>
+                  </section>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="pronouns">Pronomes</Label>
-                  <Input
-                    id="pronouns"
-                    value={pronouns}
-                    onChange={(e) => setPronouns(e.target.value.slice(0, 40))}
-                    placeholder="ele/dele, ela/dela, elu/delu…"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Foto de perfil</Label>
-                  <ImageField
-                    kind="avatar"
-                    value={avatarUrl}
-                    busy={uploading === "avatar"}
-                    onPick={(file) => void uploadImage(file, "avatar")}
-                    onChange={setAvatarUrl}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Banner</Label>
-                  <ImageField
-                    kind="banner"
-                    value={bannerUrl}
-                    busy={uploading === "banner"}
-                    onPick={(file) => void uploadImage(file, "banner")}
-                    onChange={setBannerUrl}
-                  />
-                  <div className="flex items-center gap-2 pt-1">
-                    <input
-                      id="banner-color"
-                      type="color"
-                      value={bannerColor}
-                      onChange={(e) => setBannerColor(e.target.value)}
-                      className="h-9 w-12 cursor-pointer rounded-md border border-input bg-transparent"
+                  <section
+                    aria-labelledby="settings-media-heading"
+                    className="space-y-4 border-t border-border pt-5"
+                  >
+                    <h2
+                      id="settings-media-heading"
+                      className="text-base font-semibold tracking-tight"
+                    >
+                      Foto e banner
+                    </h2>
+                    <ImageField
+                      kind="avatar"
+                      value={avatarUrl}
+                      busy={uploading.avatar}
+                      onPick={(file) => void uploadImage(file, "avatar")}
+                      onChange={setAvatarUrl}
                     />
-                    <Input
-                      value={bannerColor}
-                      onChange={(e) => setBannerColor(e.target.value)}
-                      className="font-mono text-xs"
-                      aria-label="Cor do banner em hexadecimal"
+                    <ImageField
+                      kind="banner"
+                      value={bannerUrl}
+                      busy={uploading.banner}
+                      onPick={(file) => void uploadImage(file, "banner")}
+                      onChange={setBannerUrl}
                     />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    A cor aparece quando não há imagem de banner.
-                  </p>
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="banner-color-hex">Cor do banner</Label>
+                      <div className="flex max-w-44 items-center gap-2">
+                        <input
+                          type="color"
+                          value={bannerColor}
+                          onChange={(event) => setBannerColor(event.target.value)}
+                          className="h-10 w-11 shrink-0 cursor-pointer rounded-[10px] border border-input bg-card p-1"
+                          aria-label="Selecionar a cor do banner"
+                        />
+                        <Input
+                          id="banner-color-hex"
+                          value={bannerColor}
+                          onChange={(event) => setBannerColor(event.target.value)}
+                          className={cn(SETTINGS_CONTROL, "font-mono text-sm")}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Usada quando o banner está sem imagem.
+                      </p>
+                    </div>
+                  </section>
+                </form>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-baseline justify-between">
-                    <Label htmlFor="bio">Sobre mim</Label>
-                    <span className="text-xs text-muted-foreground">
-                      {bio.length}/{BIO_LIMIT}
-                    </span>
-                  </div>
-                  <Textarea
-                    id="bio"
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value.slice(0, BIO_LIMIT))}
-                    rows={3}
-                    placeholder="Uma linha sobre você."
+                <section
+                  aria-labelledby="settings-preview-heading"
+                  className="min-w-0 lg:sticky lg:top-5"
+                >
+                  <h2
+                    id="settings-preview-heading"
+                    className="mb-2 text-sm font-medium text-muted-foreground"
+                  >
+                    Prévia do perfil
+                  </h2>
+                  <ProfilePreview
+                    displayName={displayName || profile?.username || ""}
+                    username={profile?.username ?? ""}
+                    avatarUrl={avatarUrl}
+                    bannerColor={bannerColor}
+                    bannerUrl={bannerUrl}
+                    pronouns={pronouns}
+                    bio={bio}
                   />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="activity">Atividade atual</Label>
-                  <Input
-                    id="activity"
-                    value={activity}
-                    onChange={(e) => setActivity(e.target.value)}
-                    placeholder="Codando o Clyro"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs text-muted-foreground">Prévia</Label>
-                <ProfilePreview
-                  displayName={displayName || profile?.username || ""}
-                  username={profile?.username ?? ""}
-                  avatarUrl={avatarUrl}
-                  bannerColor={bannerColor}
-                  bannerUrl={bannerUrl}
-                  pronouns={pronouns}
-                  bio={bio}
-                />
+                </section>
               </div>
             </div>
 
-            <Button className="mt-5 w-full" onClick={() => void save()} disabled={busy}>
-              {busy ? "Salvando…" : "Salvar perfil"}
-            </Button>
+            <footer className="shrink-0 border-t border-border bg-card">
+              <div className="mx-auto flex w-full max-w-5xl justify-end px-4 py-3 sm:px-7 lg:px-10">
+                <Button
+                  type="submit"
+                  form={profileFormId}
+                  className="h-10 w-full rounded-full px-6 shadow-none sm:w-auto"
+                  disabled={!profile || busy || isUploading}
+                >
+                  {busy ? "Salvando…" : "Salvar perfil"}
+                </Button>
+              </div>
+            </footer>
           </TabsContent>
 
-          <TabsContent value="voice" className="max-h-[62vh] space-y-1 overflow-y-auto pr-1 pt-4">
-            <AudioDevices />
+          <TabsContent
+            value="voice"
+            className={cn("mt-0 focus-visible:ring-inset", SETTINGS_SCROLL)}
+          >
+            <div className={cn(SETTINGS_CONTENT, "space-y-5")}>
+              <section aria-labelledby="settings-audio-heading" className="space-y-3">
+                <h2 id="settings-audio-heading" className="text-lg font-semibold tracking-tight">
+                  Dispositivos de áudio
+                </h2>
+                <AudioDevices />
+              </section>
 
-            <p className="pb-2 pt-4 text-sm text-muted-foreground">
-              Tratamento aplicado ao seu microfone. Vale já na chamada em andamento.
-            </p>
-            <AudioToggle
-              field="voiceFilter"
-              title="Filtro de voz"
-              body="Uma rede separa a sua voz do resto — teclado, ventilador, TV, gente falando ao fundo — enquanto você fala. Roda aqui no navegador; nada é enviado para lugar nenhum."
-            />
-            <AudioToggle
-              field="noiseSuppression"
-              title="Supressão de ruído do navegador"
-              body="A limpeza simples que o próprio navegador faz. Fica de fora enquanto o filtro de voz estiver ligado — os dois juntos deixam a voz com som de telefone."
-            />
-            <AudioToggle
-              field="echoCancellation"
-              title="Cancelamento de eco"
-              body="Evita que o som das suas caixas volte pelo microfone."
-            />
-            <AudioToggle
-              field="autoGainControl"
-              title="Nivelar volume"
-              body="Ajusta o ganho para sua voz sair sempre no mesmo nível."
-            />
-            <AudioToggle
-              field="noiseGate"
-              title="Silêncio total nas pausas"
-              body="Fecha o microfone entre as suas falas. Com o filtro ligado quase não faz diferença — e, se a sua voz sair picotada, é o primeiro a desligar."
-            />
-            <p className="pt-3 text-xs text-muted-foreground">
-              Vale na hora, inclusive na chamada em andamento: se o microfone não aceitar a troca ao
-              vivo, ele é reaberto sem derrubar a call.
-            </p>
+              <section
+                aria-labelledby="settings-mic-heading"
+                className="space-y-2 border-t border-border pt-5"
+              >
+                <h2
+                  id="settings-mic-heading"
+                  className="mb-3 text-base font-semibold tracking-tight"
+                >
+                  Tratamento do microfone
+                </h2>
+                <AudioToggle
+                  field="voiceFilter"
+                  title="Filtro de voz"
+                  body="Reduz sons de teclado, ventilador, TV e conversas ao fundo. O processamento acontece no navegador."
+                />
+                <AudioToggle
+                  field="noiseSuppression"
+                  title="Supressão de ruído do navegador"
+                  body="Usa a redução de ruído do navegador enquanto o filtro de voz está desligado."
+                />
+                <AudioToggle
+                  field="echoCancellation"
+                  title="Cancelamento de eco"
+                  body="Evita que o som dos alto-falantes volte pelo microfone."
+                />
+                <AudioToggle
+                  field="autoGainControl"
+                  title="Nivelar volume"
+                  body="Mantém sua voz no mesmo nível de volume."
+                />
+                <AudioToggle
+                  field="noiseGate"
+                  title="Silêncio nas pausas"
+                  body="Fecha o microfone entre as falas. Desative se sua voz ficar cortada."
+                />
+                <p className="pt-1 text-xs text-muted-foreground">
+                  Os ajustes valem durante a chamada em andamento.
+                </p>
+              </section>
 
-            <VoiceQualitySettings />
+              <VoiceQualitySettings />
+            </div>
           </TabsContent>
 
-          <TabsContent value="screen" className="max-h-[62vh] space-y-3 overflow-y-auto pr-1 pt-4">
-            <ScreenQualitySettings />
+          <TabsContent
+            value="screen"
+            className={cn("mt-0 focus-visible:ring-inset", SETTINGS_SCROLL)}
+          >
+            <div className={SETTINGS_CONTENT}>
+              <ScreenQualitySettings />
+            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>
@@ -334,9 +451,14 @@ function VoiceQualitySettings() {
   const plainKbps = voiceBitrate({ ...settings, highFidelity: false }) / 1000;
 
   return (
-    <div className="space-y-3 pt-5">
+    <section
+      aria-labelledby="settings-voice-quality-heading"
+      className="space-y-3 border-t border-border pt-5"
+    >
       <div>
-        <h3 className="text-sm font-semibold">Qualidade da voz</h3>
+        <h2 id="settings-voice-quality-heading" className="text-base font-semibold tracking-tight">
+          Qualidade da voz
+        </h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Alta fidelidade manda Opus em estéreo a 48 kHz e {hiFiKbps} kbps — qualidade de música em
           vez de telefonia. Gasta mais banda; desligue em conexão apertada.
@@ -381,7 +503,7 @@ function VoiceQualitySettings() {
           onCheckedChange={(checked) => setMediaSetting("sounds", checked)}
         />
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -394,18 +516,17 @@ function ScreenQualitySettings() {
   const megabits = (screenBitrate(settings) / 1_000_000).toFixed(1);
 
   return (
-    <div className="space-y-3">
+    <section aria-labelledby="settings-screen-heading" className="max-w-2xl space-y-4">
       <div>
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <MonitorUp size={14} /> Transmissão de tela
-        </h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          O que você escolher aqui vale para a próxima transmissão e também para a que já estiver no
-          ar.
+        <h2 id="settings-screen-heading" className="text-lg font-semibold tracking-tight">
+          Transmissão de tela
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Os ajustes valem para a transmissão atual e para as próximas.
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="screen-resolution">Resolução</Label>
           <Select
@@ -414,7 +535,7 @@ function ScreenQualitySettings() {
               setMediaSetting("screenResolution", Number(value) as ScreenResolution)
             }
           >
-            <SelectTrigger id="screen-resolution">
+            <SelectTrigger id="screen-resolution" className={SETTINGS_CONTROL}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -433,7 +554,7 @@ function ScreenQualitySettings() {
             value={String(settings.screenFps)}
             onValueChange={(value) => setMediaSetting("screenFps", Number(value) as ScreenFps)}
           >
-            <SelectTrigger id="screen-fps">
+            <SelectTrigger id="screen-fps" className={SETTINGS_CONTROL}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -452,7 +573,7 @@ function ScreenQualitySettings() {
         altas dependem da sua banda de subida e do que a origem da captura entrega — uma janela
         pequena não vira 4K.
       </p>
-    </div>
+    </section>
   );
 }
 
@@ -560,7 +681,7 @@ function DeviceSelect({
       disabled={disabled ?? false}
       onValueChange={(next) => onChange(next === SYSTEM_DEFAULT ? "" : next)}
     >
-      <SelectTrigger id={id}>
+      <SelectTrigger id={id} className={SETTINGS_CONTROL}>
         <SelectValue placeholder="Padrão do sistema" />
       </SelectTrigger>
       <SelectContent>
@@ -682,52 +803,80 @@ function ImageField({
   onPick: (file: File) => void;
   onChange: (value: string) => void;
 }) {
-  const inputId = `${kind}-file`;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isAvatar = kind === "avatar";
+  const label = isAvatar ? "Foto de perfil" : "Banner";
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
+    <fieldset
+      className="min-w-0 rounded-[16px] border border-border bg-card px-3 pb-3 sm:px-4"
+      disabled={busy}
+    >
+      <legend className="px-1 text-sm font-medium">{label}</legend>
+      <div className="mt-1 flex flex-wrap items-center gap-2.5">
         <span
           className={cn(
-            "shrink-0 overflow-hidden border border-border bg-secondary",
-            kind === "avatar" ? "h-12 w-12 rounded-full" : "h-12 w-20 rounded-lg",
+            "shrink-0 overflow-hidden border border-border bg-muted",
+            isAvatar ? "size-11 rounded-full" : "h-11 w-[72px] rounded-lg",
           )}
         >
           <MediaImage src={value} className="h-full w-full object-cover" />
         </span>
 
         <input
-          id={inputId}
+          ref={inputRef}
           type="file"
           accept="image/*"
-          className="sr-only"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0];
             if (file) onPick(file);
-            // Permite reenviar o mesmo arquivo depois de um erro.
-            e.target.value = "";
+            event.target.value = "";
           }}
         />
-        <Button asChild size="sm" variant="secondary" disabled={busy}>
-          <label htmlFor={inputId} className="cursor-pointer">
-            <Upload size={14} /> {busy ? "Enviando…" : "Enviar imagem"}
-          </label>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="rounded-full shadow-none"
+          aria-label={isAvatar ? "Enviar foto de perfil" : "Enviar banner"}
+          onClick={() => inputRef.current?.click()}
+        >
+          <Upload size={14} /> {busy ? "Enviando…" : "Enviar imagem"}
         </Button>
 
         {value && (
-          <Button size="sm" variant="ghost" onClick={() => onChange("")}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="rounded-full text-muted-foreground"
+            aria-label={isAvatar ? "Remover foto de perfil" : "Remover banner"}
+            onClick={() => onChange("")}
+          >
             Remover
           </Button>
         )}
       </div>
 
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="ou cole uma URL: https://…"
-        className="text-xs"
-        aria-label={kind === "avatar" ? "URL do avatar" : "URL do banner"}
-      />
-    </div>
+      <details className="group mt-2">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+          <ChevronDown
+            size={13}
+            className="transition-transform group-open:rotate-180 motion-reduce:transition-none"
+          />
+          Usar link da imagem
+        </summary>
+        <Input
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="https://…"
+          className={cn(SETTINGS_CONTROL, "mt-1 text-xs")}
+          aria-label={isAvatar ? "URL do avatar" : "URL do banner"}
+        />
+      </details>
+    </fieldset>
   );
 }
 
@@ -759,14 +908,14 @@ function ProfilePreview({
   };
 
   return (
-    <div className="mt-1.5 overflow-hidden rounded-xl border border-border bg-card">
-      <div className="h-16 w-full" style={{ backgroundColor: bannerColor }}>
+    <div className="overflow-hidden rounded-[18px] border border-border bg-card shadow-[0_6px_18px_-12px_rgb(0_0_0/0.22)]">
+      <div className="h-24 w-full" style={{ backgroundColor: bannerColor }}>
         <MediaImage src={bannerUrl} className="h-full w-full object-cover" />
       </div>
       <div className="px-4 pb-4">
-        <div className="-mt-7 mb-2">
+        <div className="relative -mt-8 mb-2">
           <span className="inline-block rounded-full ring-4 ring-card">
-            <UserAvatar profile={preview} size={56} showStatus={false} />
+            <UserAvatar profile={preview} size={64} showStatus={false} />
           </span>
         </div>
         <p className="truncate text-sm font-semibold">{displayName || "Seu nome"}</p>
@@ -774,7 +923,7 @@ function ProfilePreview({
           @{username}
           {pronouns.trim() ? ` · ${pronouns.trim()}` : ""}
         </p>
-        {bio.trim() && <p className="mt-2 whitespace-pre-line text-xs">{bio.trim()}</p>}
+        {bio.trim() && <p className="mt-3 whitespace-pre-line break-words text-sm">{bio.trim()}</p>}
       </div>
     </div>
   );

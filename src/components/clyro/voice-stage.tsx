@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   ChevronDown,
@@ -6,6 +7,7 @@ import {
   Copy,
   Hand,
   Headphones,
+  LayoutGrid,
   Maximize2,
   Minimize2,
   HeadphoneOff,
@@ -20,6 +22,7 @@ import {
   Sparkles,
   Video,
   UserPlus,
+  Users,
   VideoOff,
   Volume2,
   X,
@@ -284,6 +287,35 @@ function ConnectedStage({
   const [lastSpeaker, setLastSpeaker] = useState<string | null>(null);
   const [sideOpen, setSideOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [expandedScreen, setExpandedScreen] = useState<string | null>(null);
+  const [full, setFull] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [trayOpen, setTrayOpen] = useState(true);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const controlsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const revealControls = useCallback(() => {
+    setControlsVisible(true);
+    clearTimeout(controlsTimer.current);
+    controlsTimer.current = setTimeout(() => setControlsVisible(false), 2000);
+  }, []);
+
+  const hideControls = useCallback(() => {
+    clearTimeout(controlsTimer.current);
+    setControlsVisible(false);
+  }, []);
+
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setFull(document.fullscreenElement === viewportRef.current);
+      revealControls();
+    };
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreen);
+      clearTimeout(controlsTimer.current);
+    };
+  }, [revealControls]);
 
   // Quem falou por último fica em destaque, como no Meet; você mesmo não.
   const speakingPeer = rtc.peers.find((peer) => peer.speaking)?.id ?? null;
@@ -351,10 +383,11 @@ function ConnectedStage({
     .map(({ tile }) => tile);
 
   const byId = (id: string | null) => (id ? tiles.find((tile) => tile.id === id) : undefined);
-  // Fixado > quem transmite a tela > quem falou por último > o primeiro a chegar > você.
+  // Fixado > tela remota > tela local > quem falou por último > o primeiro a chegar.
   const featured =
     byId(pinned) ??
     tiles.find((tile) => tile.sharing && !tile.self) ??
+    tiles.find((tile) => tile.sharing) ??
     byId(lastSpeaker) ??
     tiles[1] ??
     tiles[0]!;
@@ -363,6 +396,69 @@ function ConnectedStage({
   const visibleStrip = strip.length > STRIP_LIMIT ? strip.slice(0, STRIP_LIMIT - 1) : strip;
   const hidden = strip.length - visibleStrip.length;
   const hasSide = chat !== undefined && chat !== null;
+  const screenId = featured.sharing && featured.stream ? featured.id : null;
+  const expanded = screenId !== null && screenId === expandedScreen;
+  const immersive = expanded || full;
+  const showStrip = !immersive && (visibleStrip.length > 0 || onInvite);
+  // Ampliada, como no Discord: o resto da call vira uma fileira escura embaixo.
+  const hasTray = immersive && tiles.length > 0;
+  const menuContainer = full ? viewportRef.current : undefined;
+
+  useEffect(() => {
+    setExpandedScreen((current) => (current === screenId ? current : null));
+    if (screenId) {
+      revealControls();
+    } else if (document.fullscreenElement && document.fullscreenElement === viewportRef.current) {
+      void document.exitFullscreen().catch(() => {});
+    }
+    return () => clearTimeout(controlsTimer.current);
+  }, [screenId, revealControls]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.fullscreenElement) setExpandedScreen(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
+
+  const expandScreen = () => {
+    setSideOpen(false);
+    setExpandedScreen(expanded ? null : screenId);
+    revealControls();
+  };
+
+  const toggleFullscreen = async () => {
+    const viewport = viewportRef.current;
+    if (!viewport || !screenId) return;
+    try {
+      if (document.fullscreenElement === viewport) {
+        await document.exitFullscreen();
+        return;
+      }
+      if (document.fullscreenEnabled && viewport.requestFullscreen) {
+        await viewport.requestFullscreen({ navigationUI: "hide" });
+        return;
+      }
+      const video = viewport.querySelector("video") as
+        (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+      if (video?.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+        return;
+      }
+    } catch {
+      if (!viewport.isConnected) return;
+    }
+    setSideOpen(false);
+    setExpandedScreen(screenId);
+    revealControls();
+    toast.info("Tela cheia indisponível. A transmissão foi ampliada na chamada.");
+  };
+
+  const screenView = screenId
+    ? { expanded, full, onExpand: expandScreen, onFullscreen: () => void toggleFullscreen() }
+    : undefined;
 
   const status = rtc.error ? (
     <span className="text-[#ff8a80]">{rtc.error}</span>
@@ -395,12 +491,13 @@ function ConnectedStage({
             <ArrowLeft size={18} />
           </button>
         )}
+        {/* Sem nome nem contagem no topo: a call fala por si. Só um erro aparece aqui. */}
         <div className="clyro-in-drop min-w-0 flex-1" style={delay(50)}>
-          <p className="truncate text-[15px] font-semibold leading-tight tracking-[-0.01em]">
+          <h2 className="sr-only">
             {title}
-            {subtitle && <span className="font-normal text-[#8a8a8a]"> / {subtitle}</span>}
-          </p>
-          <p className="mt-0.5 truncate text-[12.5px] leading-tight text-[#737373]">{status}</p>
+            {subtitle ? ` / ${subtitle}` : ""}, {status}
+          </h2>
+          {rtc.error && <p className="truncate text-[12.5px] text-[#d93025]">{rtc.error}</p>}
         </div>
         <div className="clyro-in-drop flex shrink-0 items-center gap-1" style={delay(110)}>
           {onInvite && (
@@ -415,7 +512,10 @@ function ConnectedStage({
             <span>
               <HeaderButton
                 label={sideOpen ? "Fechar conversa" : "Abrir conversa"}
-                onClick={() => setSideOpen((open) => !open)}
+                onClick={() => {
+                  setExpandedScreen(null);
+                  setSideOpen((open) => !open);
+                }}
                 active={sideOpen}
               >
                 <MessageSquare size={18} />
@@ -426,25 +526,42 @@ function ConnectedStage({
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div
+          ref={viewportRef}
+          data-controls={screenId && !controlsVisible ? "hidden" : undefined}
+          onPointerMove={screenId ? revealControls : undefined}
+          onPointerDown={screenId ? revealControls : undefined}
+          onPointerLeave={screenId && immersive ? hideControls : undefined}
+          className={cn(
+            "flex min-h-0 min-w-0 flex-1 flex-col fullscreen:bg-[#111214]",
+            // Ampliada, a transmissão cobre a call inteira, cabeçalho incluído.
+            expanded && !full ? "clyro-fade-in absolute inset-0 z-30 bg-[#111214]" : "relative",
+          )}
+        >
           {audioOnly ? (
             <AudioStage tiles={byRecency} onInvite={onInvite} readBands={rtc.readVoiceBands} />
           ) : (
             <div
-              className="clyro-in-rise flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4"
+              className={cn(
+                "clyro-in-rise flex min-h-0 flex-1 flex-col",
+                immersive ? "p-0" : "gap-3 p-3 sm:p-4",
+              )}
               style={delay(100)}
             >
               <FeaturedTile
                 tile={featured}
                 pinned={isPinned}
+                screenView={screenView}
                 onTogglePin={() => setPinned(isPinned ? null : featured.id)}
                 onStopShare={
                   featured.self && featured.sharing ? () => void rtc.toggleScreen() : undefined
                 }
               />
 
-              {(visibleStrip.length > 0 || onInvite) && (
-                <div className="clyro-scroll flex h-[92px] shrink-0 items-center gap-3 overflow-x-auto sm:h-[108px]">
+              {showStrip && (
+                /* Começa no meio e abre para os lados conforme entra gente; se não
+                   couber, rola sem esconder ninguém (centro "seguro"). */
+                <div className="clyro-scroll flex h-[92px] shrink-0 items-center justify-center-safe gap-3 overflow-x-auto sm:h-[108px]">
                   {visibleStrip.map((tile, index) => (
                     <StripTile
                       key={tile.id}
@@ -485,12 +602,72 @@ function ConnectedStage({
                   )}
                 </div>
               )}
+
+              {hasTray && (
+                <div
+                  className={cn(
+                    "relative shrink-0 transition-[height] duration-300 ease-clyro motion-reduce:transition-none",
+                    trayOpen ? "h-[104px]" : "h-0",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setTrayOpen((open) => !open)}
+                    aria-label={trayOpen ? "Esconder participantes" : "Mostrar participantes"}
+                    aria-expanded={trayOpen}
+                    className={cn(
+                      "call-screen-controls absolute left-1/2 z-20 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-full bg-[#1e1f22]/90 px-3 text-white shadow-lg outline-none backdrop-blur-md transition-[background-color,opacity] hover:bg-[#2b2d31] focus-visible:ring-2 focus-visible:ring-brand",
+                      trayOpen ? "-top-4" : "-top-12",
+                    )}
+                  >
+                    {trayOpen ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+                    <Users size={16} />
+                  </button>
+                  <div
+                    inert={!trayOpen}
+                    className={cn(
+                      "clyro-scroll flex h-full items-center justify-center gap-2 overflow-x-auto px-4 transition-opacity duration-200",
+                      trayOpen ? "opacity-100" : "opacity-0",
+                    )}
+                  >
+                    {/* Todo mundo da call em bolinhas, como quando as pessoas entram. */}
+                    {byRecency.map((tile, index) => (
+                      <StripTile
+                        key={tile.id}
+                        tile={tile}
+                        index={index}
+                        dark
+                        onSelect={() => {
+                          if (tile.id === featured.id) return;
+                          setExpandedScreen(null);
+                          setPinned(tile.id);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          <div className="flex h-[72px] shrink-0 items-center gap-2 px-3 sm:px-4">
+          <div
+            className={cn(
+              "flex shrink-0 items-center gap-2 px-3 sm:px-4",
+              // Ampliada ou em tela cheia, a barra flutua sobre a transmissão e some
+              // sozinha; no modo normal ela fica embaixo, fora da imagem.
+              screenId && immersive
+                ? cn(
+                    "call-screen-controls absolute inset-x-0 z-20 mx-auto w-fit max-w-full rounded-full border border-black/10 bg-card/95 p-2 shadow-lg backdrop-blur-md sm:px-3",
+                    hasTray ? (trayOpen ? "bottom-[124px]" : "bottom-16") : "bottom-4",
+                  )
+                : "h-[72px]",
+            )}
+          >
             <span
-              className="clyro-in-rise hidden w-[84px] items-center gap-2 text-[13px] font-medium tabular-nums text-[#525252] sm:flex"
+              className={cn(
+                "clyro-in-rise hidden items-center gap-2 text-[13px] font-medium tabular-nums text-[#525252] sm:flex",
+                screenId && immersive ? "mr-2 pl-2" : "w-[84px]",
+              )}
               style={delay(320)}
             >
               <span aria-hidden="true" className="relative flex h-2.5 w-2.5">
@@ -533,14 +710,17 @@ function ConnectedStage({
                       <MonitorX size={18} />
                     </StageButton>
                     {/* No ar, a qualidade muda na hora pelo atalho do botão. */}
-                    <ScreenQualityMenu />
+                    <ScreenQualityMenu portalContainer={menuContainer} />
                   </>
                 ) : (
-                  <ShareSheet onShare={(options) => void rtc.toggleScreen(options)} />
+                  <ShareSheet
+                    portalContainer={menuContainer}
+                    onShare={(options) => void rtc.toggleScreen(options)}
+                  />
                 )}
               </span>
               <span className="clyro-in-rise flex" style={delay(510)}>
-                <MoreMenu rtc={rtc} onInvite={onInvite} />
+                <MoreMenu rtc={rtc} onInvite={onInvite} portalContainer={menuContainer} />
               </span>
             </div>
 
@@ -550,10 +730,13 @@ function ConnectedStage({
               aria-label="Sair da chamada"
               title="Sair da chamada"
               style={delay(560)}
-              className="clyro-in-rise flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-destructive px-3 text-[13.5px] font-medium text-white transition-[transform,filter] hover:brightness-110 active:scale-95 sm:px-4"
+              className={cn(
+                "clyro-in-rise flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-destructive text-[13.5px] font-medium text-white transition-[transform,filter] hover:brightness-110 active:scale-95",
+                screenId ? "w-10" : "px-3 sm:px-4",
+              )}
             >
               <PhoneOff size={17} />
-              <span className="hidden sm:inline">Sair da chamada</span>
+              {!screenId && <span className="hidden sm:inline">Sair da chamada</span>}
             </button>
           </div>
         </div>
@@ -562,7 +745,7 @@ function ConnectedStage({
           <aside
             className={cn(
               "min-h-0 w-[300px] shrink-0 flex-col border-l border-black/[0.06] xl:w-[320px]",
-              sideOpen
+              sideOpen && !immersive
                 ? "clyro-in-slide absolute inset-x-0 bottom-0 top-[72px] z-20 flex w-auto border-l-0 bg-card lg:static lg:w-[300px] lg:border-l"
                 : "hidden",
             )}
@@ -875,21 +1058,37 @@ function HeaderButton({
   );
 }
 
+type ScreenView = {
+  expanded: boolean;
+  full: boolean;
+  onExpand: () => void;
+  onFullscreen: () => void;
+};
+
 /** Quem está em destaque: grande, com o nome no canto e o alfinete para fixar. */
 function FeaturedTile({
   tile,
   pinned,
   onTogglePin,
   onStopShare,
+  screenView,
 }: {
   tile: StageTile;
   pinned: boolean;
   onTogglePin: () => void;
   onStopShare?: (() => void) | undefined;
+  screenView?: ScreenView | undefined;
 }) {
-  if (tile.sharing && tile.stream) {
+  if (screenView) {
     return (
-      <ScreenTile tile={tile} pinned={pinned} onTogglePin={onTogglePin} onStopShare={onStopShare} />
+      <ScreenTile
+        key={tile.id}
+        tile={tile}
+        pinned={pinned}
+        onTogglePin={onTogglePin}
+        onStopShare={onStopShare}
+        view={screenView}
+      />
     );
   }
   return (
@@ -970,220 +1169,199 @@ function FeaturedTile({
   );
 }
 
-/**
- * A tela compartilhada em destaque. O quadro toma a proporção da própria tela
- * (16:9, 16:10, uma janela estreita…) e cresce até onde cabe, então não sobra
- * faixa preta dos lados. Um clique na imagem abre em tela cheia; outro, ou Esc,
- * volta.
- *
- * Quando é você apresentando a tela inteira, a sua própria imagem não aparece:
- * ela mostraria a chamada, que mostra a tela, que mostra a chamada… e vira um
- * espelho infinito, cinza e borrado. No lugar entra um aviso de que o time
- * está vendo, com a prévia a um clique para quem quiser conferir.
- */
+/** A prévia local do monitor começa oculta para evitar a captura recursiva da própria chamada. */
 function ScreenTile({
   tile,
   pinned,
   onTogglePin,
   onStopShare,
+  view,
 }: {
   tile: StageTile;
   pinned: boolean;
   onTogglePin: () => void;
   onStopShare?: (() => void) | undefined;
+  view: ScreenView;
 }) {
-  const frameRef = useRef<HTMLDivElement>(null);
   const [ratio, setRatio] = useState(16 / 9);
-  const [full, setFull] = useState(false);
   const [preview, setPreview] = useState(false);
-
-  // Aba e janela de outro app não refletem a chamada. Tela inteira reflete, e
-  // navegador que não diz o que foi escolhido entra no lado seguro.
-  const surface = tile.self
-    ? (tile.stream?.getVideoTracks()[0]?.getSettings().displaySurface ?? "monitor")
-    : null;
-  const mirror = surface === "monitor";
-  const surfaceName =
-    surface === "browser" ? "uma aba" : surface === "window" ? "uma janela" : "a tela inteira";
-
-  useEffect(() => {
-    const sync = () => setFull(document.fullscreenElement === frameRef.current);
-    document.addEventListener("fullscreenchange", sync);
-    return () => document.removeEventListener("fullscreenchange", sync);
-  }, []);
-
-  const toggleFull = () => {
-    const frame = frameRef.current;
-    if (!frame) return;
-    if (document.fullscreenElement) {
-      void document.exitFullscreen().catch(() => {});
-    } else if (frame.requestFullscreen) {
-      void frame.requestFullscreen().catch(() => {});
-    } else {
-      // Safari do iPhone só põe o próprio vídeo em tela cheia, no player dele.
-      const video = frame.querySelector("video") as
-        (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
-      video?.webkitEnterFullscreen?.();
-    }
+  const surface = tile.stream?.getVideoTracks()[0]?.getSettings().displaySurface;
+  const mirror = tile.self && (!surface || surface === "monitor");
+  const previewHidden = mirror && !preview;
+  const immersive = view.expanded || view.full;
+  const fullLabel = view.full ? "Sair da tela cheia" : "Ver em tela cheia";
+  const expandLabel = view.expanded ? "Voltar à visualização padrão" : "Ampliar transmissão";
+  const pinLabel = pinned ? "Soltar destaque" : "Fixar em destaque";
+  const toggleFullscreen = () => {
+    if (previewHidden) setPreview(true);
+    view.onFullscreen();
+  };
+  // Um clique amplia (ou volta); dois cliques vão para a tela cheia.
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(clickTimer.current), []);
+  const onStreamClick = () => {
+    clearTimeout(clickTimer.current);
+    clickTimer.current = setTimeout(() => {
+      if (!view.full) view.onExpand();
+    }, 220);
+  };
+  const onStreamDoubleClick = () => {
+    clearTimeout(clickTimer.current);
+    toggleFullscreen();
   };
 
-  const fullLabel = full ? "Sair da tela cheia" : "Ver em tela cheia";
-
-  if (mirror && !preview) {
-    return (
-      <div
-        key={tile.id}
-        className="clyro-fade-in relative flex min-h-[180px] flex-1 flex-col items-center justify-center gap-5 rounded-[18px] bg-[#f5f5f6] px-6 text-center"
-      >
-        <span className="absolute left-3 top-3 flex h-8 max-w-[70%] items-center gap-2 rounded-full border border-black/[0.06] bg-white pl-1 pr-3 text-[12.5px] font-medium">
-          <UserAvatar profile={tile.profile} size={24} showStatus={false} />
-          <span className="truncate">{tile.name} (você)</span>
-        </span>
-
-        <span className="clyro-in-pop relative flex h-16 w-16 items-center justify-center rounded-full bg-white text-foreground shadow-[0_8px_24px_-12px_rgb(0_0_0/0.25)]">
-          <MonitorUp size={26} />
-          <span className="absolute right-0.5 top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[#16a34a]" />
-          </span>
-        </span>
-
-        <div className="clyro-in-rise max-w-sm" style={delay(80)}>
-          <p className="text-[17px] font-medium tracking-[-0.01em]">
-            Você está apresentando {surfaceName}
-          </p>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#737373]">
-            O time já está vendo. Aqui a sua tela fica escondida, porque mostrar ela dentro dela
-            mesma vira um espelho infinito.
-          </p>
-        </div>
-
-        <div
-          className="clyro-in-rise flex flex-wrap items-center justify-center gap-2"
-          style={delay(140)}
-        >
-          <button
-            type="button"
-            onClick={() => setPreview(true)}
-            className="h-10 rounded-full border border-black/[0.08] bg-white px-4 text-[13.5px] font-medium transition-colors hover:bg-[#fafafa]"
-          >
-            Ver prévia
-          </button>
-          {onStopShare && (
-            <button
-              type="button"
-              onClick={onStopShare}
-              className="flex h-10 items-center gap-2 rounded-full bg-destructive px-4 text-[13.5px] font-medium text-white transition-[transform,background-color] hover:bg-destructive/90 active:scale-[0.98]"
-            >
-              <MonitorX size={16} />
-              Parar de apresentar
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div
-      key={tile.id}
-      className="clyro-fade-in flex min-h-[180px] flex-1 items-center justify-center [container-type:size]"
-    >
+    <div className="relative flex min-h-0 flex-1 items-center justify-center [container-type:size]">
       <div
-        ref={frameRef}
-        onClick={mirror ? undefined : toggleFull}
-        title={mirror ? undefined : fullLabel}
         className={cn(
-          "group/screen relative max-h-full overflow-hidden rounded-[18px] bg-[#f5f5f6] shadow-[0_0_0_1px_rgb(0_0_0/0.06)]",
-          "[&:fullscreen]:rounded-none [&:fullscreen]:bg-black [&:fullscreen]:shadow-none",
-          !mirror && (full ? "cursor-zoom-out" : "cursor-zoom-in"),
+          "clyro-fade-in relative overflow-hidden",
+          immersive || previewHidden ? "h-full w-full" : "max-h-full",
+          !immersive && "rounded-[18px]",
+          previewHidden ? "bg-[#f5f5f6]" : immersive ? "bg-transparent" : "bg-black",
         )}
-        style={{
-          aspectRatio: ratio,
-          width: `min(100cqw, calc(100cqh * ${ratio.toFixed(4)}))`,
-        }}
+        style={
+          !immersive && !previewHidden
+            ? { aspectRatio: ratio, width: `min(100cqw, calc(100cqh * ${ratio}))` }
+            : undefined
+        }
       >
-        <StreamVideo
-          stream={tile.stream}
-          onAspect={setRatio}
-          className="h-full w-full object-contain"
-        />
+        {previewHidden ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 py-12 text-center">
+            <span className="clyro-in-pop hidden size-12 shrink-0 place-items-center rounded-full bg-white text-foreground shadow-sm sm:grid">
+              <MonitorUp size={22} />
+            </span>
+            <div>
+              <p className="text-base font-medium">Você está apresentando a tela inteira</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                A prévia fica oculta para evitar o efeito espelho.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPreview(true)}
+                className="h-9 rounded-full border border-black/10 bg-white px-3.5 text-[13px] font-medium transition-colors hover:bg-muted"
+              >
+                Ver prévia
+              </button>
+              {onStopShare && (
+                <button
+                  type="button"
+                  onClick={onStopShare}
+                  className="flex h-9 items-center gap-1.5 rounded-full bg-destructive px-3.5 text-[13px] font-medium text-white transition-colors hover:bg-destructive/90"
+                >
+                  <MonitorX size={15} />
+                  Parar de apresentar
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label={view.expanded ? "Voltar à visualização padrão" : "Ampliar transmissão"}
+            title={view.expanded ? undefined : "Clique para ampliar"}
+            onClick={onStreamClick}
+            onDoubleClick={onStreamDoubleClick}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                view.onExpand();
+              }
+            }}
+            className={cn(
+              "h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
+              view.expanded ? "cursor-default" : "cursor-zoom-in",
+            )}
+          >
+            <StreamVideo stream={tile.stream} onAspect={setRatio} />
+          </div>
+        )}
         <span
           aria-hidden="true"
           data-speaking={tile.speaking}
           className="speaking-halo pointer-events-none absolute inset-0 z-10 rounded-[inherit]"
         />
 
-        <span
-          className={cn(
-            "absolute left-3 top-3 z-10 flex h-8 max-w-[70%] items-center gap-2 rounded-full bg-black/45 pl-1 pr-3 text-[12.5px] font-medium text-white backdrop-blur-md transition-opacity duration-200",
-            full && "opacity-0 group-hover/screen:opacity-100",
-          )}
-        >
-          <UserAvatar profile={tile.profile} size={24} showStatus={false} />
-          <span className="truncate">
-            {tile.self ? `${tile.name} (você)` : tile.name}
-            {tile.badge ? ` · ${tile.badge}` : ""}
-          </span>
-        </span>
-
-        <div
-          className={cn(
-            "absolute right-3 top-3 z-10 flex items-center gap-1.5 transition-opacity duration-200",
-            full && "opacity-0 group-hover/screen:opacity-100",
-          )}
-        >
-          {!full && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onTogglePin();
-              }}
-              aria-label={pinned ? "Soltar destaque" : "Fixar em destaque"}
-              title={pinned ? "Soltar destaque" : "Fixar em destaque"}
-              className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition-colors",
-                pinned ? "bg-brand text-white" : "bg-black/45 text-white hover:bg-black/60",
-              )}
-            >
-              <Pin size={16} />
-            </button>
-          )}
-          {mirror ? (
-            // A prévia da tela inteira é só para conferir: some de novo num clique.
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setPreview(false);
-              }}
-              className="flex h-9 items-center rounded-full bg-black/45 px-3.5 text-[12.5px] font-medium text-white backdrop-blur-md transition-colors hover:bg-black/60"
-            >
-              Esconder prévia
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                toggleFull();
-              }}
-              aria-label={fullLabel}
-              title={fullLabel}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md transition-colors hover:bg-black/60"
-            >
-              {full ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
-          )}
-        </div>
-
-        {tile.reaction && (
-          <span className="clyro-pop-in pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-6xl">
-            {tile.reaction}
+        {/* Ampliada, o nome fica embaixo à esquerda, sempre à vista, como no Discord. */}
+        {immersive && !previewHidden && (
+          <span className="pointer-events-none absolute bottom-3 left-3 z-20 flex h-8 max-w-[60%] items-center gap-2 rounded-[8px] bg-black/60 px-2.5 text-[13px] font-medium text-white backdrop-blur-sm">
+            <MonitorUp size={15} />
+            <span className="truncate">{tile.self ? `${tile.name} (você)` : tile.name}</span>
           </span>
         )}
+
+        {/* Nome e controles presos aos cantos da própria imagem, não da área toda. */}
+        <div className="call-screen-controls absolute inset-x-2 top-2 z-20 flex items-center justify-between gap-2 sm:inset-x-3 sm:top-3">
+          {immersive ? (
+            <span />
+          ) : (
+            <span className="flex h-8 min-w-0 items-center gap-2 rounded-full bg-black/70 py-1 pl-1 pr-2.5 text-xs font-medium text-white backdrop-blur-md">
+              <UserAvatar profile={tile.profile} size={24} showStatus={false} />
+              <span className="truncate">{tile.self ? `${tile.name} (você)` : tile.name}</span>
+            </span>
+          )}
+          <div className="flex shrink-0 items-center gap-1 rounded-full bg-black/75 p-1 text-white shadow-sm backdrop-blur-md">
+            {mirror && preview && (
+              <button
+                type="button"
+                onClick={() => setPreview(false)}
+                className="h-8 rounded-full px-2 text-xs font-medium transition-colors hover:bg-white/20"
+              >
+                Ocultar prévia
+              </button>
+            )}
+            {!immersive && (
+              <ScreenViewButton label={pinLabel} onClick={onTogglePin} active={pinned}>
+                <Pin size={16} />
+              </ScreenViewButton>
+            )}
+            {!view.full && (
+              <ScreenViewButton label={expandLabel} onClick={view.onExpand}>
+                {view.expanded ? <LayoutGrid size={17} /> : <MonitorUp size={17} />}
+              </ScreenViewButton>
+            )}
+            <ScreenViewButton label={fullLabel} onClick={toggleFullscreen}>
+              {view.full ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+            </ScreenViewButton>
+          </div>
+        </div>
       </div>
+
+      {tile.reaction && (
+        <span className="clyro-pop-in pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-6xl">
+          {tile.reaction}
+        </span>
+      )}
     </div>
+  );
+}
+
+function ScreenViewButton({
+  label,
+  onClick,
+  active = false,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "grid size-8 place-items-center rounded-full transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-white",
+        active && "bg-brand",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -1195,13 +1373,60 @@ function StripTile({
   tile,
   index,
   onSelect,
+  dark = false,
 }: {
   tile: StageTile;
   index: number;
   onSelect: () => void;
+  /** Na fileira escura da transmissão ampliada: bolinhas sobre o fundo escuro. */
+  dark?: boolean;
 }) {
   const label = tile.self ? "Você" : tile.name;
   const style = { animationDelay: `${Math.min(index, 8) * 45}ms` };
+
+  if (dark) {
+    // A câmera de quem ligou aparece dentro da bolinha; quem transmite a tela
+    // aparece pela foto, com o selo de ao vivo.
+    const camera = tile.stream && !tile.sharing;
+    return (
+      <button
+        type="button"
+        onClick={onSelect}
+        title={label}
+        aria-label={tile.sharing ? `${label}, transmitindo` : `Pôr ${label} em destaque`}
+        className="clyro-enter relative shrink-0 rounded-full outline-none transition-transform duration-200 ease-clyro hover:scale-105 focus-visible:ring-2 focus-visible:ring-brand active:scale-95"
+        style={style}
+      >
+        {camera ? (
+          <span
+            className={cn(
+              "block h-16 w-16 overflow-hidden rounded-full bg-black",
+              tile.speaking && "speaking-ring",
+            )}
+          >
+            <StreamVideo stream={tile.stream} className="h-full w-full object-cover" />
+          </span>
+        ) : (
+          <UserAvatar
+            profile={tile.profile}
+            size={64}
+            speaking={tile.speaking}
+            showStatus={false}
+          />
+        )}
+        {tile.sharing && (
+          <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-[4px] bg-[#da373c] px-1 text-[9px] font-bold uppercase leading-[14px] tracking-wide text-white ring-2 ring-[#111214]">
+            Ao vivo
+          </span>
+        )}
+        {(tile.hand || tile.muted) && (
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-[12px] shadow-sm ring-2 ring-[#111214]">
+            {tile.hand ? "✋" : <MicOff size={12} className="text-[#737373]" />}
+          </span>
+        )}
+      </button>
+    );
+  }
 
   if (!tile.stream) {
     return (
@@ -1328,7 +1553,15 @@ function ParticipantsCard({
 }
 
 /** Mão, reação, silenciar tudo e o link: o que não precisa de botão próprio. */
-function MoreMenu({ rtc, onInvite }: { rtc: VoiceControls; onInvite?: (() => void) | undefined }) {
+function MoreMenu({
+  rtc,
+  onInvite,
+  portalContainer,
+}: {
+  rtc: VoiceControls;
+  onInvite?: (() => void) | undefined;
+  portalContainer?: HTMLElement | null | undefined;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1342,6 +1575,7 @@ function MoreMenu({ rtc, onInvite }: { rtc: VoiceControls; onInvite?: (() => voi
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
+        portalContainer={portalContainer}
         side="top"
         align="center"
         sideOffset={10}
@@ -1384,7 +1618,11 @@ const REACTIONS = ["👋", "👍", "😂", "🎉", "🔥"];
  * Resolução e taxa de quadros da transmissão, a um clique do botão de tela.
  * Vale para a próxima transmissão e para a que já estiver no ar.
  */
-function ScreenQualityMenu() {
+function ScreenQualityMenu({
+  portalContainer,
+}: {
+  portalContainer?: HTMLElement | null | undefined;
+}) {
   const settings = useMediaSettings();
   return (
     <DropdownMenu>
@@ -1398,7 +1636,12 @@ function ScreenQualityMenu() {
           <ChevronUp size={11} />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="center" className="w-52">
+      <DropdownMenuContent
+        portalContainer={portalContainer}
+        side="top"
+        align="center"
+        className="w-52"
+      >
         <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.02em] text-muted-foreground">
           Resolução
         </DropdownMenuLabel>
@@ -1475,7 +1718,13 @@ function readSurface(): ShareSurface {
  * em que qualidade e com ou sem som. O botão final abre o seletor já na aba
  * certa, sem a aba do Clyro na lista.
  */
-function ShareSheet({ onShare }: { onShare: (options: ShareOptions) => void }) {
+function ShareSheet({
+  onShare,
+  portalContainer,
+}: {
+  onShare: (options: ShareOptions) => void;
+  portalContainer?: HTMLElement | null | undefined;
+}) {
   const [open, setOpen] = useState(false);
   const [surface, setSurface] = useState<ShareSurface>("browser");
   const [audio, setAudio] = useState(true);
@@ -1516,6 +1765,7 @@ function ShareSheet({ onShare }: { onShare: (options: ShareOptions) => void }) {
         </button>
       </PopoverTrigger>
       <PopoverContent
+        portalContainer={portalContainer}
         side="top"
         align="center"
         sideOffset={14}
