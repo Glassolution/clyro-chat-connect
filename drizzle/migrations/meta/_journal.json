@@ -29,6 +29,13 @@
       "when": 1794875026377,
       "tag": "0003_projects_access_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794875167766,
+      "tag": "0004_tasks_meetings",
+      "breakpoints": true
     }
   ]
 }

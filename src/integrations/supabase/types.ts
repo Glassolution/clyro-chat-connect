@@ -212,6 +212,54 @@ export type Database = {
         }
         Relationships: []
       }
+      meetings: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          created_by: string
+          duration_min: number
+          id: string
+          server_id: string
+          starts_at: string
+          title: string
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          created_by: string
+          duration_min?: number
+          id?: string
+          server_id: string
+          starts_at: string
+          title: string
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          created_by?: string
+          duration_min?: number
+          id?: string
+          server_id?: string
+          starts_at?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meetings_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           author_id: string
@@ -384,6 +432,53 @@ export type Database = {
           website?: string | null
         }
         Relationships: []
+      }
+      tasks: {
+        Row: {
+          assignee_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          due_at: string | null
+          id: string
+          notes: string | null
+          server_id: string
+          status: string
+          title: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          due_at?: string | null
+          id?: string
+          notes?: string | null
+          server_id: string
+          status?: string
+          title: string
+        }
+        Update: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          due_at?: string | null
+          id?: string
+          notes?: string | null
+          server_id?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       team_members: {
         Row: {
