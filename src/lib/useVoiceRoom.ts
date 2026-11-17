@@ -300,6 +300,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Você entrou nesta mesma call por outra aba ou aparelho: esta conexão sai. */
+  const [superseded, setSuperseded] = useState(false);
 
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const makingOfferRef = useRef<Map<string, boolean>>(new Map());
@@ -762,8 +764,10 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   useEffect(() => {
     if (!roomKey || !userId) return;
     let cancelled = false;
+    let onPageHide: (() => void) | null = null;
     setConnecting(true);
     setError(null);
+    setSuperseded(false);
 
     const start = async () => {
       // As preferências vêm do ref para que mexer nelas não derrube a call;
@@ -801,6 +805,9 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
 
       const selfId = newConnectionId(userId);
       selfIdRef.current = selfId;
+      // Hora fixa desta entrada. Reconectar não muda: senão uma aba antiga que
+      // reconectasse passaria a valer mais que a entrada nova da mesma pessoa.
+      const joinedAt = Date.now();
 
       const channel = supabase.channel(`rtc-${roomKey}`, {
         config: { presence: { key: selfId }, broadcast: { self: false } },
@@ -808,8 +815,31 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       channelRef.current = channel;
 
       channel.on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        const ids = Object.keys(state).filter((id) => id !== selfId);
+        const state = channel.presenceState<{ id?: string; at?: number }>();
+        /*
+         * Uma pessoa, um lugar na call. A presença guarda conexões, não pessoas:
+         * quem saía e voltava antes de o servidor derrubar a conexão velha (rede
+         * caindo, aba recarregada) aparecia duas vezes, e quem entrava por duas
+         * abas também. Vale só a entrada mais recente de cada pessoa.
+         */
+        const newest = new Map<string, { id: string; at: number }>();
+        Object.entries(state).forEach(([id, metas]) => {
+          const at = Math.max(0, ...metas.map((meta) => Number(meta?.at) || 0));
+          const owner = userIdOfPeer(id);
+          const current = newest.get(owner);
+          if (!current || at > current.at || (at === current.at && id > current.id)) {
+            newest.set(owner, { id, at });
+          }
+        });
+        // Você entrou de novo em outro lugar: esta aba deixa a call para a nova.
+        const mine = newest.get(userId);
+        if (state[selfId] && mine && mine.id !== selfId) {
+          setSuperseded(true);
+          return;
+        }
+        const ids = [...newest.values()]
+          .map((entry) => entry.id)
+          .filter((id) => userIdOfPeer(id) !== userId);
         /*
          * Os dois lados criam a conexão. Antes só o lado de id menor criava, e
          * o outro só nascia no meio do tratamento de uma oferta — o pior momento
@@ -913,11 +943,18 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         }
       });
 
+      // Fechar ou recarregar a aba avisa a saída na hora, sem esperar o
+      // servidor perceber que a conexão morreu.
+      onPageHide = () => {
+        void channel.untrack();
+      };
+      window.addEventListener("pagehide", onPageHide);
+
       channel.subscribe((status, err) => {
         if (status === "SUBSCRIBED") {
           // Também vale nas reconexões: sem repetir o track ao voltar de uma
           // queda, a pessoa some da sala para quem ficou.
-          void channel.track({ id: selfId, at: Date.now() });
+          void channel.track({ id: selfId, at: joinedAt });
           setConnecting(false);
           setError(null);
           return;
@@ -936,6 +973,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
 
     return () => {
       cancelled = true;
+      if (onPageHide) window.removeEventListener("pagehide", onPageHide);
       setConnecting(false);
       pcsRef.current.forEach((pc) => pc.close());
       pcsRef.current.clear();
@@ -1581,6 +1619,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     cameraOn,
     connecting,
     error,
+    superseded,
     toggleMute,
     toggleDeafen,
     toggleScreen,

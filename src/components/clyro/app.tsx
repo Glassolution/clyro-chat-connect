@@ -169,6 +169,14 @@ export function ClyroApp() {
 
   const voiceStates = useVoicePresence(userId, presence);
 
+  // Entrou na mesma call por outra aba ou aparelho: esta sai, para a pessoa
+  // não aparecer duas vezes para o time.
+  useEffect(() => {
+    if (!rtc.superseded) return;
+    setVoice(null);
+    toast.info("Você entrou nessa call em outra aba. Esta saiu da chamada.");
+  }, [rtc.superseded]);
+
   /** Sala vazia por 2 minutos some da aba (e é apagada por quem pode). */
   const expiredRooms = useEmptyRoomSweep({
     serverId: activeServerId,

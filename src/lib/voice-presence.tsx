@@ -59,6 +59,12 @@ export function useVoicePresence(userId: string | undefined, presence: VoicePres
     };
 
     channel.on("presence", { event: "sync" }, read);
+    // Fechar ou recarregar a aba tira você da lista na hora, em vez de esperar
+    // o servidor notar que a conexão caiu.
+    const onPageHide = () => {
+      void channel.untrack();
+    };
+    window.addEventListener("pagehide", onPageHide);
     channel.subscribe((status) => {
       if (status === "SUBSCRIBED") setReady(true);
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
@@ -67,6 +73,7 @@ export function useVoicePresence(userId: string | undefined, presence: VoicePres
     });
 
     return () => {
+      window.removeEventListener("pagehide", onPageHide);
       setReady(false);
       channelRef.current = null;
       void supabase.removeChannel(channel);
@@ -106,7 +113,14 @@ export function useVoicePresence(userId: string | undefined, presence: VoicePres
    */
   return useMemo<VoiceState[]>(() => {
     const byUser = new Map<string, VoiceState>();
+    // Mais de uma linha da mesma pessoa (outra aba, ou uma conexão velha que o
+    // servidor ainda não derrubou): vale a entrada mais recente.
+    const newest = new Map<string, PresenceRow>();
     rows.forEach((row) => {
+      const current = newest.get(row.userId);
+      if (!current || (row.joinedAt ?? "") > (current.joinedAt ?? "")) newest.set(row.userId, row);
+    });
+    newest.forEach((row) => {
       byUser.set(row.userId, {
         user_id: row.userId,
         channel_id: row.channelId,
