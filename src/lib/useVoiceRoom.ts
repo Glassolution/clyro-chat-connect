@@ -808,8 +808,24 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       channelRef.current = channel;
 
       channel.on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        const ids = Object.keys(state).filter((id) => id !== selfId);
+        const state = channel.presenceState<{ id?: string; at?: number }>();
+        /*
+         * Uma pessoa = uma conexão. Quem sai e volta rápido (ou cai e reconecta)
+         * deixa a conexão antiga na presença até o servidor derrubá-la, e ela
+         * aparecia como uma segunda cópia da mesma pessoa. Fica só a conexão
+         * mais recente de cada usuário, e nenhuma conexão antiga de você mesmo.
+         */
+        const selfUser = userIdOfPeer(selfId);
+        const newest = new Map<string, { id: string; at: number }>();
+        Object.entries(state).forEach(([id, entries]) => {
+          if (id === selfId) return;
+          const user = userIdOfPeer(id);
+          if (user === selfUser) return;
+          const at = Math.max(0, ...entries.map((e) => Number(e?.at) || 0));
+          const prev = newest.get(user);
+          if (!prev || at > prev.at || (at === prev.at && id > prev.id)) newest.set(user, { id, at });
+        });
+        const ids = [...newest.values()].map((v) => v.id);
         /*
          * Os dois lados criam a conexão. Antes só o lado de id menor criava, e
          * o outro só nascia no meio do tratamento de uma oferta — o pior momento

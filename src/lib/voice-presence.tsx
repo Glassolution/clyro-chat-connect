@@ -106,7 +106,9 @@ export function useVoicePresence(userId: string | undefined, presence: VoicePres
    */
   return useMemo<VoiceState[]>(() => {
     const byUser = new Map<string, VoiceState>();
-    rows.forEach((row) => {
+    // Se sobrou uma aba antiga da mesma pessoa, vale a entrada mais recente.
+    const sorted = [...rows].sort((a, b) => (a.joinedAt ?? "").localeCompare(b.joinedAt ?? ""));
+    sorted.forEach((row) => {
       byUser.set(row.userId, {
         user_id: row.userId,
         channel_id: row.channelId,
