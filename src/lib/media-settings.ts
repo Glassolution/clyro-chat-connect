@@ -206,7 +206,7 @@ export const SCREEN_AUDIO_BITRATE = 256_000;
  */
 export function trackMatchesSettings(track: MediaStreamTrack, settings: MediaSettings) {
   const applied = track.getSettings();
-  const same = (got: boolean | undefined, want: boolean) => got === undefined || got === want;
+  const same = (got: boolean | string | undefined, want: boolean) => got === undefined || got === want;
   const deviceOk = !settings.inputDeviceId || applied.deviceId === settings.inputDeviceId;
   // Estéreo é um pedido, não uma exigência: com o tratamento de voz ligado o
   // navegador entrega mono e insistir só faria a captura reabrir sem parar.
