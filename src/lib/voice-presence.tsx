@@ -156,3 +156,28 @@ export function VoicePresenceProvider({
 export function useVoiceStates() {
   return useContext(VoicePresenceContext);
 }
+
+/** Prefixo que o app grava na atividade de quem entra numa call. */
+const CALL_ACTIVITY_PREFIX = "Em call";
+
+/**
+ * A atividade "Em call · Sala" fica gravada no perfil e não é apagada quando a
+ * aba fecha de qualquer jeito. A presença é quem sabe se a pessoa ainda está
+ * na call: sem ela, a frase antiga não aparece.
+ */
+export function liveActivity(
+  activity: string | null | undefined,
+  userId: string | undefined,
+  states: VoiceState[],
+) {
+  if (!activity) return null;
+  if (!activity.startsWith(CALL_ACTIVITY_PREFIX)) return activity;
+  return userId && states.some((s) => s.user_id === userId) ? activity : null;
+}
+
+/** Atalho para componentes: atividade sem o "Em call" que já acabou. */
+export function useLiveActivity() {
+  const states = useVoiceStates();
+  return (profile: { id: string; activity?: string | null } | undefined) =>
+    liveActivity(profile?.activity, profile?.id, states);
+}

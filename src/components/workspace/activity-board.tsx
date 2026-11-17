@@ -36,6 +36,7 @@ import type { BoardData, FeedEvent, FeedKind, FeedSource } from "@/lib/activity-
 import { UserAvatar } from "@/components/clyro/primitives";
 import { Mascot } from "./mascot";
 import { AvatarStack, activityLine } from "./team-panel";
+import { useLiveActivity } from "@/lib/voice-presence";
 
 type Tone = "rose" | "sky" | "mint" | "amber" | "peach" | "gray";
 
@@ -272,6 +273,7 @@ function FeedCard({
   nameOf: (id: string | null | undefined) => string;
 }) {
   const [open, setOpen] = useState(false);
+  const activityOf = useLiveActivity();
   const taskActions = useTaskActions(workspace.id);
   const s = event.source;
   const BadgeIcon = ICON[s.type];
@@ -566,7 +568,7 @@ function FeedCard({
               </p>
               {actor && (
                 <p className="mt-1 line-clamp-2 max-w-[44ch] text-[13px] leading-[1.5] text-muted-foreground">
-                  {actor.bio || activityLine(actor)}
+                  {actor.bio || activityLine(actor, activityOf(actor))}
                 </p>
               )}
               {detail && <div className="mt-4 flex w-full justify-center">{detail}</div>}

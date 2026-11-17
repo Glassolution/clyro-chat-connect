@@ -1,7 +1,7 @@
 import { Headphones, MonitorUp, Sparkles } from "@/components/icons";
 import { useAuth } from "@/hooks/useAuth";
 import { useFriendships, useProfiles } from "@/lib/clyro-queries";
-import { useVoiceStates } from "@/lib/voice-presence";
+import { liveActivity, useVoiceStates } from "@/lib/voice-presence";
 import type { Profile } from "@/lib/clyro-types";
 import { UserAvatar } from "./primitives";
 
@@ -19,7 +19,7 @@ export function ActivityPanel({ onSelectProfile }: { onSelectProfile: (id: strin
     .map((id) => profiles?.get(id))
     .filter((p): p is Profile => !!p)
     .map((profile) => ({
-      profile,
+      profile: { ...profile, activity: liveActivity(profile.activity, profile.id, voiceStates) },
       voice: voiceStates.find((v) => v.user_id === profile.id),
     }))
     .filter((entry) => entry.voice || entry.profile.activity);
