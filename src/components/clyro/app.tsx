@@ -62,6 +62,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { ComingSoon, IncomingInvites, WelcomeScreen } from "@/components/workspace/onboarding";
 import { PageFrame } from "@/components/workspace/page-frame";
 
+const SIDEBAR_KEY = "clyro.sidebar.collapsed";
+
 type VoiceSession = {
   roomKey: string;
   label: string;
@@ -95,6 +97,23 @@ export function ClyroApp() {
   const [createTeamOpen, setCreateTeamOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editProjectOpen, setEditProjectOpen] = useState(false);
+  // No desktop a sidebar pode virar um trilho de ícones; a escolha fica salva.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem(SIDEBAR_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSidebar = () =>
+    setSidebarCollapsed((was) => {
+      try {
+        window.localStorage.setItem(SIDEBAR_KEY, was ? "0" : "1");
+      } catch {
+        /* sem armazenamento, vale só para esta visita */
+      }
+      return !was;
+    });
   // No celular e no tablet a sidebar mora num menu que desliza da esquerda.
   const [menuOpen, setMenuOpen] = useState(false);
   /** No celular, Amigos ocupa a tela no lugar da lista de conversas. */
@@ -522,9 +541,6 @@ export function ClyroApp() {
         setMenuOpen(false);
         setCreateOpen(true);
       }}
-      onViewProject={() => {
-        if (workspace) void navigate({ to: "/p/$projectId", params: { projectId: workspace.id } });
-      }}
       onEditProject={() => {
         setMenuOpen(false);
         setEditProjectOpen(true);
@@ -534,28 +550,27 @@ export function ClyroApp() {
   );
 
   /** A mesma sidebar na coluna fixa (desktop) e no menu (celular e tablet). */
-  const sidebar = (
-    <WorkspaceSidebar
-      section={section}
-      onSection={(s) => {
-        changeSection(s);
-        setMenuOpen(false);
-      }}
-      badges={badges}
-      profileActive={profileActive}
-      workspace={workspace}
-      members={members}
-      teams={teams}
-      profiles={profiles_}
-      userId={userId ?? ""}
-      conversationCount={userId ? dedupeDirectConversations(conversations, userId).length : 0}
-      canManage={canManage}
-      onInvite={() => {
-        setMenuOpen(false);
-        openInvite();
-      }}
-    />
-  );
+  const sidebarProps = {
+    section,
+    onSection: (s: Section) => {
+      changeSection(s);
+      setMenuOpen(false);
+    },
+    badges,
+    profileActive,
+    workspace,
+    members,
+    teams,
+    profiles: profiles_,
+    userId: userId ?? "",
+    conversationCount: userId ? dedupeDirectConversations(conversations, userId).length : 0,
+    canManage,
+    onInvite: () => {
+      setMenuOpen(false);
+      openInvite();
+    },
+  };
+  const sidebar = <WorkspaceSidebar {...sidebarProps} />;
 
   // Telas que vivem dentro de um workspace: sem nenhum, a primeira coisa é criar.
   const needsWorkspace = section !== "messages" && !workspace;
@@ -594,17 +609,29 @@ export function ClyroApp() {
               profileActive={profileActive}
               compact={inCall}
               account={account}
+              sidebarCollapsed={sidebarCollapsed}
+              onToggleSidebar={toggleSidebar}
             />
 
             <div className="flex min-h-0 flex-1">
               <aside
                 aria-label="Seções do workspace"
                 className={cn(
-                  "hidden w-[232px] shrink-0 flex-col overflow-y-auto px-3 pb-4 pt-1 clyro-scroll lg:flex xl:w-[248px] xl:px-4",
+                  "hidden shrink-0 flex-col overflow-y-auto overflow-x-hidden px-3 pb-4 pt-1 transition-[width] duration-300 ease-clyro clyro-scroll motion-reduce:transition-none lg:flex xl:px-4",
+                  sidebarCollapsed ? "w-[76px] xl:w-[84px]" : "w-[232px] xl:w-[248px]",
                   inCall && "lg:pt-[68px]",
                 )}
               >
-                {sidebar}
+                <WorkspaceSidebar
+                  {...sidebarProps}
+                  collapsed={sidebarCollapsed}
+                  onToggleCollapsed={toggleSidebar}
+                  selfProfile={profile ?? undefined}
+                  onOpenSelf={() => {
+                    if (userId) setProfilePageId(userId);
+                  }}
+                  onSettings={() => setSettingsOpen(true)}
+                />
               </aside>
 
               <div className="flex min-w-0 flex-1 flex-col">

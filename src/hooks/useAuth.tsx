@@ -26,7 +26,7 @@ type AuthContextValue = {
   profile: Profile | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: (scope?: "local" | "global") => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -91,13 +91,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) await loadProfile(user.id);
   }, [user, loadProfile]);
 
-  const signOut = useCallback(async () => {
-    if (user) {
-      await supabase.from("voice_states").delete().eq("user_id", user.id);
-    }
-    await supabase.auth.signOut();
-    setProfile(null);
-  }, [user]);
+  const signOut = useCallback(
+    async (scope: "local" | "global" = "global") => {
+      if (user) {
+        await supabase.from("voice_states").delete().eq("user_id", user.id);
+      }
+      const { error } = await supabase.auth.signOut({ scope });
+      if (error) throw error;
+      setProfile(null);
+    },
+    [user],
+  );
 
   return (
     <AuthContext.Provider value={{ user, session, profile, loading, refreshProfile, signOut }}>

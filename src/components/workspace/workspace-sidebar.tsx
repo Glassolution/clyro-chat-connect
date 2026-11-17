@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { inviteLink } from "@/lib/invite-link";
-import { UserAdd } from "iconsax-react";
+import { HambergerMenu, Setting2, UserAdd } from "iconsax-react";
 import { X } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { useChannels } from "@/lib/clyro-queries";
@@ -9,6 +9,7 @@ import { useMeetings, useTasks } from "@/lib/activity-queries";
 import { initialsOf, type Profile, type Server } from "@/lib/clyro-types";
 import type { Team, WorkspaceMember } from "@/lib/workspace-queries";
 import { MediaImage, UserAvatar } from "@/components/clyro/primitives";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Mascot } from "./mascot";
 import { SECTIONS, type Section } from "./sections";
 import { emptyRooms, isCreatedRoom, useRooms } from "@/lib/room-queries";
@@ -29,6 +30,15 @@ type SidebarProps = {
   onInvite: () => void;
   /** Opcional: a conta hoje mora no canto superior direito do topo. */
   account?: React.ReactNode;
+  /**
+   * Só na coluna fixa do desktop: a sidebar pode virar um trilho de ícones.
+   * Sem `onToggleCollapsed` (o menu do celular) ela fica sempre larga.
+   */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+  selfProfile?: Profile | undefined;
+  onOpenSelf?: () => void;
+  onSettings?: () => void;
 };
 
 /**
@@ -37,6 +47,152 @@ type SidebarProps = {
  * uma linha viva do que está acontecendo nela. Embaixo, o convite.
  */
 export function WorkspaceSidebar(props: SidebarProps) {
+  const { collapsed = false, onToggleCollapsed } = props;
+  if (!onToggleCollapsed) return <ExpandedSidebar {...props} />;
+
+  /*
+   * As duas versões ficam montadas: a coluna estreita enquanto uma some e a
+   * outra aparece. A larga tem largura fixa, então o texto nunca quebra de
+   * novo no meio da animação; ela só é cortada pela coluna.
+   */
+  return (
+    <div className="relative flex flex-1 flex-col">
+      <div
+        inert={collapsed}
+        aria-hidden={collapsed}
+        className={cn(
+          "flex w-[208px] flex-1 flex-col transition-[opacity,transform] ease-clyro motion-reduce:transition-none xl:w-[216px]",
+          collapsed
+            ? "-translate-x-2 opacity-0 duration-150"
+            : "translate-x-0 opacity-100 delay-100 duration-300",
+        )}
+      >
+        <ExpandedSidebar {...props} />
+      </div>
+      <div
+        inert={!collapsed}
+        aria-hidden={!collapsed}
+        className={cn(
+          "absolute inset-0 flex flex-col items-center transition-[opacity,transform] ease-clyro motion-reduce:transition-none",
+          collapsed
+            ? "translate-x-0 opacity-100 delay-100 duration-300"
+            : "pointer-events-none translate-x-1 opacity-0 duration-150",
+        )}
+      >
+        <SidebarRail {...props} onToggleCollapsed={onToggleCollapsed} />
+      </div>
+    </div>
+  );
+}
+
+const RAIL_ITEM =
+  "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] outline-none transition-[color,transform] duration-200 ease-clyro hover:text-brand active:scale-95 focus-visible:ring-2 focus-visible:ring-brand";
+
+/** Um botão do trilho com o nome da seção num balão à direita. */
+function RailButton({
+  label,
+  active = false,
+  onClick,
+  children,
+  className,
+}: {
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={label}
+          aria-current={active ? "page" : undefined}
+          className={cn(RAIL_ITEM, active ? "text-brand" : "text-foreground", className)}
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={10}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * A sidebar minimizada, no desenho da referência: o botão de abrir, uma
+ * coluna de ícones em traço, a seção aberta num quadrado com borda e o número
+ * de pendências num selo escuro. Embaixo, ajustes e a sua foto.
+ */
+function SidebarRail(props: SidebarProps & { onToggleCollapsed: () => void }) {
+  const { section, onSection, badges, profileActive, onToggleCollapsed } = props;
+  return (
+    <div className="flex w-full flex-1 flex-col items-center">
+      <RailButton label="Abrir a barra lateral" onClick={onToggleCollapsed}>
+        <HambergerMenu size={22} color="currentColor" />
+      </RailButton>
+
+      <nav aria-label="Seções" className="mt-5 flex flex-col items-center gap-2.5">
+        {SECTIONS.map((s) => {
+          const on = !profileActive && section === s.id;
+          const badge = badges?.[s.id];
+          const Icon = s.icon;
+          return (
+            <RailButton
+              key={s.id}
+              label={badge ? `${s.label} (${badge})` : s.label}
+              active={on}
+              onClick={() => onSection(s.id)}
+            >
+              {/* A seção aberta fica laranja e cheia; as outras ficam laranja ao passar o mouse. */}
+              <Icon size={22} color="currentColor" variant={on ? "Bold" : "Linear"} />
+              {!!badge && (
+                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-[6px] bg-foreground px-1 text-[10.5px] font-semibold tabular-nums text-white ring-2 ring-card">
+                  {badge > 9 ? "9+" : badge}
+                </span>
+              )}
+            </RailButton>
+          );
+        })}
+      </nav>
+
+      <div className="mt-auto flex flex-col items-center gap-3 pt-6">
+        {props.onSettings && (
+          <RailButton label="Configurações" onClick={props.onSettings}>
+            <Setting2 size={22} color="currentColor" variant="Linear" />
+          </RailButton>
+        )}
+        {props.onOpenSelf && (
+          <RailButton
+            label="Seu perfil"
+            onClick={props.onOpenSelf}
+            active={profileActive}
+            className={cn(
+              "rounded-full transition-[box-shadow,transform]",
+              profileActive
+                ? "shadow-[0_0_0_1.5px_var(--brand)]"
+                : "shadow-[0_0_0_1px_rgb(0_0_0/0.08)] hover:shadow-[0_0_0_1.5px_var(--brand)]",
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "absolute -left-[19px] top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand transition-[opacity,transform] duration-300 ease-clyro xl:-left-[23px]",
+                profileActive ? "scale-y-100 opacity-100" : "scale-y-0 opacity-0",
+              )}
+            />
+            <UserAvatar profile={props.selfProfile} size={38} showStatus={false} />
+          </RailButton>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExpandedSidebar(props: SidebarProps) {
   const { section, onSection, badges, profileActive, workspace } = props;
 
   return (

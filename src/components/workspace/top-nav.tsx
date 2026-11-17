@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { HambergerMenu } from "iconsax-react";
+import { HambergerMenu, SidebarLeft } from "iconsax-react";
 import { cn } from "@/lib/utils";
 import { ClyroMark } from "@/components/clyro/primitives";
 import { SECTIONS, type Section } from "./sections";
@@ -23,6 +23,8 @@ export function TopNav({
   profileActive = false,
   compact = false,
   account,
+  sidebarCollapsed = false,
+  onToggleSidebar,
 }: {
   section: Section;
   badges?: Partial<Record<Section, number>>;
@@ -37,6 +39,9 @@ export function TopNav({
   compact?: boolean;
   /** A sua conta (foto e menu), no canto superior direito. */
   account?: ReactNode;
+  /** Desktop: a sidebar está minimizada; a coluna da marca estreita junto. */
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }) {
   const current = SECTIONS.find((s) => s.id === section)?.label ?? "";
   const menuBadge = Object.values(badges ?? {}).reduce((n, v) => n + (v ?? 0), 0);
@@ -60,17 +65,46 @@ export function TopNav({
         )}
       </button>
 
-      <div className="flex min-w-0 items-center lg:w-[232px] lg:shrink-0 lg:px-6 xl:w-[248px] xl:px-7">
+      {/*
+       * A coluna da marca tem a largura da sidebar e estreita junto com ela. O
+       * logo não sai do lugar: só o nome e o botão de minimizar somem.
+       */}
+      <div
+        className={cn(
+          "flex min-w-0 items-center lg:shrink-0 lg:overflow-hidden lg:px-6 lg:transition-[width] lg:duration-300 lg:ease-clyro motion-reduce:transition-none xl:px-7",
+          sidebarCollapsed ? "lg:w-[76px] xl:w-[84px]" : "lg:w-[232px] xl:w-[248px]",
+        )}
+      >
         <Link
           to="/"
           aria-label="Clyro: descobrir projetos"
-          className="flex items-center gap-2.5 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          className="flex shrink-0 items-center gap-2.5 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
-          <ClyroMark className="h-7 w-7" />
-          <span className="hidden text-[16px] font-semibold tracking-[-0.03em] sm:block">
+          <ClyroMark className="h-7 w-7 shrink-0" />
+          <span
+            className={cn(
+              "hidden text-[16px] font-semibold tracking-[-0.03em] transition-opacity duration-200 ease-clyro sm:block",
+              sidebarCollapsed && "lg:opacity-0",
+            )}
+          >
             clyro
           </span>
         </Link>
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            aria-label="Minimizar a barra lateral"
+            title="Minimizar a barra lateral"
+            tabIndex={sidebarCollapsed ? -1 : 0}
+            className={cn(
+              "-mr-2 ml-auto hidden h-9 w-9 shrink-0 items-center justify-center rounded-[12px] text-[#8a8a8a] outline-none transition-[opacity,background-color,color,transform] duration-200 ease-clyro hover:bg-black/[0.04] hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand active:scale-95 lg:flex",
+              sidebarCollapsed && "pointer-events-none opacity-0",
+            )}
+          >
+            <SidebarLeft size={19} color="currentColor" />
+          </button>
+        )}
       </div>
 
       {/* No celular, só o nome da seção aberta; as seções moram no menu. */}

@@ -1278,3 +1278,19 @@ html:active-view-transition-type(catalogo)::view-transition-new(root) {
     animation: none;
   }
 }
+
+/* Sobreposições da transmissão reagem ao ponteiro e ao foco pelo teclado. */
+.call-screen-controls {
+  transition: opacity 180ms var(--ease-clyro);
+}
+
+[data-controls="hidden"] .call-screen-controls:not(:hover, :has(:focus-visible, [data-state="open"])) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .call-screen-controls {
+    transition: none;
+  }
+}

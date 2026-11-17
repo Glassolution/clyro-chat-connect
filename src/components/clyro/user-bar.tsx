@@ -88,7 +88,11 @@ export function UserBar({
           <DropdownMenuItem onClick={() => setOpen(true)}>
             <Settings size={14} /> Configurações
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => void signOut()}>
+          <DropdownMenuItem
+            onSelect={() =>
+              void signOut().catch(() => toast.error("Não foi possível sair da conta."))
+            }
+          >
             <LogOut size={14} /> Sair
           </DropdownMenuItem>
         </DropdownMenuContent>
