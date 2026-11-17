@@ -205,30 +205,50 @@ function tuneSender(pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: 
 }
 
 /**
- * Ordem de codecs do vídeo: H.264 primeiro porque quase toda máquina codifica
- * em hardware (VideoToolbox no Mac, Media Foundation no Windows) — a tela sai
- * a 30/60 fps sem engasgar a CPU, mesmo mandando uma cópia para cada pessoa da
- * sala. VP9 vem logo atrás (bom com texto), e VP8 fica de reserva. Nada sai da
- * lista: o outro lado escolhe o melhor que os dois têm em comum.
+ * Ordem de codecs do vídeo. Nada sai da lista: o outro lado escolhe o melhor
+ * que os dois têm em comum, então quem não tem AV1 (Safari sem chip novo, por
+ * exemplo) recebe o próximo da fila sem ninguém fazer nada.
+ *
+ * - Tela: AV1, depois VP9, depois H.264. Medido com texto e troca de aba, o
+ *   AV1 entregou só 2% dos quadros borrados, contra 17% do H.264 em hardware —
+ *   que despencava para blocos a cada troca, descartava quadros e congelava
+ *   cinco vezes mais tempo. O VP9 também lida bem com tela e fica de reserva.
+ * - Câmera: H.264 primeiro, porque quase toda máquina codifica em hardware e
+ *   rosto em movimento é exatamente o que ele faz bem.
+ *
+ * `avoidAv1` tira o AV1 da frente quando a máquina de quem compartilha não
+ * deu conta de codificá-lo (ver o vigia de CPU no hook).
  */
-function preferVideoCodecs(pc: RTCPeerConnection, track: MediaStreamTrack) {
+function preferVideoCodecs(
+  pc: RTCPeerConnection,
+  track: MediaStreamTrack,
+  options: { screen?: boolean; avoidAv1?: boolean } = {},
+) {
   if (track.kind !== "video") return;
   const transceiver = pc.getTransceivers().find((t) => t.sender.track === track);
   const capabilities =
     typeof RTCRtpReceiver !== "undefined" ? RTCRtpReceiver.getCapabilities?.("video") : null;
   if (!transceiver?.setCodecPreferences || !capabilities) return;
+  const h264 = (fmtp: string) => {
+    if (!fmtp.includes("packetization-mode=1")) return 2;
+    // Perfil High (64) comprime melhor; o Baseline (42) é o que todo mundo lê.
+    return fmtp.includes("profile-level-id=64") ? 0 : 1;
+  };
   const rank = (codec: RTCRtpCodec) => {
     const mime = codec.mimeType.toLowerCase();
     const fmtp = codec.sdpFmtpLine ?? "";
-    if (mime === "video/h264") {
-      if (!fmtp.includes("packetization-mode=1")) return 3;
-      // Perfil High (64) comprime melhor; o Baseline (42) é o que todo mundo lê.
-      return fmtp.includes("profile-level-id=64") ? 0 : 1;
+    if (options.screen) {
+      if (mime === "video/av1") return options.avoidAv1 ? 3 : 0;
+      if (mime === "video/vp9") return 1;
+      if (mime === "video/h264") return 4 + h264(fmtp);
+      if (mime === "video/vp8") return 7;
+      return 8; // rtx, red, ulpfec: ficam, só no fim
     }
-    if (mime === "video/vp9") return 2;
+    if (mime === "video/h264") return h264(fmtp);
+    if (mime === "video/vp9") return 3;
     if (mime === "video/vp8") return 4;
     if (mime === "video/av1") return 5;
-    return 6; // rtx, red, ulpfec: ficam, só no fim
+    return 6;
   };
   const codecs = [...capabilities.codecs].sort((a, b) => rank(a) - rank(b));
   try {
@@ -240,9 +260,11 @@ function preferVideoCodecs(pc: RTCPeerConnection, track: MediaStreamTrack) {
 
 /**
  * Dica de conteúdo da tela. "detail" põe o codificador no modo de tela, que
- * descarta quadros para guardar nitidez — era o "sem fluidez" a 30 fps. Só a
- * 15 fps, quando a escolha já foi por texto parado, ele vale a pena; acima
- * disso vai "motion", e a resolução fica presa pelo `maintain-resolution`.
+ * segura a nitidez e, para isso, segura quadros: medido com AV1, cada troca de
+ * aba virava uma parada de ~300 ms. "motion" mantém a fluidez e, com AV1, a
+ * troca de aba chega nítida quase sempre (2% de quadros borrados, contra 17% do
+ * H.264). Só a 15 fps, quando a escolha já foi por texto parado, o modo de tela
+ * vale a pena.
  */
 function screenHint(settings: MediaSettings) {
   return settings.screenFps <= 15 ? "detail" : "motion";
@@ -320,6 +342,12 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const extraTrackRef = useRef<Map<string, MediaStreamTrack>>(new Map());
   /** Teto de bitrate de cada faixa extra, para quem entra depois receber igual. */
   const extraBitrateRef = useRef<Map<string, number>>(new Map());
+  /**
+   * Conexões em que a tela saiu do AV1 por falta de CPU, e quantas leituras
+   * seguidas cada uma passou limitada pelo processador.
+   */
+  const av1FallbackRef = useRef<WeakSet<RTCPeerConnection>>(new WeakSet());
+  const cpuStrikesRef = useRef<WeakMap<RTCPeerConnection, number>>(new WeakMap());
   // Cada faixa extra viaja dentro do próprio MediaStream: o outro lado recebe o
   // vídeo já agrupado e o player sabe que há algo novo para exibir.
   const extraStreamRef = useRef<Map<string, MediaStream>>(new Map());
@@ -729,7 +757,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         const wrapper = extraStreamRef.current.get(key);
         if (wrapper) pc.addTrack(track, wrapper);
         else pc.addTrack(track);
-        preferVideoCodecs(pc, track);
+        preferVideoCodecs(pc, track, { screen: key === "screen" });
       });
       tuneExtras();
       // Cada negociação pode devolver os parâmetros ao padrão: reaplica no fim.
@@ -1243,12 +1271,24 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         return;
       }
       let worst: LinkQuality = "good";
-      for (const pc of connections) {
+      const screenTrack = extraTrackRef.current.get("screen");
+      for (const [peerId, pc] of [...pcsRef.current.entries()]) {
         try {
           const stats = await pc.getStats();
           let rtt = 0;
           let lossRatio = 0;
+          let screenCpuBound = false;
           stats.forEach((report) => {
+            if (
+              screenTrack &&
+              report.type === "outbound-rtp" &&
+              report.kind === "video" &&
+              report.qualityLimitationReason === "cpu" &&
+              stats.get(report.mediaSourceId)?.trackIdentifier === screenTrack.id &&
+              String(stats.get(report.codecId)?.mimeType).toLowerCase() === "video/av1"
+            ) {
+              screenCpuBound = true;
+            }
             if (report.type === "candidate-pair" && report.state === "succeeded") {
               rtt = Math.max(rtt, (report.currentRoundTripTime ?? 0) * 1000);
             }
@@ -1266,6 +1306,20 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
                 : "good";
           if (level === "poor") worst = "poor";
           else if (level === "fair" && worst !== "poor") worst = "fair";
+
+          /*
+           * O AV1 é codificado em software, uma cópia por pessoa da sala. Se a
+           * máquina de quem compartilha não der conta, o navegador começa a
+           * derrubar quadros. Duas leituras seguidas assim (6 s) e essa conexão
+           * passa para o VP9, que é bem mais leve — uma vez só, sem ir e voltar.
+           */
+          const strikes = screenCpuBound ? (cpuStrikesRef.current.get(pc) ?? 0) + 1 : 0;
+          cpuStrikesRef.current.set(pc, strikes);
+          if (screenTrack && strikes >= 2 && !av1FallbackRef.current.has(pc)) {
+            av1FallbackRef.current.add(pc);
+            preferVideoCodecs(pc, screenTrack, { screen: true, avoidAv1: true });
+            void negotiatePeer(peerId, pc);
+          }
         } catch {
           /* getStats pode falhar durante a renegociação */
         }
@@ -1273,7 +1327,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       setQuality(worst);
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [roomKey]);
+  }, [roomKey, negotiatePeer]);
 
   // Alta fidelidade ligada ou desligada em chamada: teto novo nos envios e uma
   // oferta nova para o Opus voltar (ou sair) do estéreo.
@@ -1564,7 +1618,10 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       pcsRef.current.forEach((pc) => {
         try {
           pc.addTrack(track, wrapper);
-          preferVideoCodecs(pc, track);
+          preferVideoCodecs(pc, track, {
+            screen: key === "screen",
+            avoidAv1: av1FallbackRef.current.has(pc),
+          });
           if (maxBitrate) tuneSender(pc, track, maxBitrate);
         } catch {
           /* already added */
