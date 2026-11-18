@@ -9,10 +9,12 @@
  * A guarda compara o que está tocando (as vozes da call) com o que o microfone
  * pega. Ela aprende quanto do alto-falante costuma vazar para o microfone e,
  * enquanto os outros falam, só deixa passar o que for bem mais alto que esse
- * vazamento — a sua voz. Se for só eco, o microfone baixa 30 dB.
+ * vazamento — a sua voz. Se for só eco, o microfone baixa 40 dB.
  *
  * Com fone de ouvido o vazamento aprendido é quase zero, então qualquer coisa
- * que você fale passa: a guarda não atrapalha quem não precisa dela.
+ * que você fale passa: a guarda não atrapalha quem não precisa dela. No
+ * alto-falante ela é dura de propósito: falar por cima de quem está falando só
+ * passa se a sua voz estiver bem acima do eco (10 dB).
  *
  * Tudo roda num AudioWorklet, na linha de áudio: não depende de timer da página
  * — que o navegador congela quando a aba fica em segundo plano.
@@ -22,12 +24,18 @@ const PROCESSOR = "clyro-echo-guard";
 
 const WORKLET_SOURCE = `
 const BLOCK_SECONDS = 128 / sampleRate;
-const HOLD_BLOCKS = Math.round(0.3 / BLOCK_SECONDS);
-const DOUBLE_TALK_HOLD = Math.round(0.18 / BLOCK_SECONDS);
+// A cauda do eco (sala, filtro de voz, buffers) dura mais que a frase: segura
+// meio segundo depois de a voz do outro parar.
+const HOLD_BLOCKS = Math.round(0.45 / BLOCK_SECONDS);
+const DOUBLE_TALK_HOLD = Math.round(0.15 / BLOCK_SECONDS);
 const FAR_ACTIVE = 1e-6;
-const DUCKED = 0.03;
-// Quanto a sua voz precisa passar do eco previsto para contar como fala: 6 dB.
-const MARGIN = 4;
+// Só eco: o microfone desce 40 dB — na prática, some.
+const DUCKED = 0.01;
+// Quanto a sua voz precisa passar do eco previsto para contar como fala: 10 dB.
+const MARGIN = 10;
+// O vazamento pode passar muito da voz que chega: alto-falante alto, microfone
+// colado e o ganho automático do navegador somam mais de 20 dB.
+const COUPLING_MAX = 1000;
 
 function coef(seconds) {
   return Math.exp(-BLOCK_SECONDS / seconds);
@@ -36,8 +44,11 @@ const ATTACK = coef(0.002);
 const RELEASE = coef(0.04);
 const GAIN_DOWN = coef(0.012);
 const GAIN_UP = coef(0.004);
-// O vazamento sobe devagar (uns 1,6 dB por segundo) e cai depressa.
-const COUPLING_RISE = Math.pow(10, 1.6 / 10 * BLOCK_SECONDS);
+// O vazamento cai depressa (o mínimo é o eco puro) e sobe devagar: 3 dB por
+// segundo quando o que chega parece eco um pouco mais alto, 0,75 dB quando
+// parece fala — assim aumentar o volume no meio da call também é aprendido.
+const COUPLING_RISE = Math.pow(10, 3 / 10 * BLOCK_SECONDS);
+const COUPLING_CREEP = Math.pow(10, 0.75 / 10 * BLOCK_SECONDS);
 
 function power(channels) {
   if (!channels || channels.length === 0) return 0;
@@ -58,7 +69,9 @@ class EchoGuard extends AudioWorkletProcessor {
     this.far = 0;
     this.farRing = new Float32Array(HOLD_BLOCKS);
     this.ringIndex = 0;
-    this.coupling = 0.3;
+    // Começa desconfiada (20 dB de vazamento) e desce até o real: cortar demais
+    // no primeiro segundo é melhor do que deixar o eco passar enquanto aprende.
+    this.coupling = 100;
     this.talkHold = 0;
     this.gain = 1;
     this.port.onmessage = (event) => {
@@ -86,9 +99,12 @@ class EchoGuard extends AudioWorkletProcessor {
     if (this.enabled && farHold > FAR_ACTIVE) {
       const ratio = this.near / farHold;
       if (this.far > FAR_ACTIVE) {
-        if (ratio < this.coupling) this.coupling += (ratio - this.coupling) * 0.05;
-        else this.coupling = Math.min(2, this.coupling * COUPLING_RISE);
-        this.coupling = Math.max(1e-5, this.coupling);
+        // Cai sem pressa: o começo de cada frase do outro chega antes do eco e
+        // daria um vazamento falso, perto de zero, se ela seguisse cada vale.
+        if (ratio < this.coupling) this.coupling += (ratio - this.coupling) * 0.01;
+        else if (ratio < this.coupling * MARGIN) this.coupling *= COUPLING_RISE;
+        else this.coupling *= COUPLING_CREEP;
+        this.coupling = Math.min(COUPLING_MAX, Math.max(1e-5, this.coupling));
       }
       if (ratio > this.coupling * MARGIN) this.talkHold = DOUBLE_TALK_HOLD;
       else if (this.talkHold > 0) this.talkHold--;

@@ -1830,11 +1830,24 @@ function ShareSheet({
   const [open, setOpen] = useState(false);
   const [surface, setSurface] = useState<ShareSurface>("browser");
   const [audio, setAudio] = useState(true);
+  /*
+   * Tela inteira leva todo o som do computador — Discord, outra chamada, aviso
+   * de mensagem — e o navegador não deixa tirar um programa só. Por isso ela
+   * começa sem som: quem quer o som liga sabendo. Aba e janela levam só o
+   * delas e começam com som.
+   */
+  const pickSurface = (next: ShareSurface) => {
+    setSurface(next);
+    setAudio(next !== "monitor");
+  };
   const settings = useMediaSettings();
   const supported = canShareScreen();
 
   useEffect(() => {
-    if (open) setSurface(readSurface());
+    if (!open) return;
+    const saved = readSurface();
+    setSurface(saved);
+    setAudio(saved !== "monitor");
   }, [open]);
 
   const preset = SHARE_PRESETS.find(
@@ -1899,7 +1912,7 @@ function ShareSheet({
                     type="button"
                     role="radio"
                     aria-checked={on}
-                    onClick={() => setSurface(item.id)}
+                    onClick={() => pickSurface(item.id)}
                     className={cn(
                       "group flex flex-col items-center gap-2 rounded-[14px] border px-1 pb-2.5 pt-3 transition-[background-color,border-color,box-shadow] duration-200 ease-clyro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
                       on
@@ -1975,7 +1988,9 @@ function ShareSheet({
                       ? "O que tocar na aba chega para todo mundo."
                       : surface === "window"
                         ? "Só o som desse programa. Discord e outras chamadas ficam de fora."
-                        : "Todo o som do computador, até o Discord. Para levar só o jogo ou o vídeo, escolha a janela."}
+                        : audio
+                          ? "Leva todo o som do computador, até as vozes do Discord."
+                          : "Desligado: a tela inteira levaria até o Discord. Para levar só o jogo ou o vídeo, escolha a janela."}
                 </span>
               </span>
               <Switch
