@@ -27,6 +27,17 @@ function clamp(value: number) {
   return Math.min(SCREEN_VOLUME_MAX, Math.max(0, Math.round(value)));
 }
 
+/**
+ * Do número do controle para o ganho. O ouvido percebe volume em escala
+ * logarítmica: dobrar a amplitude soa só um pouco mais alto, e o 200% linear
+ * parecia não fazer nada. Ao quadrado, 200% vira 4× (+12 dB) e 50% vira ¼,
+ * que soa de fato como metade.
+ */
+export function screenVolumeGain(volume: number) {
+  const level = clamp(volume) / 100;
+  return level * level;
+}
+
 export function getScreenVolume(userId: string) {
   return clamp(volumes[userId] ?? SCREEN_VOLUME_DEFAULT);
 }

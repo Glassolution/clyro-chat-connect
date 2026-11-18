@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { cn } from "@/lib/utils";
 import { useMediaSettings } from "@/lib/media-settings";
-import { useScreenVolume } from "@/lib/screen-volume";
+import { createScreenAudioBooster, type ScreenAudioBooster } from "@/lib/screen-audio-boost";
+import { screenVolumeGain, useScreenVolume } from "@/lib/screen-volume";
 
 export function StreamVideo({
   stream,
@@ -137,21 +138,14 @@ function TrackAudio({ track, deafened }: { track: MediaStreamTrack; deafened: bo
   return <audio ref={ref} autoPlay />;
 }
 
-let screenAudioContext: AudioContext | null = null;
-function sharedAudioContext() {
-  if (typeof AudioContext === "undefined") return null;
-  if (!screenAudioContext || screenAudioContext.state === "closed") {
-    screenAudioContext = new AudioContext({ latencyHint: "interactive" });
-  }
-  if (screenAudioContext.state === "suspended") void screenAudioContext.resume().catch(() => {});
-  return screenAudioContext;
-}
-
 /**
- * Som da tela com volume de 0 a 200%. O `volume` do elemento para em 100%,
- * então o ganho passa por um nó de áudio. O elemento mudo com a faixa original
- * fica porque o Chrome só entrega o som de uma faixa remota ao Web Audio
- * enquanto ela também estiver presa a um elemento de mídia.
+ * Som da tela com volume de 0 a 200%. Até 100% toca direto, como a voz, e o
+ * cancelamento de eco do navegador o enxerga. Acima disso o ganho passa pelo
+ * Web Audio e volta como faixa de call (ver `screen-audio-boost`), para quem
+ * está no alto-falante do notebook não devolver a tela dos outros para a sala.
+ *
+ * O elemento mudo com a faixa original fica porque o Chrome só entrega o som de
+ * uma faixa remota ao Web Audio enquanto ela estiver presa a um elemento.
  */
 function ScreenTrackAudio({
   track,
@@ -164,45 +158,50 @@ function ScreenTrackAudio({
 }) {
   const pullRef = useRef<HTMLAudioElement>(null);
   const ref = useRef<HTMLAudioElement>(null);
-  const gainRef = useRef<GainNode | null>(null);
   const source = useMemo(() => new MediaStream([track]), [track]);
-  const [output, setOutput] = useState<MediaStream | null>(null);
+  const gain = screenVolumeGain(volume);
+  const boosted = gain > 1;
+  const boosterRef = useRef<ScreenAudioBooster | null>(null);
+  const [boostStream, setBoostStream] = useState<MediaStream | null>(null);
 
+  // Faixa nova (ou saída da call): desmonta a volta da anterior.
+  useEffect(
+    () => () => {
+      boosterRef.current?.close();
+      boosterRef.current = null;
+      setBoostStream(null);
+    },
+    [source],
+  );
+  // A volta é montada na primeira vez que passa de 100% e fica até a faixa
+  // acabar: arrastar o controle para cima e para baixo não remonta nada.
   useEffect(() => {
-    const ctx = sharedAudioContext();
-    if (!ctx) {
-      // Sem Web Audio, toca direto e o volume para em 100%.
-      setOutput(source);
-      return;
-    }
-    const input = ctx.createMediaStreamSource(source);
-    const gain = ctx.createGain();
-    const destination = ctx.createMediaStreamDestination();
-    input.connect(gain).connect(destination);
-    gainRef.current = gain;
-    setOutput(destination.stream);
-    return () => {
-      input.disconnect();
-      gain.disconnect();
-      gainRef.current = null;
-    };
-  }, [source]);
+    if (!boosted || boosterRef.current) return;
+    const booster = createScreenAudioBooster(source);
+    if (!booster) return;
+    boosterRef.current = booster;
+    booster.ready
+      .then((stream) => {
+        if (boosterRef.current === booster) setBoostStream(stream);
+      })
+      .catch(() => {
+        // Sem a volta, fica tocando direto no máximo do elemento.
+        if (boosterRef.current === booster) boosterRef.current = null;
+        booster.close();
+      });
+  }, [boosted, source]);
 
+  const playing = boosted && boostStream ? boostStream : source;
   useEffect(() => playInto(pullRef.current, source), [source]);
+  useEffect(() => playInto(ref.current, playing), [playing]);
   useEffect(() => {
-    if (output) playInto(ref.current, output);
-  }, [output]);
-
-  useEffect(() => {
-    const gain = gainRef.current;
-    const level = volume / 100;
-    if (gain) gain.gain.setTargetAtTime(level, gain.context.currentTime, 0.02);
-    else if (ref.current) ref.current.volume = Math.min(1, level);
-  }, [volume, output]);
+    boosterRef.current?.setGain(boosted ? gain : 1);
+    if (ref.current) ref.current.volume = playing === source ? Math.min(1, gain) : 1;
+  }, [gain, boosted, playing, source]);
   useEffect(() => {
     if (ref.current) ref.current.muted = deafened;
   }, [deafened]);
-  useOutputDevice(ref, output ?? source);
+  useOutputDevice(ref, playing);
 
   return (
     <>
