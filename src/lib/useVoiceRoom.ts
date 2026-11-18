@@ -163,13 +163,14 @@ function tuneVideoSdp(sdp: string | undefined) {
 }
 
 /**
- * Piso de bitrate da tela, na descrição que chega do outro lado — é dela que o
- * Chrome lê os `x-google-*` de quem envia (medido: o mesmo piso só na descrição
- * local não muda nada). Sem piso, o controle de banda parte baixo e sobe aos
- * poucos; a 60 fps, cada movimento na tela pegava o codificador sem bits e ele
- * caía para 720p em blocos. Com 35% do teto (até 4 Mbps) a imagem fica em
- * 1080p mesmo no começo e nos picos de movimento. Só a faixa da tela recebe o
- * piso: câmera e voz continuam com o controle de banda livre.
+ * Bitrate de partida da tela, na descrição que chega do outro lado — é dela que
+ * o Chrome lê os `x-google-*` de quem envia (medido: o mesmo valor só na
+ * descrição local não muda nada). A tela parte de até 5 Mbps em vez dos 3 Mbps
+ * do resto do vídeo e o controle de banda segue livre para descer.
+ *
+ * Não há piso (`x-google-min-bitrate`) de propósito: com um piso de 4 Mbps, uma
+ * conexão que aguentava menos ficava presa acima da capacidade, o quadro-chave
+ * nunca chegava inteiro e quem assistia via a tela preta.
  */
 function tuneRemoteScreenSdp(
   pc: RTCPeerConnection,
@@ -180,11 +181,8 @@ function tuneRemoteScreenSdp(
   if (!sdp || !screenTrack || !maxBitrate) return sdp;
   const mid = pc.getTransceivers().find((t) => t.sender.track === screenTrack)?.mid;
   if (mid == null) return sdp;
-  const targetKbps = Math.round(maxBitrate / 1000);
-  const floorKbps = Math.min(4000, Math.round(targetKbps * 0.35));
-  const startKbps = Math.min(targetKbps, 8000);
+  const startKbps = Math.min(Math.round(maxBitrate / 1000), 5000);
   const extra: Record<string, string> = {
-    "x-google-min-bitrate": String(floorKbps),
     "x-google-start-bitrate": String(startKbps),
   };
 
@@ -274,13 +272,16 @@ function tuneSender(pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: 
  * - Câmera: H.264 primeiro, porque quase toda máquina codifica em hardware e
  *   rosto em movimento é exatamente o que ele faz bem.
  *
+ * `avoidH264` volta a tela de 60 fps para a ordem de 30 fps quando quem assiste
+ * avisou que não está conseguindo decodificar a imagem (ver o vigia de quadros).
+ *
  * `avoidAv1` tira o AV1 da frente quando a máquina de quem compartilha não
  * deu conta de codificá-lo (ver o vigia de CPU no hook).
  */
 function preferVideoCodecs(
   pc: RTCPeerConnection,
   track: MediaStreamTrack,
-  options: { screen?: boolean; avoidAv1?: boolean } = {},
+  options: { screen?: boolean; avoidAv1?: boolean; avoidH264?: boolean } = {},
 ) {
   if (track.kind !== "video") return;
   const transceiver = pc.getTransceivers().find((t) => t.sender.track === track);
@@ -292,7 +293,7 @@ function preferVideoCodecs(
     // Perfil High (64) comprime melhor; o Baseline (42) é o que todo mundo lê.
     return fmtp.includes("profile-level-id=64") ? 0 : 1;
   };
-  const highFps = Math.round(track.getSettings().frameRate ?? 0) >= 50;
+  const highFps = !options.avoidH264 && Math.round(track.getSettings().frameRate ?? 0) >= 50;
   const rank = (codec: RTCRtpCodec) => {
     const mime = codec.mimeType.toLowerCase();
     const fmtp = codec.sdpFmtpLine ?? "";
@@ -419,6 +420,15 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
    */
   const av1FallbackRef = useRef<WeakSet<RTCPeerConnection>>(new WeakSet());
   const cpuStrikesRef = useRef<WeakMap<RTCPeerConnection, number>>(new WeakMap());
+  /** Conexões em que quem assiste avisou que a tela não decodifica: sem H.264 nelas. */
+  const h264FallbackRef = useRef<WeakSet<RTCPeerConnection>>(new WeakSet());
+  /**
+   * Vigia de quem assiste: quadros decodificados na última leitura, quantas
+   * leituras seguidas sem quadro novo, e se o aviso já foi mandado.
+   */
+  const decodeWatchRef = useRef<
+    WeakMap<RTCPeerConnection, { frames: number; strikes: number; reported: boolean }>
+  >(new WeakMap());
   // Cada faixa extra viaja dentro do próprio MediaStream: o outro lado recebe o
   // vídeo já agrupado e o player sabe que há algo novo para exibir.
   const extraStreamRef = useRef<Map<string, MediaStream>>(new Map());
@@ -463,6 +473,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const syncedRef = useRef(false);
   // Quem está compartilhando tela agora, para a interface destacar a transmissão.
   const [sharingPeers, setSharingPeers] = useState<string[]>([]);
+  const sharingPeersRef = useRef<string[]>([]);
+  sharingPeersRef.current = sharingPeers;
 
   const mediaSettings = useMediaSettings();
   const mediaSettingsRef = useRef(mediaSettings);
@@ -830,7 +842,11 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         const wrapper = extraStreamRef.current.get(key);
         if (wrapper) pc.addTrack(track, wrapper);
         else pc.addTrack(track);
-        preferVideoCodecs(pc, track, { screen: key === "screen" });
+        preferVideoCodecs(pc, track, {
+          screen: key === "screen",
+          avoidAv1: av1FallbackRef.current.has(pc),
+          avoidH264: h264FallbackRef.current.has(pc),
+        });
       });
       tuneExtras();
       // Cada negociação pode devolver os parâmetros ao padrão: reaplica no fim.
@@ -1065,6 +1081,23 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         });
       });
 
+      // Quem assiste não está conseguindo ver a tela: esta conexão sai do H.264
+      // e renegocia, o que também gera um quadro-chave novo.
+      channel.on("broadcast", { event: "screen-stuck" }, ({ payload }) => {
+        const data = payload as { from: string; to: string };
+        if (!data || data.to !== selfId || !sharingScreenRef.current) return;
+        const pc = pcsRef.current.get(data.from);
+        const screenTrack = extraTrackRef.current.get("screen");
+        if (!pc || !screenTrack) return;
+        h264FallbackRef.current.add(pc);
+        preferVideoCodecs(pc, screenTrack, {
+          screen: true,
+          avoidAv1: av1FallbackRef.current.has(pc),
+          avoidH264: true,
+        });
+        void negotiatePeer(data.from, pc);
+      });
+
       channel.on("broadcast", { event: "reaction" }, ({ payload }) => {
         const data = payload as { from: string; emoji: string };
         if (!data || data.from === selfId) return;
@@ -1230,7 +1263,16 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       setSharingPeers([]);
       setCameraOn(false);
     };
-  }, [roomKey, userId, createPeer, removePeer, send, attachAnalyser, buildMicPipeline]);
+  }, [
+    roomKey,
+    userId,
+    createPeer,
+    removePeer,
+    send,
+    attachAnalyser,
+    buildMicPipeline,
+    negotiatePeer,
+  ]);
 
   /**
    * Oferta nova para todo mundo. O teto de bitrate do transmissor muda na hora,
@@ -1361,7 +1403,11 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
           let rtt = 0;
           let lossRatio = 0;
           let screenCpuBound = false;
+          let videoFramesDecoded = 0;
           stats.forEach((report) => {
+            if (report.type === "inbound-rtp" && report.kind === "video") {
+              videoFramesDecoded += report.framesDecoded ?? 0;
+            }
             if (
               screenTrack &&
               report.type === "outbound-rtp" &&
@@ -1396,11 +1442,40 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
            * derrubar quadros. Duas leituras seguidas assim (6 s) e essa conexão
            * passa para o VP9, que é bem mais leve — uma vez só, sem ir e voltar.
            */
+          /*
+           * Vigia de quem assiste: a pessoa está compartilhando e nenhum quadro
+           * novo foi decodificado em duas leituras (6 s) — a tela está preta
+           * deste lado. Avisa quem compartilha, que troca o codec desta conexão
+           * e renegocia, o que também manda um quadro-chave novo. Um aviso só,
+           * até a imagem voltar.
+           */
+          const watch = decodeWatchRef.current.get(pc) ?? {
+            frames: 0,
+            strikes: 0,
+            reported: false,
+          };
+          if (sharingPeersRef.current.includes(peerId) && videoFramesDecoded <= watch.frames) {
+            watch.strikes += 1;
+          } else if (videoFramesDecoded > watch.frames) {
+            watch.strikes = 0;
+            watch.reported = false;
+          }
+          watch.frames = videoFramesDecoded;
+          if (watch.strikes >= 2 && !watch.reported) {
+            watch.reported = true;
+            send("screen-stuck", { from: selfIdRef.current ?? "", to: peerId });
+          }
+          decodeWatchRef.current.set(pc, watch);
+
           const strikes = screenCpuBound ? (cpuStrikesRef.current.get(pc) ?? 0) + 1 : 0;
           cpuStrikesRef.current.set(pc, strikes);
           if (screenTrack && strikes >= 2 && !av1FallbackRef.current.has(pc)) {
             av1FallbackRef.current.add(pc);
-            preferVideoCodecs(pc, screenTrack, { screen: true, avoidAv1: true });
+            preferVideoCodecs(pc, screenTrack, {
+              screen: true,
+              avoidAv1: true,
+              avoidH264: h264FallbackRef.current.has(pc),
+            });
             void negotiatePeer(peerId, pc);
           }
         } catch {
@@ -1410,7 +1485,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       setQuality(worst);
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [roomKey, negotiatePeer]);
+  }, [roomKey, negotiatePeer, send]);
 
   // Alta fidelidade ligada ou desligada em chamada: teto novo nos envios e uma
   // oferta nova para o Opus voltar (ou sair) do estéreo.
@@ -1446,7 +1521,11 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       pcsRef.current.forEach((pc) => {
         // Passar de 30 para 60 fps (ou voltar) troca o codec da tela; o piso de
         // bitrate novo também só vale depois de renegociar.
-        preferVideoCodecs(pc, track, { screen: true, avoidAv1: av1FallbackRef.current.has(pc) });
+        preferVideoCodecs(pc, track, {
+          screen: true,
+          avoidAv1: av1FallbackRef.current.has(pc),
+          avoidH264: h264FallbackRef.current.has(pc),
+        });
         tuneSender(pc, track, bitrate);
       });
       void renegotiate();
@@ -1716,6 +1795,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
           preferVideoCodecs(pc, track, {
             screen: key === "screen",
             avoidAv1: av1FallbackRef.current.has(pc),
+            avoidH264: h264FallbackRef.current.has(pc),
           });
           if (maxBitrate) tuneSender(pc, track, maxBitrate);
         } catch {
