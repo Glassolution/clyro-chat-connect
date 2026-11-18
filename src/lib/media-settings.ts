@@ -195,7 +195,10 @@ export function canShareScreen() {
 export function screenBitrate(settings: MediaSettings) {
   const height = settings.screenResolution;
   const pixels = Math.round((height * 16) / 9) * height;
-  const raw = pixels * settings.screenFps * 0.07;
+  // A 60 fps a tela vai em H.264, que precisa de mais bits que o AV1 para a
+  // mesma nitidez — e é em movimento que falta: 1080p60 sobe de 8,7 para 12,4 Mbps.
+  const bitsPerPixel = settings.screenFps >= 50 ? 0.1 : 0.07;
+  const raw = pixels * settings.screenFps * bitsPerPixel;
   return Math.round(Math.min(40_000_000, Math.max(2_500_000, raw)));
 }
 

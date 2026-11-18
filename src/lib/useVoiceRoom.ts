@@ -162,6 +162,63 @@ function tuneVideoSdp(sdp: string | undefined) {
   return out;
 }
 
+/**
+ * Piso de bitrate da tela, na descrição que chega do outro lado — é dela que o
+ * Chrome lê os `x-google-*` de quem envia (medido: o mesmo piso só na descrição
+ * local não muda nada). Sem piso, o controle de banda parte baixo e sobe aos
+ * poucos; a 60 fps, cada movimento na tela pegava o codificador sem bits e ele
+ * caía para 720p em blocos. Com 35% do teto (até 4 Mbps) a imagem fica em
+ * 1080p mesmo no começo e nos picos de movimento. Só a faixa da tela recebe o
+ * piso: câmera e voz continuam com o controle de banda livre.
+ */
+function tuneRemoteScreenSdp(
+  pc: RTCPeerConnection,
+  sdp: string | undefined,
+  screenTrack: MediaStreamTrack | undefined,
+  maxBitrate: number | undefined,
+) {
+  if (!sdp || !screenTrack || !maxBitrate) return sdp;
+  const mid = pc.getTransceivers().find((t) => t.sender.track === screenTrack)?.mid;
+  if (mid == null) return sdp;
+  const targetKbps = Math.round(maxBitrate / 1000);
+  const floorKbps = Math.min(4000, Math.round(targetKbps * 0.35));
+  const startKbps = Math.min(targetKbps, 8000);
+  const extra: Record<string, string> = {
+    "x-google-min-bitrate": String(floorKbps),
+    "x-google-start-bitrate": String(startKbps),
+  };
+
+  const sections = sdp.split(/(?=\r?\nm=)/);
+  return sections
+    .map((section) => {
+      if (!section.includes("m=video") || !new RegExp(`a=mid:${mid}(\r?\n|$)`).test(section)) {
+        return section;
+      }
+      let out = section;
+      for (const match of section.matchAll(/a=rtpmap:(\d+) (?:VP8|VP9|H264|AV1)\/90000/gi)) {
+        const payload = match[1];
+        if (!payload) continue;
+        const fmtp = new RegExp(`a=fmtp:${payload} ([^\r\n]*)`);
+        const existing = fmtp.exec(out);
+        const params = Object.entries(extra).map(([key, value]) => `${key}=${value}`);
+        if (existing) {
+          const kept = (existing[1] ?? "")
+            .split(";")
+            .map((part) => part.trim())
+            .filter((part) => part.length > 0 && !((part.split("=")[0] ?? "") in extra));
+          out = out.replace(fmtp, `a=fmtp:${payload} ${[...kept, ...params].join(";")}`);
+        } else {
+          out = out.replace(
+            new RegExp(`(a=rtpmap:${payload} [^\r\n]*)`),
+            `$1\r\na=fmtp:${payload} ${params.join(";")}`,
+          );
+        }
+      }
+      return out;
+    })
+    .join("");
+}
+
 /** Gera a descrição local (oferta ou resposta) já com o Opus e o vídeo ajustados. */
 async function setLocalDescriptionForVoice(pc: RTCPeerConnection, settings: MediaSettings) {
   const description =
@@ -213,6 +270,7 @@ function tuneSender(pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: 
  *   AV1 entregou só 2% dos quadros borrados, contra 17% do H.264 em hardware —
  *   que despencava para blocos a cada troca, descartava quadros e congelava
  *   cinco vezes mais tempo. O VP9 também lida bem com tela e fica de reserva.
+ * - Tela a 60 fps: H.264 primeiro (ver abaixo), depois AV1 e VP9.
  * - Câmera: H.264 primeiro, porque quase toda máquina codifica em hardware e
  *   rosto em movimento é exatamente o que ele faz bem.
  *
@@ -234,9 +292,22 @@ function preferVideoCodecs(
     // Perfil High (64) comprime melhor; o Baseline (42) é o que todo mundo lê.
     return fmtp.includes("profile-level-id=64") ? 0 : 1;
   };
+  const highFps = Math.round(track.getSettings().frameRate ?? 0) >= 50;
   const rank = (codec: RTCRtpCodec) => {
     const mime = codec.mimeType.toLowerCase();
     const fmtp = codec.sdpFmtpLine ?? "";
+    if (options.screen && highFps) {
+      // A 60 fps é o caminho do Discord: H.264 no codificador de hardware. O
+      // AV1 em software levava 12–20 ms por quadro em 1080p — não cabe em
+      // 16 ms, e ainda é uma cópia por pessoa da sala —, ficava a 42–48 fps,
+      // com o quantizador no teto e caía para 720p. O H.264 segurou 1080p a
+      // 57–59 fps com quantização média de 29 (de 51), no mesmo teste.
+      if (mime === "video/h264") return h264(fmtp);
+      if (mime === "video/av1") return 3;
+      if (mime === "video/vp9") return 4;
+      if (mime === "video/vp8") return 5;
+      return 8;
+    }
     if (options.screen) {
       if (mime === "video/av1") return options.avoidAv1 ? 3 : 0;
       if (mime === "video/vp9") return 1;
@@ -386,6 +457,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const syncingMicRef = useRef(false);
   const lastMicSyncRef = useRef("");
   const sharingScreenRef = useRef(false);
+  /** Resolução@fps que a transmissão no ar já usa, para só retocar no que mudou. */
+  const screenTuningRef = useRef("");
   /** Primeira sincronia da presença já passou: só depois dela o som de chegada vale. */
   const syncedRef = useRef(false);
   // Quem está compartilhando tela agora, para a interface destacar a transmissão.
@@ -1033,7 +1106,17 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
             const ignore = !polite && offerCollision;
             ignoreOfferRef.current.set(peerId, ignore);
             if (ignore) return;
-            await pc.setRemoteDescription(new RTCSessionDescription(data.description));
+            const remoteSdp = tuneRemoteScreenSdp(
+              pc,
+              data.description.sdp,
+              extraTrackRef.current.get("screen"),
+              extraBitrateRef.current.get("screen"),
+            );
+            await pc.setRemoteDescription(
+              new RTCSessionDescription(
+                remoteSdp ? { ...data.description, sdp: remoteSdp } : data.description,
+              ),
+            );
             if (data.description.type === "offer") {
               await setLocalDescriptionForVoice(pc, mediaSettingsRef.current);
               if (pc.localDescription) {
@@ -1346,16 +1429,28 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   useEffect(() => {
     const track = extraTrackRef.current.get("screen");
     if (!sharingScreen || !track) return;
+    // Logo depois de começar a transmissão não há nada novo para aplicar.
+    const key = `${mediaSettings.screenResolution}@${mediaSettings.screenFps}`;
+    if (screenTuningRef.current === key) return;
+    screenTuningRef.current = key;
     const video = displayConstraints(mediaSettings).video;
-    if (typeof video === "object") {
-      void track.applyConstraints(video).catch(() => {
-        /* a origem da captura manda; vale na próxima transmissão */
-      });
-    }
     track.contentHint = screenHint(mediaSettings);
     const bitrate = screenBitrate(mediaSettings);
     extraBitrateRef.current.set("screen", bitrate);
-    pcsRef.current.forEach((pc) => tuneSender(pc, track, bitrate));
+    void (async () => {
+      if (typeof video === "object") {
+        await track.applyConstraints(video).catch(() => {
+          /* a origem da captura manda; vale na próxima transmissão */
+        });
+      }
+      pcsRef.current.forEach((pc) => {
+        // Passar de 30 para 60 fps (ou voltar) troca o codec da tela; o piso de
+        // bitrate novo também só vale depois de renegociar.
+        preferVideoCodecs(pc, track, { screen: true, avoidAv1: av1FallbackRef.current.has(pc) });
+        tuneSender(pc, track, bitrate);
+      });
+      void renegotiate();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharingScreen, mediaSettings.screenResolution, mediaSettings.screenFps]);
 
@@ -1688,6 +1783,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
           audioTrack.onended = () => removeExtraTrack("screen-audio");
           await addExtraTrack("screen-audio", audioTrack, SCREEN_AUDIO_BITRATE);
         }
+        screenTuningRef.current = `${preferences.screenResolution}@${preferences.screenFps}`;
         await addExtraTrack("screen", track, screenBitrate(preferences));
         setScreenStream(display);
         setSharingScreen(true);
