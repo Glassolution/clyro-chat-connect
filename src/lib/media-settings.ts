@@ -163,6 +163,9 @@ export function displayConstraints(
     selfBrowserSurface: "exclude",
     surfaceSwitching: "include",
     systemAudio: withAudio ? "include" : "exclude",
+    // Janela leva só o som daquele programa, não o do computador: o jogo ou o
+    // vídeo vão, e o Discord e outras chamadas abertas ficam de fora.
+    windowAudio: withAudio ? "window" : "exclude",
     monitorTypeSurfaces: "include",
   };
   return request as DisplayMediaStreamOptions;
@@ -181,8 +184,24 @@ type ChromiumDisplayOptions = Omit<DisplayMediaStreamOptions, "audio"> & {
   selfBrowserSurface?: "include" | "exclude";
   surfaceSwitching?: "include" | "exclude";
   systemAudio?: "include" | "exclude";
+  windowAudio?: "exclude" | "window" | "system";
   monitorTypeSurfaces?: "include" | "exclude";
 };
+
+/**
+ * Som de uma janela só (o `windowAudio`) chegou no Chrome 141. Não há como
+ * perguntar ao navegador se ele entende a opção, então vai pela versão; nos
+ * outros, janela continua sem som.
+ */
+export function canShareWindowAudio() {
+  if (typeof navigator === "undefined") return false;
+  const brands = (
+    navigator as Navigator & { userAgentData?: { brands?: { brand: string; version: string }[] } }
+  ).userAgentData?.brands;
+  const chromium = brands?.find((b) => b.brand === "Chromium")?.version;
+  const version = Number(chromium ?? /Chrom(?:e|ium)\/(\d+)/.exec(navigator.userAgent)?.[1] ?? 0);
+  return version >= 141;
+}
 
 /** O navegador consegue compartilhar a tela? No celular, quase nunca. */
 export function canShareScreen() {

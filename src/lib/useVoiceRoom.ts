@@ -1918,12 +1918,13 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         track.onended = stopSharing;
         let audioTrack = display.getAudioTracks()[0];
         /*
-         * O som do sistema traz junto o que o Clyro toca, ou seja, a voz de todo
-         * mundo, que volta para a sala como eco. O `restrictOwnAudio` pede para
-         * o navegador tirar isso; se ele não confirmar, o som do sistema fica de
-         * fora. Uma aba nunca é a do Clyro (ela sai da lista), então pode seguir.
+         * A tela inteira leva o som do computador todo, inclusive o que o Clyro
+         * toca — a voz de todo mundo, que voltaria para a sala como eco. O
+         * `restrictOwnAudio` pede para o navegador tirar isso; se ele não
+         * confirmar, o som fica de fora. Aba e janela levam só o som delas: a
+         * aba do Clyro sai da lista, e numa janela do navegador o pedido vale.
          */
-        if (audioTrack && track.getSettings().displaySurface !== "browser") {
+        if (audioTrack && track.getSettings().displaySurface === "monitor") {
           const own = audioTrack.getSettings() as MediaTrackSettings & {
             restrictOwnAudio?: boolean;
           };

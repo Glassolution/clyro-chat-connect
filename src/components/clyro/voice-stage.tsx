@@ -50,6 +50,7 @@ import {
 } from "@/lib/screen-volume";
 import {
   canShareScreen,
+  canShareWindowAudio,
   setMediaSetting,
   useMediaSettings,
   SCREEN_FPS,
@@ -1390,7 +1391,9 @@ function ScreenVolumeMenu({
           <div className="px-2.5 pb-3 pt-2">
             <div className="flex items-baseline justify-between gap-3">
               <p className="min-w-0 truncate text-[13px] font-medium">Volume da transmissão</p>
-              <span className="shrink-0 text-[12.5px] tabular-nums text-muted-foreground">{volume}%</span>
+              <span className="shrink-0 text-[12.5px] tabular-nums text-muted-foreground">
+                {volume}%
+              </span>
             </div>
             <p className="mt-0.5 truncate text-[12px] text-ink-faint">Som da tela de {name}</p>
             {/* As setas mexem no volume, não navegam pelo menu. */}
@@ -1837,8 +1840,9 @@ function ShareSheet({
   const preset = SHARE_PRESETS.find(
     (item) => item.resolution === settings.screenResolution && item.fps === settings.screenFps,
   );
-  // Janela não leva som em nenhum navegador; aba leva, tela inteira depende do sistema.
-  const audioBlocked = surface === "window";
+  // Aba leva o som dela; janela, só o do programa (Chrome 141+); tela inteira
+  // leva o do computador todo, onde o sistema permite.
+  const audioBlocked = surface === "window" && !canShareWindowAudio();
   const choice = SHARE_SURFACES.find((item) => item.id === surface) ?? SHARE_SURFACES[0];
 
   const share = () => {
@@ -1966,10 +1970,12 @@ function ShareSheet({
                 </span>
                 <span className="block text-[12px] text-ink-faint">
                   {audioBlocked
-                    ? "Janela não leva som. Escolha uma aba para o time ouvir."
+                    ? "Este navegador não leva som de janela. Escolha uma aba para o time ouvir."
                     : surface === "browser"
                       ? "O que tocar na aba chega para todo mundo."
-                      : "O som do computador, onde o sistema permitir."}
+                      : surface === "window"
+                        ? "Só o som desse programa. Discord e outras chamadas ficam de fora."
+                        : "Todo o som do computador, até o Discord. Para levar só o jogo ou o vídeo, escolha a janela."}
                 </span>
               </span>
               <Switch
