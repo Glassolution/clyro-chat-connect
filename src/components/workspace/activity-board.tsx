@@ -41,12 +41,12 @@ import { useLiveActivity } from "@/lib/voice-presence";
 type Tone = "rose" | "sky" | "mint" | "amber" | "peach" | "gray";
 
 const TONE: Record<Tone, string> = {
-  rose: "bg-[#fdecef] text-[#a3354f]",
-  sky: "bg-[#e8f2fd] text-[#2a5f96]",
-  mint: "bg-[#e5f6ec] text-[#2b7049]",
-  amber: "bg-[#fff1df] text-[#8f5200]",
+  rose: "bg-[#fdecef] text-[#a3354f] dark:bg-[#3a1a22] dark:text-[#f5a8b8]",
+  sky: "bg-sky-tint text-[#2a5f96] dark:text-[#9ccaf5]",
+  mint: "bg-[#e5f6ec] text-success-ink dark:bg-[#12291c]",
+  amber: "bg-[#fff1df] text-[#8f5200] dark:bg-[#33240f] dark:text-[#f7c47a]",
   peach: "bg-brand-soft text-brand-ink",
-  gray: "bg-[#f2f2f2] text-muted-foreground",
+  gray: "bg-secondary text-muted-foreground",
 };
 
 /** O selo no canto do avatar: a cor diz o tipo, o ícone o que aconteceu. */
@@ -132,7 +132,7 @@ export function ActivityFeed(props: FeedProps) {
       {live.map(({ channel, userIds }) => (
         <article
           key={channel.id}
-          className="rounded-[20px] border border-[#ffd9c2] bg-[linear-gradient(180deg,#fff7f1,#ffffff_70%)] p-4"
+          className="rounded-[20px] border border-brand/25 bg-[linear-gradient(180deg,var(--brand-soft),var(--card)_70%)] p-4"
         >
           <div className="flex flex-wrap items-center gap-4">
             <AvatarStack ids={userIds} profiles={profiles} max={4} size={34} />
@@ -171,7 +171,7 @@ export function ActivityFeed(props: FeedProps) {
       ))}
 
       {list.length === 0 && live.length === 0 ? (
-        <div className="flex flex-col items-center rounded-[20px] border border-black/[0.07] px-6 py-10 text-center">
+        <div className="flex flex-col items-center rounded-[20px] border border-foreground/[0.07] px-6 py-10 text-center">
           <Mascot pose="neutro" size={64} float />
           <p className="mt-3 text-[14px] font-medium">
             {filter === "all" ? "Nada aconteceu por aqui ainda" : "Nada deste tipo por enquanto"}
@@ -201,7 +201,7 @@ export function ActivityFeed(props: FeedProps) {
         <button
           type="button"
           onClick={() => setLimit((n) => n + PAGE)}
-          className="mx-auto mt-1 inline-flex h-9 items-center rounded-full border border-black/[0.09] px-5 text-[13.5px] font-medium transition-[border-color,transform] duration-200 ease-clyro hover:border-black/20 active:scale-[0.98]"
+          className="mx-auto mt-1 inline-flex h-9 items-center rounded-full border border-foreground/[0.09] px-5 text-[13.5px] font-medium transition-[border-color,transform] duration-200 ease-clyro hover:border-foreground/20 active:scale-[0.98]"
         >
           Ver mais atividade
         </button>
@@ -225,13 +225,13 @@ function Tag({ tone, children }: { tone: Tone; children: React.ReactNode }) {
 
 function HiddenStrip({ onUndo }: { onUndo: () => void }) {
   return (
-    <div className="flex h-12 items-center gap-2.5 rounded-[18px] bg-[#f2f2f2] px-4 text-[13.5px] text-muted-foreground clyro-fade-in">
+    <div className="flex h-12 items-center gap-2.5 rounded-[18px] bg-secondary px-4 text-[13.5px] text-muted-foreground clyro-fade-in">
       <EyeSlash size={17} color="currentColor" className="shrink-0" />
       <span className="min-w-0 flex-1 truncate">Você ocultou esta atividade</span>
       <button
         type="button"
         onClick={onUndo}
-        className="h-8 shrink-0 rounded-full px-3 text-[13px] font-medium text-foreground transition-colors hover:bg-black/[0.05]"
+        className="h-8 shrink-0 rounded-full px-3 text-[13px] font-medium text-foreground transition-colors hover:bg-foreground/[0.05]"
       >
         Desfazer
       </button>
@@ -455,7 +455,7 @@ function FeedCard({
   const regionId = `feed-${event.key}`;
 
   return (
-    <article className="rounded-[20px] border border-black/[0.07] bg-card p-4 shadow-[0_1px_0_rgb(0_0_0/0.03)]">
+    <article className="rounded-[20px] border border-foreground/[0.07] bg-card p-4 shadow-[0_1px_0_rgb(0_0_0/0.03)]">
       <div className="flex items-start gap-3">
         <button
           type="button"
@@ -485,7 +485,7 @@ function FeedCard({
             onClick={onHide}
             aria-label="Ocultar esta atividade"
             title="Ocultar"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[#a3a3a3] transition-[background-color,color,transform] duration-200 ease-clyro hover:bg-secondary hover:text-foreground active:scale-90"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-ink-ghost transition-[background-color,color,transform] duration-200 ease-clyro hover:bg-secondary hover:text-foreground active:scale-90"
           >
             <EyeSlash size={17} color="currentColor" />
           </button>
@@ -506,13 +506,13 @@ function FeedCard({
           </Tag>
         ))}
         {extra > 0 && (
-          <span className="inline-flex h-6 items-center rounded-full border border-black/[0.08] px-2.5 text-[12.5px] text-muted-foreground">
+          <span className="inline-flex h-6 items-center rounded-full border border-foreground/[0.08] px-2.5 text-[12.5px] text-muted-foreground">
             +{extra}
           </span>
         )}
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-[14px] bg-[#f5f5f5]">
+      <div className="mt-3 overflow-hidden rounded-[14px] bg-secondary">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -586,7 +586,7 @@ function FeedCard({
                   <button
                     type="button"
                     onClick={() => onOpenProfile(event.actor as string)}
-                    className="inline-flex h-8 items-center rounded-full border border-black/[0.1] bg-card px-4 text-[13px] font-medium transition-[border-color,transform] duration-200 ease-clyro hover:border-black/25 active:scale-[0.98]"
+                    className="inline-flex h-8 items-center rounded-full border border-foreground/[0.1] bg-card px-4 text-[13px] font-medium transition-[border-color,transform] duration-200 ease-clyro hover:border-foreground/25 active:scale-[0.98]"
                   >
                     Ver perfil
                   </button>
@@ -702,7 +702,9 @@ function Card({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-[18px] border border-black/[0.07] bg-card p-4", className)}>
+    <section
+      className={cn("rounded-[18px] border border-foreground/[0.07] bg-card p-4", className)}
+    >
       <header className="mb-3 flex min-h-8 items-center gap-2">
         <h3 className="text-[14px] font-medium tracking-[-0.01em]">{title}</h3>
         {!!count && <span className="text-[13px] tabular-nums text-muted-foreground">{count}</span>}
@@ -718,7 +720,7 @@ const ghostAction =
 
 function SetupNotice() {
   return (
-    <section className="flex items-start gap-3 rounded-[18px] bg-[#f5f5f5] p-4">
+    <section className="flex items-start gap-3 rounded-[18px] bg-secondary p-4">
       <Mascot pose="chuva" size={36} className="shrink-0" />
       <div>
         <p className="text-[13.5px] font-medium">Tasks e agenda ainda não foram ativadas</p>
@@ -742,7 +744,7 @@ function TaskCheck({ task, onToggle }: { task: Task; onToggle: () => void }) {
         "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-[background-color,border-color] duration-200 ease-clyro",
         done
           ? "border-brand bg-brand text-white"
-          : "border-black/25 hover:border-brand hover:bg-brand-soft",
+          : "border-foreground/25 hover:border-brand hover:bg-brand-soft",
       )}
     >
       {done && <Check size={12} />}
@@ -755,7 +757,8 @@ function StatusPill({ status }: { status: TaskStatus }) {
     <span
       className={cn(
         "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
-        status === "done" && "bg-[oklch(0.95_0.05_155)] text-[oklch(0.45_0.13_155)]",
+        status === "done" &&
+          "bg-[oklch(0.95_0.05_155)] text-[oklch(0.45_0.13_155)] dark:bg-[oklch(0.28_0.05_155)] dark:text-[oklch(0.82_0.13_155)]",
         status === "doing" && "bg-brand-soft text-brand-strong",
         status === "todo" && "bg-secondary text-muted-foreground",
       )}
@@ -1126,7 +1129,7 @@ function Agenda({
     >
       {open && (
         <form
-          className="mb-4 grid grid-cols-2 gap-2 rounded-[16px] border border-black/[0.07] p-3"
+          className="mb-4 grid grid-cols-2 gap-2 rounded-[16px] border border-foreground/[0.07] p-3"
           onSubmit={(e) => {
             e.preventDefault();
             submit();
@@ -1340,7 +1343,7 @@ function ForYouCard({
     );
 
   return (
-    <section className="rounded-[18px] border border-black/[0.07] bg-card p-4">
+    <section className="rounded-[18px] border border-foreground/[0.07] bg-card p-4">
       <h2 className="text-[14px] font-medium tracking-[-0.01em]">Para você</h2>
       {items.length === 0 ? (
         <div className="mt-3 flex items-center gap-3">
@@ -1360,7 +1363,7 @@ function ForYouCard({
                   "w-full rounded-[16px] px-3.5 py-3 text-left transition-colors",
                   it.tone === "brand"
                     ? "bg-brand-soft hover:bg-[color-mix(in_oklab,var(--brand-soft),var(--brand)_8%)]"
-                    : "bg-[#f5f5f5] hover:bg-[#efefef]",
+                    : "bg-secondary hover:bg-secondary-hover",
                 )}
               >
                 <span className="block text-[14px] font-medium">{it.title}</span>

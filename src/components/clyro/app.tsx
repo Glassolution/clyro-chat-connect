@@ -603,12 +603,12 @@ export function ClyroApp() {
       <VoicePresenceProvider value={voiceStates}>
         {/* Fundo cinza e uma moldura branca de canto largo; no celular a moldura
           ocupa a tela toda. */}
-        <div className="flex h-dvh w-full overflow-hidden bg-[#f5f5f5] text-foreground lg:p-3">
+        <div className="flex h-dvh w-full overflow-hidden bg-app-bg text-foreground lg:p-3">
           {/* O áudio dos participantes fica fora de qualquer tela: a call continua
             tocando ao navegar entre painel, equipe e salas. */}
           {voice && <VoiceAudio peers={rtc.peers} deafened={rtc.deafened} />}
 
-          <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-card lg:rounded-[28px] lg:shadow-[0_0_0_1px_rgb(0_0_0/0.04),0_1px_3px_rgb(0_0_0/0.04)]">
+          <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-card lg:rounded-[28px] lg:shadow-[0_0_0_1px_rgb(var(--line)/0.04),0_1px_3px_rgb(0_0_0/0.04)]">
             <TopNav
               section={section}
               badges={badges}
@@ -783,11 +783,11 @@ export function ClyroApp() {
                             }}
                             footer={
                               voiceDock ? (
-                                <div className="border-t border-black/[0.06]">{userBar}</div>
+                                <div className="border-t border-foreground/[0.06]">{userBar}</div>
                               ) : null
                             }
                             className={cn(
-                              "w-full md:w-[300px] md:shrink-0 md:border-r md:border-black/[0.07] xl:w-[320px]",
+                              "w-full md:w-[300px] md:shrink-0 md:border-r md:border-foreground/[0.07] xl:w-[320px]",
                               (activeConversation || friendsPane) && "hidden md:flex",
                             )}
                           />
@@ -800,7 +800,7 @@ export function ClyroApp() {
                           >
                             {!activeConversation && (
                               <>
-                                <div className="flex h-12 shrink-0 items-center border-b border-black/[0.06] px-2 md:hidden">
+                                <div className="flex h-12 shrink-0 items-center border-b border-foreground/[0.06] px-2 md:hidden">
                                   <button
                                     type="button"
                                     onClick={() => setFriendsPane(false)}
@@ -820,7 +820,7 @@ export function ClyroApp() {
                             {/* Numa call da conversa o palco divide a tela com o chat. */}
                             {activeConversation &&
                               voice?.conversationId === activeConversation.id && (
-                                <div className="flex h-[45%] shrink-0 flex-col border-b border-black/[0.06]">
+                                <div className="flex h-[45%] shrink-0 flex-col border-b border-foreground/[0.06]">
                                   <VoiceStage
                                     title={voice.label}
                                     rtc={rtc}
@@ -872,7 +872,7 @@ export function ClyroApp() {
                             <button
                               type="button"
                               onClick={() => setRoomsGrid(true)}
-                              className="-ml-2 flex h-8 items-center gap-1 rounded-full px-2 text-[13.5px] font-medium text-[#525252] transition-colors hover:bg-secondary hover:text-foreground"
+                              className="-ml-2 flex h-8 items-center gap-1 rounded-full px-2 text-[13.5px] font-medium text-ink-2 transition-colors hover:bg-secondary hover:text-foreground"
                             >
                               <ArrowLeft2 size={15} color="currentColor" /> Todas as salas
                             </button>

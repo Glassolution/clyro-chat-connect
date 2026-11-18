@@ -150,7 +150,7 @@ function SidebarRail(props: SidebarProps & { onToggleCollapsed: () => void }) {
               {/* A seção aberta fica laranja e cheia; as outras ficam laranja ao passar o mouse. */}
               <Icon size={22} color="currentColor" variant={on ? "Bold" : "Linear"} />
               {!!badge && (
-                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-[6px] bg-foreground px-1 text-[10.5px] font-semibold tabular-nums text-white ring-2 ring-card">
+                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-[6px] bg-foreground px-1 text-[10.5px] font-semibold tabular-nums text-background ring-2 ring-card">
                   {badge > 9 ? "9+" : badge}
                 </span>
               )}
@@ -174,7 +174,7 @@ function SidebarRail(props: SidebarProps & { onToggleCollapsed: () => void }) {
               "rounded-full transition-[box-shadow,transform]",
               profileActive
                 ? "shadow-[0_0_0_1.5px_var(--brand)]"
-                : "shadow-[0_0_0_1px_rgb(0_0_0/0.08)] hover:shadow-[0_0_0_1.5px_var(--brand)]",
+                : "shadow-[0_0_0_1px_rgb(var(--line)/0.08)] hover:shadow-[0_0_0_1.5px_var(--brand)]",
             )}
           >
             <span
@@ -208,13 +208,13 @@ function ExpandedSidebar(props: SidebarProps) {
                 type="button"
                 onClick={() => onSection(s.id)}
                 aria-current="page"
-                className="flex h-7 w-full items-center gap-2.5 rounded-[8px] text-left text-[14px] font-medium tracking-[-0.01em] text-[#c2410c] outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                className="flex h-7 w-full items-center gap-2.5 rounded-[8px] text-left text-[14px] font-medium tracking-[-0.01em] text-brand-text outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 <Icon size={18} color="var(--brand)" variant="Bold" className="shrink-0" />
                 <span className="min-w-0 flex-1 truncate">{s.label}</span>
                 {!!badge && <Badge n={badge} />}
               </button>
-              <p className="mt-0.5 text-pretty text-[12.5px] leading-[1.45] text-[#6b6b6b] [&_b]:font-medium [&_b]:text-[#c2410c]">
+              <p className="mt-0.5 text-pretty text-[12.5px] leading-[1.45] text-muted-foreground [&_b]:font-medium [&_b]:text-brand-text">
                 <SectionStatus {...props} section={s.id} />
               </p>
             </div>
@@ -223,13 +223,13 @@ function ExpandedSidebar(props: SidebarProps) {
               key={s.id}
               type="button"
               onClick={() => onSection(s.id)}
-              className="group flex h-9 items-center gap-2.5 rounded-[14px] px-3 text-left text-[14px] tracking-[-0.01em] text-[#737373] outline-none transition-colors duration-200 ease-clyro hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand"
+              className="group flex h-9 items-center gap-2.5 rounded-[14px] px-3 text-left text-[14px] tracking-[-0.01em] text-muted-foreground outline-none transition-colors duration-200 ease-clyro hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand"
             >
               <Icon
                 size={18}
                 color="currentColor"
                 variant="Bulk"
-                className="shrink-0 text-[#a3a3a3] transition-colors duration-200 group-hover:text-foreground"
+                className="shrink-0 text-ink-ghost transition-colors duration-200 group-hover:text-foreground"
               />
               <span className="min-w-0 flex-1 truncate">{s.label}</span>
               {!!badge && <Badge n={badge} />}
@@ -399,7 +399,7 @@ export function WorkspaceIcon({
         workspace.icon_url
           ? muted && "opacity-60 grayscale group-hover:opacity-100 group-hover:grayscale-0"
           : muted
-            ? "bg-[#a8a8a8] text-white group-hover:bg-foreground"
+            ? "bg-ink-ghost text-card group-hover:bg-foreground"
             : "text-foreground shadow-[inset_0_0_0_1.75px_currentColor]",
       )}
       style={{ width: size, height: size }}
@@ -590,9 +590,9 @@ function InviteCard({
       {/* Um segundo cartão aparece atrás, como uma pilha. */}
       <div
         aria-hidden="true"
-        className="absolute inset-x-3 top-0 h-6 rounded-t-[14px] border border-black/[0.07] bg-card"
+        className="absolute inset-x-3 top-0 h-6 rounded-t-[14px] border border-foreground/[0.07] bg-card"
       />
-      <section className="group/card relative overflow-hidden rounded-[16px] border border-black/[0.08] bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_6px_14px_-10px_rgb(0_0_0/0.14)]">
+      <section className="group/card relative overflow-hidden rounded-[16px] border border-foreground/[0.08] bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_6px_14px_-10px_rgb(0_0_0/0.14)]">
         <button
           type="button"
           onClick={() => (canManage ? onInvite() : void copy())}
@@ -603,7 +603,7 @@ function InviteCard({
             <span className="block text-[13.5px] font-medium tracking-[-0.01em] text-foreground">
               Convide seu time
             </span>
-            <span className="mt-1 block text-[12.5px] leading-[1.45] text-[#737373]">
+            <span className="mt-1 block text-[12.5px] leading-[1.45] text-muted-foreground">
               {canManage
                 ? `Chame quem vai construir com você. Quem entra cai direto em ${workspace.name}.`
                 : copied
@@ -616,7 +616,7 @@ function InviteCard({
           type="button"
           onClick={dismiss}
           aria-label="Fechar convite"
-          className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full text-[#9a9a9a] transition-[color,background-color,transform] duration-200 ease-clyro hover:bg-black/[0.04] hover:text-foreground active:scale-90"
+          className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-[color,background-color,transform] duration-200 ease-clyro hover:bg-foreground/[0.04] hover:text-foreground active:scale-90"
         >
           <X size={15} />
         </button>
@@ -633,9 +633,9 @@ function TileGrid() {
   return (
     <span
       aria-hidden="true"
-      className="relative block h-[104px] overflow-hidden border-b border-black/[0.06] bg-[#fafafa] [background-image:linear-gradient(rgb(0_0_0/0.05)_1px,transparent_1px),linear-gradient(90deg,rgb(0_0_0/0.05)_1px,transparent_1px)] [background-position:-1px_-1px] [background-size:25%_52px]"
+      className="relative block h-[104px] overflow-hidden border-b border-foreground/[0.06] bg-surface-1 [background-image:linear-gradient(rgb(var(--line)/0.05)_1px,transparent_1px),linear-gradient(90deg,rgb(var(--line)/0.05)_1px,transparent_1px)] [background-position:-1px_-1px] [background-size:25%_52px]"
     >
-      <span className="absolute left-1/4 top-[52px] h-[52px] w-1/2 [background-image:repeating-linear-gradient(135deg,rgb(0_0_0/0.06)_0_1px,transparent_1px_6px)]" />
+      <span className="absolute left-1/4 top-[52px] h-[52px] w-1/2 [background-image:repeating-linear-gradient(135deg,rgb(var(--line)/0.06)_0_1px,transparent_1px_6px)]" />
       <Tile className="left-[calc(25%-2px)] top-[-14px]">
         <Mascot pose="estrela" size={30} />
       </Tile>
@@ -653,7 +653,7 @@ function Tile({ className, children }: { className: string; children: React.Reac
   return (
     <span
       className={cn(
-        "absolute flex h-11 w-11 items-center justify-center rounded-[12px] border border-black/[0.06] bg-white shadow-[0_1px_2px_rgb(0_0_0/0.05),0_6px_12px_-6px_rgb(0_0_0/0.16)] transition-transform duration-300 ease-clyro group-hover/card:-translate-y-0.5",
+        "absolute flex h-11 w-11 items-center justify-center rounded-[12px] border border-foreground/[0.06] bg-card shadow-[0_1px_2px_rgb(0_0_0/0.05),0_6px_12px_-6px_rgb(0_0_0/0.16)] transition-transform duration-300 ease-clyro group-hover/card:-translate-y-0.5",
         className,
       )}
     >

@@ -146,7 +146,7 @@ export function MemberCard({
 
       <div className="mt-4">
         <div
-          className="h-1.5 overflow-hidden rounded-full bg-black/[0.06]"
+          className="h-1.5 overflow-hidden rounded-full bg-foreground/[0.06]"
           role="progressbar"
           aria-label="Tasks feitas"
           aria-valuemin={0}
@@ -172,7 +172,7 @@ export function MemberCard({
         </p>
       </div>
 
-      <div className="mt-3 flex min-w-0 items-center gap-2 rounded-[12px] bg-[#f4f5f7] px-3 py-2 text-[13px]">
+      <div className="mt-3 flex min-w-0 items-center gap-2 rounded-[12px] bg-secondary px-3 py-2 text-[13px]">
         <StatusDot status={profile?.status} className="h-2 w-2 ring-0" />
         <span className={cn("truncate", now ? "text-foreground" : "text-muted-foreground")}>
           {now ?? PRESENCE_LABEL[presence]}
@@ -501,10 +501,10 @@ function FilterChip<T extends string>({
         <button
           type="button"
           className={cn(
-            "inline-flex h-10 items-center gap-1.5 rounded-full border px-4 text-[13.5px] font-medium outline-none transition-[background-color,border-color,color,transform] duration-150 ease-clyro focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.97] data-[state=open]:border-black/20",
+            "inline-flex h-10 items-center gap-1.5 rounded-full border px-4 text-[13.5px] font-medium outline-none transition-[background-color,border-color,color,transform] duration-150 ease-clyro focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.97] data-[state=open]:border-foreground/20",
             current
               ? "border-foreground bg-foreground text-background"
-              : "border-black/[0.08] bg-white text-foreground hover:border-black/15",
+              : "border-foreground/[0.08] bg-card text-foreground hover:border-foreground/15",
           )}
         >
           {current?.dot && (
@@ -815,14 +815,14 @@ export function TeamManager({
               placeholder="Buscar pessoa"
               aria-label="Buscar pessoa"
               onChange={(e) => setQuery(e.target.value)}
-              className="h-10 rounded-full border-black/[0.08] bg-white pl-10 shadow-none"
+              className="h-10 rounded-full border-foreground/[0.08] bg-card pl-10 shadow-none"
             />
           </div>
           {canManage && (
             <>
               <Button
                 variant="outline"
-                className="h-10 shrink-0 rounded-full border-black/[0.08] bg-white px-4 shadow-none"
+                className="h-10 shrink-0 rounded-full border-foreground/[0.08] bg-card px-4 shadow-none"
                 onClick={onCreateTeam}
                 aria-label="Nova equipe"
               >
@@ -864,7 +864,7 @@ export function TeamManager({
               >
                 {g.title}
               </h2>
-              <span className="rounded-full bg-white px-2.5 py-0.5 text-[12.5px] font-medium tabular-nums text-muted-foreground shadow-[0_0_0_1px_rgb(0_0_0/0.06)]">
+              <span className="rounded-full bg-card px-2.5 py-0.5 text-[12.5px] font-medium tabular-nums text-muted-foreground shadow-[0_0_0_1px_rgb(var(--line)/0.06)]">
                 {g.people.length}
               </span>
               {g.team?.description && (
@@ -926,7 +926,7 @@ export function TeamManager({
                 ))}
               </div>
             ) : (
-              <div className="flex items-center gap-3 rounded-[22px] border border-dashed border-black/[0.1] px-5 py-6 text-[13.5px] text-muted-foreground">
+              <div className="flex items-center gap-3 rounded-[22px] border border-dashed border-foreground/[0.1] px-5 py-6 text-[13.5px] text-muted-foreground">
                 Ninguém nesta equipe ainda.
                 {canManage && g.team && (
                   <button
@@ -944,14 +944,14 @@ export function TeamManager({
       )}
 
       {!teams.length && canManage && (
-        <div className="flex flex-col gap-3 rounded-[22px] border border-dashed border-black/[0.1] px-5 py-5 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3 rounded-[22px] border border-dashed border-foreground/[0.1] px-5 py-5 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold">Separe o time em equipes</p>
             <p className="mt-0.5 text-[13px] text-muted-foreground">
               Produto, vendas, design: cada equipe vira um grupo nesta página.
             </p>
           </div>
-          <Button variant="outline" className="rounded-full bg-white" onClick={onCreateTeam}>
+          <Button variant="outline" className="rounded-full bg-card" onClick={onCreateTeam}>
             <Plus size={16} /> Criar equipe
           </Button>
         </div>
@@ -962,7 +962,7 @@ export function TeamManager({
           <h2 id="team-invites" className="text-[17px] font-semibold tracking-[-0.02em]">
             Convites pendentes
           </h2>
-          <span className="rounded-full bg-white px-2.5 py-0.5 text-[12.5px] font-medium tabular-nums text-muted-foreground shadow-[0_0_0_1px_rgb(0_0_0/0.06)]">
+          <span className="rounded-full bg-card px-2.5 py-0.5 text-[12.5px] font-medium tabular-nums text-muted-foreground shadow-[0_0_0_1px_rgb(var(--line)/0.06)]">
             {invites.length}
           </span>
         </div>

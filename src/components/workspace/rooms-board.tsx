@@ -212,11 +212,11 @@ export function RoomsBoard({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="group inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-black/[0.09] bg-card px-3 text-[14px] font-medium tracking-[-0.01em] shadow-[0_1px_2px_rgb(0_0_0/0.04),0_3px_8px_-6px_rgb(0_0_0/0.12)] outline-none transition-[border-color,transform] duration-200 ease-clyro hover:border-black/20 focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.98] data-[state=open]:border-black/20"
+                className="group inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-foreground/[0.09] bg-card px-3 text-[14px] font-medium tracking-[-0.01em] shadow-[0_1px_2px_rgb(0_0_0/0.04),0_3px_8px_-6px_rgb(0_0_0/0.12)] outline-none transition-[border-color,transform] duration-200 ease-clyro hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.98] data-[state=open]:border-foreground/20"
               >
                 <Hashtag size={16} color="var(--brand)" variant="Bold" className="shrink-0" />
                 <span className="truncate">{label}</span>
-                <span className="font-normal tabular-nums text-[#a3a3a3]">
+                <span className="font-normal tabular-nums text-ink-ghost">
                   {String(visible.length).padStart(2, "0")}
                 </span>
                 <ArrowDown2
@@ -263,7 +263,7 @@ export function RoomsBoard({
         </div>
 
         {rooms.missing && (
-          <p className="text-[12.5px] leading-[1.5] text-[#8a8a8a]">
+          <p className="text-[12.5px] leading-[1.5] text-ink-faint">
             Por enquanto toda sala é aberta. Trancar e pedir para entrar chegam com a migração{" "}
             <span className="font-mono text-[12px]">room_access</span>.
           </p>
@@ -296,7 +296,7 @@ export function RoomsBoard({
             ))}
           </div>
         ) : (
-          <section className="flex w-full flex-col items-start gap-2 rounded-[20px] border border-black/[0.08] p-5 sm:w-[360px]">
+          <section className="flex w-full flex-col items-start gap-2 rounded-[20px] border border-foreground/[0.08] p-5 sm:w-[360px]">
             <Mascot pose="estrela" size={52} />
             <p className="mt-1 text-[15px] font-semibold tracking-[-0.01em]">
               {filter === "all" ? "Nenhuma sala ainda" : "Nenhuma sala neste filtro"}
@@ -325,7 +325,7 @@ export function RoomsBoard({
                   key={c.id}
                   type="button"
                   onClick={() => onOpenText(c.id)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-black/[0.08] bg-card px-3.5 text-[13.5px] font-medium outline-none transition-[border-color,transform] duration-200 ease-clyro hover:border-black/20 focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.98]"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-foreground/[0.08] bg-card px-3.5 text-[13.5px] font-medium outline-none transition-[border-color,transform] duration-200 ease-clyro hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.98]"
                 >
                   <Hashtag size={15} color="currentColor" className="text-muted-foreground" />
                   {c.name}
@@ -466,7 +466,7 @@ function RoomCard({
     : "Ninguém na sala agora";
 
   return (
-    <article className="flex w-full min-w-0 flex-col rounded-[20px] border border-black/[0.08] bg-card px-5 pb-4 pt-5 shadow-[0_1px_2px_rgb(0_0_0/0.03)] sm:w-[360px]">
+    <article className="flex w-full min-w-0 flex-col rounded-[20px] border border-foreground/[0.08] bg-card px-5 pb-4 pt-5 shadow-[0_1px_2px_rgb(0_0_0/0.03)] sm:w-[360px]">
       <header className="flex items-start gap-2">
         <h3 className="min-w-0 flex-1 truncate text-[16px] font-semibold leading-snug tracking-[-0.02em]">
           {channel.name}
@@ -477,7 +477,7 @@ function RoomCard({
           aria-label={
             canManage ? `Acesso e convite de ${channel.name}` : `Compartilhar ${channel.name}`
           }
-          className="-mr-1.5 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#a3a3a3] outline-none transition-colors hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand"
+          className="-mr-1.5 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-ghost outline-none transition-colors hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand"
         >
           {canManage ? (
             <Setting4 size={16} color="currentColor" />
@@ -507,7 +507,7 @@ function RoomCard({
           <button
             type="button"
             onClick={onShare}
-            className="inline-flex h-[26px] items-center gap-1.5 rounded-full bg-brand-soft px-2.5 text-[12.5px] font-medium text-[#9a3a00] transition-colors hover:bg-[#ffe4d1]"
+            className="inline-flex h-[26px] items-center gap-1.5 rounded-full bg-brand-soft px-2.5 text-[12.5px] font-medium text-brand-ink transition-colors hover:bg-brand/15"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-brand" />
             {pending.length} {pending.length === 1 ? "pedido" : "pedidos"}
@@ -518,17 +518,14 @@ function RoomCard({
       <div className="mt-3 flex h-7 items-center gap-2.5">
         {faces.length > 0 && <AvatarStack ids={faces} profiles={profiles} max={3} size={26} />}
         <span
-          className={cn(
-            "min-w-0 truncate text-[13.5px]",
-            live ? "text-[#404040]" : "text-[#8a8a8a]",
-          )}
+          className={cn("min-w-0 truncate text-[13.5px]", live ? "text-ink-2" : "text-ink-faint")}
         >
           {attendance}
         </span>
       </div>
 
-      <p className="mt-4 flex items-center gap-1.5 text-[12.5px] font-medium text-[#8a8a8a]">
-        {live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#16a34a]" />}
+      <p className="mt-4 flex items-center gap-1.5 text-[12.5px] font-medium text-ink-faint">
+        {live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-online" />}
         {live ? "Ao vivo" : "Call da sala"}
       </p>
 
@@ -536,9 +533,9 @@ function RoomCard({
         type="button"
         onClick={door.act}
         title={door.icon === "clock" ? "Toque para cancelar o pedido" : undefined}
-        className="group mt-1.5 flex h-12 w-full max-w-[290px] items-center gap-2.5 rounded-full bg-[#1c1d22] pl-1.5 pr-4 text-left text-white outline-none transition-[background-color,transform] duration-200 ease-clyro hover:bg-[#26272e] focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:scale-[0.99]"
+        className="group mt-1.5 flex h-12 w-full max-w-[290px] items-center gap-2.5 rounded-full bg-primary pl-1.5 pr-4 text-left text-primary-foreground outline-none transition-[background-color,transform] duration-200 ease-clyro hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:scale-[0.99]"
       >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#1c1d22] transition-transform duration-200 ease-clyro group-hover:scale-105">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-foreground text-primary transition-transform duration-200 ease-clyro group-hover:scale-105">
           {door.icon === "play" ? (
             <Play size={16} variant="Bold" color="currentColor" className="translate-x-px" />
           ) : door.icon === "clock" ? (
@@ -556,7 +553,7 @@ function RoomCard({
               key={i}
               className={cn(
                 "w-[2px] shrink-0 rounded-full",
-                live ? "clyro-eq bg-white/55" : "bg-white/25",
+                live ? "clyro-eq bg-primary-foreground/55" : "bg-primary-foreground/25",
               )}
               style={{ height: Math.round(h * 0.75), ["--d" as string]: `${(i % 6) * 120}ms` }}
             />
@@ -567,13 +564,15 @@ function RoomCard({
             {elapsed(now - since)}
           </span>
         ) : null}
-        <span className="shrink-0 text-[12.5px] font-medium text-white/70">{door.label}</span>
+        <span className="shrink-0 text-[12.5px] font-medium text-primary-foreground/70">
+          {door.label}
+        </span>
       </button>
 
       <div
         role="tablist"
         aria-label={`Sobre ${channel.name}`}
-        className="mt-4 flex border-b border-black/[0.08]"
+        className="mt-4 flex border-b border-foreground/[0.08]"
       >
         <TabButton active={tab === "chat"} onClick={() => setTab("chat")}>
           <Message
@@ -596,16 +595,16 @@ function RoomCard({
       <div className="mt-3 text-[13.5px] leading-[1.55]">
         {tab === "chat" ? (
           !canEnter ? (
-            <p className="text-[#8a8a8a]">A conversa aparece para quem tem acesso.</p>
+            <p className="text-ink-faint">A conversa aparece para quem tem acesso.</p>
           ) : messages.length === 0 ? (
-            <p className="text-[#8a8a8a]">Ninguém escreveu aqui ainda.</p>
+            <p className="text-ink-faint">Ninguém escreveu aqui ainda.</p>
           ) : (
             <ul className="flex flex-col gap-1 [mask-image:linear-gradient(to_bottom,black_50%,transparent)]">
               {[...messages]
                 .slice(0, 3)
                 .reverse()
                 .map((m) => (
-                  <li key={m.id} className="line-clamp-2 text-[#404040]">
+                  <li key={m.id} className="line-clamp-2 text-ink-2">
                     <span className="font-medium text-foreground">
                       {m.author_id === userId ? "Você" : firstName(profiles?.get(m.author_id))}
                     </span>{" "}
@@ -615,11 +614,11 @@ function RoomCard({
             </ul>
           )
         ) : (
-          <div className="text-[#404040]">
-            <p className={cn("line-clamp-3", !settings?.topic && "text-[#8a8a8a]")}>
+          <div className="text-ink-2">
+            <p className={cn("line-clamp-3", !settings?.topic && "text-ink-faint")}>
               {settings?.topic || "Sem descrição ainda."}
             </p>
-            <p className="mt-1.5 text-[12.5px] text-[#8a8a8a]">
+            <p className="mt-1.5 text-[12.5px] text-ink-faint">
               {creator ? `Criada por ${nameOf(creator)}` : "Sala do workspace"}
               {settings?.created_at &&
                 ` em ${new Date(settings.created_at).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`}
@@ -634,7 +633,7 @@ function RoomCard({
         <button
           type="button"
           onClick={onEnter}
-          className="mt-2 self-start rounded-md text-[13.5px] font-medium outline-none transition-colors hover:text-[#c2410c] focus-visible:ring-2 focus-visible:ring-brand"
+          className="mt-2 self-start rounded-md text-[13.5px] font-medium outline-none transition-colors hover:text-brand-text focus-visible:ring-2 focus-visible:ring-brand"
         >
           {here ? "Voltar para a sala" : "Abrir sala"}
         </button>
@@ -645,7 +644,7 @@ function RoomCard({
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-black/[0.08] px-2.5 text-[12.5px] font-medium text-[#404040]">
+    <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-foreground/[0.08] px-2.5 text-[12.5px] font-medium text-ink-2">
       {children}
     </span>
   );
@@ -670,7 +669,7 @@ function TabButton({
         "-mb-px inline-flex h-9 items-center gap-1.5 border-b-2 px-2.5 text-[13.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand",
         active
           ? "border-foreground font-medium text-foreground"
-          : "border-transparent text-[#8a8a8a] hover:text-foreground",
+          : "border-transparent text-ink-faint hover:text-foreground",
       )}
     >
       {children}
@@ -719,7 +718,7 @@ function CreateRoomDialog({
           event.preventDefault();
           submitRef.current?.focus({ preventScroll: true });
         }}
-        className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[420px] gap-0 overflow-y-auto rounded-[24px] border-black/10 bg-card p-5 shadow-[0_24px_80px_-16px_rgb(0_0_0/0.28)] duration-300 ease-clyro data-[state=closed]:duration-150 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-3 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 motion-reduce:animate-none sm:rounded-[24px] sm:p-6"
+        className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[420px] gap-0 overflow-y-auto rounded-[24px] border-foreground/10 bg-card p-5 shadow-[0_24px_80px_-16px_rgb(0_0_0/0.28)] duration-300 ease-clyro data-[state=closed]:duration-150 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-3 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 motion-reduce:animate-none sm:rounded-[24px] sm:p-6"
       >
         <DialogClose className="absolute right-4 top-4 grid size-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand">
           <CloseCircle size={20} color="currentColor" aria-hidden="true" />
@@ -924,8 +923,8 @@ function RoomShareDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] max-w-[480px] gap-0 overflow-y-auto rounded-[28px] p-0 clyro-scroll">
         {/* Prévia da sala no fundo areia, cortada embaixo como na referência. */}
-        <div className="mx-4 mt-4 rounded-[20px] bg-[#f4f2ee] px-6 pt-6 sm:mx-5 sm:mt-5 sm:px-10 sm:pt-8">
-          <div className="rounded-t-[18px] border border-b-0 border-black/[0.06] bg-card px-5 pb-5 pt-5">
+        <div className="mx-4 mt-4 rounded-[20px] bg-secondary px-6 pt-6 sm:mx-5 sm:mt-5 sm:px-10 sm:pt-8">
+          <div className="rounded-t-[18px] border border-b-0 border-foreground/[0.06] bg-card px-5 pb-5 pt-5">
             {creator ? (
               <span className="inline-flex rounded-full ring-2 ring-brand/30 ring-offset-2">
                 <UserAvatar profile={creator} size={44} showStatus={false} />
@@ -938,7 +937,7 @@ function RoomShareDialog({
             <p className="mt-4 truncate text-[18px] font-medium tracking-[-0.02em]">
               {channel.name}
             </p>
-            <p className="mt-1.5 line-clamp-2 text-[14px] leading-[1.55] text-[#737373]">
+            <p className="mt-1.5 line-clamp-2 text-[14px] leading-[1.55] text-muted-foreground">
               {topic ||
                 `Sala de ${workspace.name}. Quem entra fala por voz e conversa no chat da sala.`}
             </p>
@@ -946,10 +945,10 @@ function RoomShareDialog({
               {inside.length > 0 ? (
                 <>
                   <AvatarStack ids={inside} profiles={profiles} max={4} size={28} />
-                  <span className="text-[13px] text-[#737373]">na sala agora</span>
+                  <span className="text-[13px] text-muted-foreground">na sala agora</span>
                 </>
               ) : (
-                <span className="text-[13px] text-[#8a8a8a]">Ninguém na sala agora</span>
+                <span className="text-[13px] text-ink-faint">Ninguém na sala agora</span>
               )}
             </div>
           </div>
@@ -959,29 +958,29 @@ function RoomShareDialog({
           <DialogTitle className="text-[20px] font-medium tracking-[-0.02em]">
             Compartilhar sala
           </DialogTitle>
-          <DialogDescription className="mt-1 text-[14px] leading-[1.5] text-[#737373]">
+          <DialogDescription className="mt-1 text-[14px] leading-[1.5] text-muted-foreground">
             Todo mundo do {workspace.name} vê a sala. Quem cuida dela decide se entram direto ou
             pedem antes.
           </DialogDescription>
 
-          <div className="mt-4 flex h-14 items-center gap-3 rounded-[14px] border border-black/[0.08] bg-[#fafaf9] pl-4 pr-2">
-            <Link21 size={19} color="currentColor" className="shrink-0 text-[#737373]" />
+          <div className="mt-4 flex h-14 items-center gap-3 rounded-[14px] border border-foreground/[0.08] bg-surface-1 pl-4 pr-2">
+            <Link21 size={19} color="currentColor" className="shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1 truncate text-[15px]">Link da sala</span>
             <button
               type="button"
               onClick={() => void copy()}
-              className="h-10 shrink-0 rounded-[10px] border border-black/[0.1] bg-card px-4 text-[14px] font-medium outline-none transition-[background-color,transform] duration-200 ease-clyro hover:bg-[#f5f5f5] focus-visible:ring-2 focus-visible:ring-brand active:scale-95"
+              className="h-10 shrink-0 rounded-[10px] border border-foreground/[0.1] bg-card px-4 text-[14px] font-medium outline-none transition-[background-color,transform] duration-200 ease-clyro hover:bg-secondary focus-visible:ring-2 focus-visible:ring-brand active:scale-95"
             >
               {copied ? "Copiado" : "Copiar"}
             </button>
           </div>
 
-          <p className="mt-5 text-[13.5px] font-medium text-[#737373]">Compartilhar com</p>
+          <p className="mt-5 text-[13.5px] font-medium text-muted-foreground">Compartilhar com</p>
 
           <div className="mt-2 flex items-center gap-3 py-2">
             <WorkspaceIcon workspace={workspace} size={28} />
             <span className="min-w-0 truncate text-[15px] font-medium">{workspace.name}</span>
-            <span className="shrink-0 rounded-full border border-black/[0.1] px-2 py-0.5 text-[12.5px] text-[#525252]">
+            <span className="shrink-0 rounded-full border border-foreground/[0.1] px-2 py-0.5 text-[12.5px] text-ink-2">
               Time
             </span>
             <span className="ml-auto hidden sm:block">
@@ -1000,7 +999,7 @@ function RoomShareDialog({
               className="ml-auto shrink-0 data-[state=checked]:bg-brand sm:ml-2"
             />
           </div>
-          <p className="-mt-1 pl-10 text-[12.5px] leading-[1.45] text-[#8a8a8a]">
+          <p className="-mt-1 pl-10 text-[12.5px] leading-[1.45] text-ink-faint">
             {!lockable
               ? "Entrar com pedido precisa da migração de acesso."
               : locked
@@ -1015,7 +1014,7 @@ function RoomShareDialog({
                 <Lock1 size={15} color="var(--brand)" variant="Bold" />
               </span>
               <span className="text-[15px] font-medium">Liberados</span>
-              <span className="rounded-full border border-black/[0.1] px-2 py-0.5 text-[12.5px] text-[#525252]">
+              <span className="rounded-full border border-foreground/[0.1] px-2 py-0.5 text-[12.5px] text-ink-2">
                 {approved.length + (createdBy ? 1 : 0)}
               </span>
               {approved.length > 0 && (
@@ -1033,7 +1032,7 @@ function RoomShareDialog({
 
           {canManage && pending.length > 0 && (
             <section className="mt-4">
-              <h3 className="text-[13.5px] font-medium text-[#737373]">
+              <h3 className="text-[13.5px] font-medium text-muted-foreground">
                 Pedindo para entrar · {pending.length}
               </h3>
               <ul className="mt-2 flex flex-col gap-1">
@@ -1046,14 +1045,14 @@ function RoomShareDialog({
                         <span className="block truncate text-[14px] font-medium">
                           {nameOf(person)}
                         </span>
-                        <span className="block text-[12.5px] text-[#8a8a8a]">
+                        <span className="block text-[12.5px] text-ink-faint">
                           pediu {ago(a.updated_at, now)}
                         </span>
                       </span>
                       <button
                         type="button"
                         onClick={() => onDecide(a.user_id, false)}
-                        className="h-8 rounded-full px-3 text-[13px] font-medium text-[#525252] transition-colors hover:bg-secondary"
+                        className="h-8 rounded-full px-3 text-[13px] font-medium text-ink-2 transition-colors hover:bg-secondary"
                       >
                         Recusar
                       </button>
@@ -1073,7 +1072,7 @@ function RoomShareDialog({
 
           {canManage && locked && approved.length > 0 && (
             <section className="mt-4">
-              <h3 className="text-[13.5px] font-medium text-[#737373]">Com acesso</h3>
+              <h3 className="text-[13.5px] font-medium text-muted-foreground">Com acesso</h3>
               <ul className="mt-2 flex flex-col gap-1">
                 {approved.map((a) => {
                   const person = profiles?.get(a.user_id);
@@ -1084,7 +1083,7 @@ function RoomShareDialog({
                       <button
                         type="button"
                         onClick={() => onRevoke(a.user_id)}
-                        className="h-8 rounded-full px-3 text-[13px] font-medium text-[#8a8a8a] transition-colors hover:bg-secondary hover:text-foreground"
+                        className="h-8 rounded-full px-3 text-[13px] font-medium text-ink-faint transition-colors hover:bg-secondary hover:text-foreground"
                       >
                         Remover
                       </button>

@@ -120,7 +120,7 @@ export function InvitePeopleDialog({
           type="button"
           aria-label="Fechar"
           onClick={() => onOpenChange(false)}
-          className="absolute right-4 top-4 flex text-[#a3a3a3] transition-colors hover:text-foreground"
+          className="absolute right-4 top-4 flex text-ink-ghost transition-colors hover:text-foreground"
         >
           <CloseCircle size={22} color="currentColor" variant="Bold" />
         </button>
@@ -148,7 +148,7 @@ export function InvitePeopleDialog({
 
           {adding ? (
             <form
-              className="clyro-fade-in flex h-11 items-center gap-1 rounded-full border border-black/[0.1] pl-4 pr-1 focus-within:border-brand/50 focus-within:ring-2 focus-within:ring-brand/15"
+              className="clyro-fade-in flex h-11 items-center gap-1 rounded-full border border-foreground/[0.1] pl-4 pr-1 focus-within:border-brand/50 focus-within:ring-2 focus-within:ring-brand/15"
               onSubmit={(e) => {
                 e.preventDefault();
                 void addFriend();
@@ -166,7 +166,7 @@ export function InvitePeopleDialog({
               <button
                 type="submit"
                 disabled={!handle.trim() || busy}
-                className="h-9 shrink-0 rounded-full bg-brand-soft px-4 text-[13.5px] font-medium text-[#9a3a00] transition-[opacity,transform] active:scale-95 disabled:opacity-50"
+                className="h-9 shrink-0 rounded-full bg-brand-soft px-4 text-[13.5px] font-medium text-brand-ink transition-[opacity,transform] active:scale-95 disabled:opacity-50"
               >
                 {busy ? "Enviando…" : "Pedir amizade"}
               </button>
@@ -175,7 +175,7 @@ export function InvitePeopleDialog({
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="flex h-11 items-center justify-center gap-2 rounded-full border border-black/[0.1] text-[14px] font-medium outline-none transition-[background-color,transform] duration-200 ease-clyro hover:bg-[#f5f5f5] focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.98]"
+              className="flex h-11 items-center justify-center gap-2 rounded-full border border-foreground/[0.1] text-[14px] font-medium outline-none transition-[background-color,transform] duration-200 ease-clyro hover:bg-secondary focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.98]"
             >
               <AtSign size={17} />
               Adicionar pelo @usuário
@@ -191,7 +191,7 @@ function Illustration({ faces }: { faces: Profile[] }) {
   return (
     <div aria-hidden className="relative mx-auto mt-2 h-[132px] w-[220px]">
       {/* anéis claros por trás, como ondas saindo do centro */}
-      <span className="absolute left-1/2 top-1/2 h-[128px] w-[128px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-black/[0.08]" />
+      <span className="absolute left-1/2 top-1/2 h-[128px] w-[128px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-foreground/[0.08]" />
       <span className="absolute left-1/2 top-1/2 h-[84px] w-[84px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-soft" />
       <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
         <Mascot pose="energia" size={64} />
@@ -211,7 +211,7 @@ function Illustration({ faces }: { faces: Profile[] }) {
               <UserAvatar profile={face} size={spot.size} showStatus={false} />
             ) : (
               <span
-                className="flex items-center justify-center rounded-full bg-[#f4f4f5]"
+                className="flex items-center justify-center rounded-full bg-secondary"
                 style={{ width: spot.size, height: spot.size }}
               >
                 <Mascot pose={i % 2 ? "sorte" : "estrela"} size={spot.size * 0.8} />

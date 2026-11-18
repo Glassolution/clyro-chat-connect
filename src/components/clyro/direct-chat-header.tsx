@@ -13,7 +13,7 @@ import { GroupAvatar } from "./conversation-list";
 import { conversationTitle } from "./home-sidebar";
 
 const ICON_BUTTON =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#737373] outline-none transition-[background-color,color,transform] duration-200 ease-clyro hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand active:scale-95 data-[state=open]:bg-secondary data-[state=open]:text-foreground";
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-[background-color,color,transform] duration-200 ease-clyro hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand active:scale-95 data-[state=open]:bg-secondary data-[state=open]:text-foreground";
 
 /**
  * Cabeçalho da conversa: quem é, se está online ou digitando (em verde, como
@@ -84,7 +84,7 @@ export function DirectChatHeader({
             aria-live="polite"
             className={cn(
               "block truncate text-[12.5px]",
-              status.live ? "font-medium text-[#15803d]" : "text-[#737373]",
+              status.live ? "font-medium text-success-ink" : "text-muted-foreground",
             )}
           >
             {status.text}

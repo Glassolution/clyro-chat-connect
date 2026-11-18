@@ -221,20 +221,22 @@ export function ChatPanel({
             <div className="flex h-full flex-col items-center justify-center gap-2 py-6 text-center">
               <Mascot pose="brincando" size={56} />
               <p className="text-[13px] font-medium">Ninguém escreveu ainda</p>
-              <p className="text-[12px] text-[#737373]">Links e recados da call ficam aqui.</p>
+              <p className="text-[12px] text-muted-foreground">
+                Links e recados da call ficam aqui.
+              </p>
             </div>
           ) : (
             <StageThread messages={messages} profiles={profiles} selfId={user?.id} />
           )}
           {typingNames.length > 0 && (
-            <p className="clyro-fade-in mt-3 text-[12px] text-[#737373]" aria-live="polite">
+            <p className="clyro-fade-in mt-3 text-[12px] text-muted-foreground" aria-live="polite">
               {typingNames.join(", ")} {typingNames.length > 1 ? "estão" : "está"} digitando…
             </p>
           )}
           <div ref={bottomRef} />
         </div>
 
-        <div className="flex shrink-0 items-end gap-2 border-t border-black/[0.06] p-3">
+        <div className="flex shrink-0 items-end gap-2 border-t border-foreground/[0.06] p-3">
           <textarea
             ref={inputRef}
             rows={1}
@@ -251,7 +253,7 @@ export function ChatPanel({
                 void send();
               }
             }}
-            className="clyro-scroll max-h-28 min-h-10 flex-1 resize-none rounded-[12px] border border-black/[0.09] bg-white px-3 py-2.5 text-[13px] leading-[1.4] outline-none transition-[border-color,box-shadow] placeholder:text-[#8a8a8a] focus:border-brand/50 focus:shadow-[0_0_0_3px_rgb(255_106_19/0.12)]"
+            className="clyro-scroll max-h-28 min-h-10 flex-1 resize-none rounded-[12px] border border-foreground/[0.09] bg-card px-3 py-2.5 text-[13px] leading-[1.4] outline-none transition-[border-color,box-shadow] placeholder:text-ink-faint focus:border-brand/50 focus:shadow-[0_0_0_3px_rgb(255_106_19/0.12)]"
           />
           <button
             type="button"
@@ -269,9 +271,9 @@ export function ChatPanel({
 
   if (variant === "bubbles") {
     return (
-      <section className="flex h-full min-w-0 flex-1 flex-col bg-[#f7f7f8]">
+      <section className="flex h-full min-w-0 flex-1 flex-col bg-surface-1">
         {headerContent != null && (
-          <header className="flex h-16 shrink-0 items-center gap-3 border-b border-black/[0.06] bg-card px-3 sm:px-5">
+          <header className="flex h-16 shrink-0 items-center gap-3 border-b border-foreground/[0.06] bg-card px-3 sm:px-5">
             {headerContent}
           </header>
         )}
@@ -293,11 +295,11 @@ export function ChatPanel({
           )}
           {typingNames.length > 0 && (
             <div className="clyro-fade-in mt-3 flex items-center gap-2" aria-live="polite">
-              <span className="flex h-8 items-center gap-1 rounded-[16px] rounded-bl-[6px] border border-black/[0.07] bg-card px-3">
+              <span className="flex h-8 items-center gap-1 rounded-[16px] rounded-bl-[6px] border border-foreground/[0.07] bg-card px-3">
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
-                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#a3a3a3]"
+                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-ghost"
                     style={{ animationDelay: `${i * 180}ms` }}
                   />
                 ))}
@@ -311,7 +313,7 @@ export function ChatPanel({
         </div>
 
         <div className="shrink-0 px-3 pb-3 sm:px-6 sm:pb-5">
-          <div className="flex items-end gap-1 rounded-[16px] border border-black/[0.08] bg-card p-1.5 pl-3.5 shadow-[0_1px_2px_rgb(0_0_0/0.04),0_6px_16px_-10px_rgb(0_0_0/0.12)] transition-[border-color,box-shadow] focus-within:border-brand/40 focus-within:shadow-[0_0_0_3px_rgb(255_106_19/0.12)]">
+          <div className="flex items-end gap-1 rounded-[16px] border border-foreground/[0.08] bg-card p-1.5 pl-3.5 shadow-[0_1px_2px_rgb(0_0_0/0.04),0_6px_16px_-10px_rgb(0_0_0/0.12)] transition-[border-color,box-shadow] focus-within:border-brand/40 focus-within:shadow-[0_0_0_3px_rgb(255_106_19/0.12)]">
             <textarea
               ref={inputRef}
               rows={1}
@@ -328,7 +330,7 @@ export function ChatPanel({
                   void send();
                 }
               }}
-              className="clyro-scroll max-h-40 min-h-9 flex-1 resize-none bg-transparent py-2 text-[14px] leading-[1.45] outline-none placeholder:text-[#8a8a8a]"
+              className="clyro-scroll max-h-40 min-h-9 flex-1 resize-none bg-transparent py-2 text-[14px] leading-[1.45] outline-none placeholder:text-ink-faint"
             />
 
             <Popover>
@@ -561,7 +563,7 @@ export function ChatPanel({
 }
 
 const COMPOSER_ICON =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-[#8a8a8a] outline-none transition-colors duration-200 hover:bg-[#f4f4f5] hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:bg-[#f4f4f5] data-[state=open]:text-foreground";
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-ink-faint outline-none transition-colors duration-200 hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:bg-secondary data-[state=open]:text-foreground";
 
 /**
  * Os balões: os seus à direita, em laranja; os dos outros à esquerda, em
@@ -615,13 +617,13 @@ function StageThread({
               <div
                 className={cn(
                   "min-w-0 max-w-[82%] rounded-[12px] px-3 py-2",
-                  mine ? "bg-[#c2410c]" : "border border-black/[0.06] bg-white",
+                  mine ? "bg-brand-deep" : "border border-foreground/[0.06] bg-card",
                 )}
               >
                 <MessageContent content={message.content} tone={mine ? "outgoing" : "stage"} />
               </div>
               {last && (
-                <span className="shrink-0 pb-0.5 text-[10.5px] tabular-nums text-[#8a8a8a]">
+                <span className="shrink-0 pb-0.5 text-[10.5px] tabular-nums text-ink-faint">
                   {shortTime(message.created_at)}
                 </span>
               )}
@@ -666,7 +668,7 @@ function BubbleThread({
           <div key={message.id}>
             {newDay && (
               <div className="my-4 flex justify-center">
-                <span className="rounded-full border border-black/[0.07] bg-card px-3 py-1 text-[12px] font-medium text-[#737373]">
+                <span className="rounded-full border border-foreground/[0.07] bg-card px-3 py-1 text-[12px] font-medium text-muted-foreground">
                   {dayPill(message.created_at)}
                 </span>
               </div>
@@ -691,7 +693,7 @@ function BubbleThread({
                 )}
               >
                 {first && !mine && showAuthors && (
-                  <span className="mb-1 px-1 text-[12px] font-medium text-[#737373]">
+                  <span className="mb-1 px-1 text-[12px] font-medium text-muted-foreground">
                     {author?.display_name || author?.username || "Usuário"}
                   </span>
                 )}
@@ -699,8 +701,8 @@ function BubbleThread({
                   className={cn(
                     "rounded-[18px] px-3.5 py-2",
                     mine
-                      ? "bg-[#c2410c] text-white"
-                      : "border border-black/[0.07] bg-card shadow-[0_1px_2px_rgb(0_0_0/0.03)]",
+                      ? "bg-brand-deep text-white"
+                      : "border border-foreground/[0.07] bg-card shadow-[0_1px_2px_rgb(0_0_0/0.03)]",
                     mine && !last && "rounded-br-[6px]",
                     mine && !first && "rounded-tr-[6px]",
                     !mine && !last && "rounded-bl-[6px]",
@@ -710,7 +712,7 @@ function BubbleThread({
                   <MessageContent content={message.content} tone={mine ? "outgoing" : "incoming"} />
                 </div>
                 {last && (
-                  <span className="mt-1 px-1 text-[11px] tabular-nums text-[#8a8a8a]">
+                  <span className="mt-1 px-1 text-[11px] tabular-nums text-ink-faint">
                     {shortTime(message.created_at)}
                   </span>
                 )}

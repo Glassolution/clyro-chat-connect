@@ -118,11 +118,11 @@ export function Dashboard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="group inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-black/[0.09] bg-card pl-3 pr-3 text-[14px] font-medium tracking-[-0.01em] shadow-[0_1px_2px_rgb(0_0_0/0.04),0_3px_8px_-6px_rgb(0_0_0/0.12)] outline-none transition-[border-color,transform] duration-200 ease-clyro hover:border-black/20 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:border-black/20"
+                  className="group inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-foreground/[0.09] bg-card pl-3 pr-3 text-[14px] font-medium tracking-[-0.01em] shadow-[0_1px_2px_rgb(0_0_0/0.04),0_3px_8px_-6px_rgb(0_0_0/0.12)] outline-none transition-[border-color,transform] duration-200 ease-clyro hover:border-foreground/20 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:border-foreground/20"
                 >
                   <Flash size={16} color="var(--brand)" variant="Bold" className="shrink-0" />
                   <span className="truncate">{pill.label}</span>
-                  <span className="font-normal tabular-nums text-[#a3a3a3]">
+                  <span className="font-normal tabular-nums text-ink-ghost">
                     {String(pill.count).padStart(2, "0")}
                   </span>
                   <ArrowDown2
@@ -223,7 +223,7 @@ export function Dashboard({
                 ))}
               </div>
             ) : (
-              <div className="rounded-[20px] border border-black/[0.07]">
+              <div className="rounded-[20px] border border-foreground/[0.07]">
                 <EmptyState
                   pose="estrela"
                   title="Nenhuma equipe ainda"
@@ -269,7 +269,7 @@ export function Dashboard({
             onOpenRequests={openRequests}
           />
 
-          <section className="rounded-[18px] border border-black/[0.07] bg-card p-4">
+          <section className="rounded-[18px] border border-foreground/[0.07] bg-card p-4">
             <h3 className="text-[14px] font-medium tracking-[-0.01em]">Sobre o workspace</h3>
             <p className="mt-1.5 text-pretty text-[13px] leading-[1.5] text-muted-foreground">
               {workspace.description ||

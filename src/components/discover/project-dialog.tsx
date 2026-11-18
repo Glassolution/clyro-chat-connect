@@ -188,7 +188,7 @@ export function ProjectDialog({
             className="group relative block aspect-[16/7] w-full overflow-hidden rounded-[22px] bg-secondary"
           >
             <ProjectArt project={{ cover_url: coverUrl, category, name }} mascotSize={110} />
-            <span className="absolute bottom-3 right-3 flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-medium shadow-pill">
+            <span className="absolute bottom-3 right-3 flex items-center gap-2 rounded-full bg-card/90 px-4 py-2 text-sm font-medium shadow-pill">
               <Camera size={16} color="currentColor" />
               {uploading ? "Enviando…" : coverUrl ? "Trocar capa" : "Adicionar capa"}
             </span>

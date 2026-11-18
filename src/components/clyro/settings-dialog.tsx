@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { ProfileCircle } from "iconsax-react";
+import { Brush2, Monitor, Moon, ProfileCircle, Sun1 } from "iconsax-react";
 import { ChevronDown, Mic, MonitorUp, Settings, Upload, X } from "@/components/icons";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useTheme, type ThemeChoice } from "@/lib/theme";
 import {
   getMediaSettings,
   openMicrophone,
@@ -208,6 +209,9 @@ export function SettingsDialog({
             </TabsTrigger>
             <TabsTrigger value="screen" className={SETTINGS_TAB}>
               <MonitorUp size={18} /> Tela
+            </TabsTrigger>
+            <TabsTrigger value="appearance" className={SETTINGS_TAB}>
+              <Brush2 size={18} color="currentColor" aria-hidden="true" /> Aparência
             </TabsTrigger>
           </TabsList>
 
@@ -426,6 +430,15 @@ export function SettingsDialog({
               <ScreenQualitySettings />
             </div>
           </TabsContent>
+
+          <TabsContent
+            value="appearance"
+            className={cn("mt-0 focus-visible:ring-inset", SETTINGS_SCROLL)}
+          >
+            <div className={SETTINGS_CONTENT}>
+              <AppearanceSettings />
+            </div>
+          </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>
@@ -565,6 +578,131 @@ function ScreenQualitySettings() {
         pequena não vira 4K.
       </p>
     </section>
+  );
+}
+
+const THEME_CHOICES: {
+  id: ThemeChoice;
+  label: string;
+  body: string;
+  Icon: typeof Sun1;
+}[] = [
+  { id: "light", label: "Claro", body: "Fundo branco, para o dia.", Icon: Sun1 },
+  { id: "dark", label: "Escuro", body: "Fundo quase preto, para a noite.", Icon: Moon },
+  {
+    id: "system",
+    label: "Do sistema",
+    body: "Acompanha o claro ou escuro do seu aparelho.",
+    Icon: Monitor,
+  },
+];
+
+/**
+ * Tema do workspace. A escolha vale na hora e fica salva neste navegador; o
+ * "do sistema" troca sozinho quando o aparelho muda de claro para escuro.
+ */
+function AppearanceSettings() {
+  const { choice, resolved, setChoice } = useTheme();
+
+  return (
+    <section aria-labelledby="settings-theme-heading" className="max-w-2xl space-y-4">
+      <div>
+        <h2 id="settings-theme-heading" className="text-lg font-semibold tracking-tight">
+          Tema
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Vale para o workspace inteiro neste navegador.
+          {choice === "system" &&
+            ` Agora o sistema está no ${resolved === "dark" ? "escuro" : "claro"}.`}
+        </p>
+      </div>
+
+      <div
+        role="radiogroup"
+        aria-labelledby="settings-theme-heading"
+        className="grid gap-3 sm:grid-cols-3"
+      >
+        {THEME_CHOICES.map(({ id, label, body, Icon }) => {
+          const on = choice === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => setChoice(id)}
+              className={cn(
+                "group flex flex-col overflow-hidden rounded-[16px] border text-left outline-none transition-[border-color,box-shadow,transform] duration-200 ease-clyro focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.99]",
+                on
+                  ? "border-brand shadow-[0_0_0_1px_var(--brand)]"
+                  : "border-border hover:border-foreground/20",
+              )}
+            >
+              <ThemePreview theme={id} />
+              <span className="flex items-start gap-2.5 border-t border-border bg-card p-3">
+                <Icon
+                  size={18}
+                  color="currentColor"
+                  variant={on ? "Bold" : "Linear"}
+                  className={cn("mt-px shrink-0", on ? "text-brand" : "text-muted-foreground")}
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">{label}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">{body}</span>
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Miniatura do workspace em cada tema. As cores são fixas de propósito: a
+ * prévia do claro precisa parecer clara mesmo com o app no escuro.
+ */
+function ThemePreview({ theme }: { theme: ThemeChoice }) {
+  if (theme === "system") {
+    return (
+      <span aria-hidden="true" className="relative block h-24 overflow-hidden">
+        <ThemeSketch dark={false} />
+        <span className="absolute inset-0 [clip-path:polygon(62%_0,100%_0,100%_100%,38%_100%)]">
+          <ThemeSketch dark />
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span aria-hidden="true" className="relative block h-24 overflow-hidden">
+      <ThemeSketch dark={theme === "dark"} />
+    </span>
+  );
+}
+
+function ThemeSketch({ dark }: { dark: boolean }) {
+  return (
+    <span
+      className={cn("absolute inset-0 flex gap-1.5 p-2.5", dark ? "bg-[#0b0b0c]" : "bg-[#f5f5f5]")}
+    >
+      <span className="flex w-[30%] flex-col gap-1.5 pt-1">
+        <span className="h-1.5 w-3/4 rounded-full bg-[#ff6a13]" />
+        <span className={cn("h-1.5 w-full rounded-full", dark ? "bg-[#2d2d31]" : "bg-[#e2e2e5]")} />
+        <span className={cn("h-1.5 w-5/6 rounded-full", dark ? "bg-[#2d2d31]" : "bg-[#e2e2e5]")} />
+      </span>
+      <span
+        className={cn(
+          "flex flex-1 flex-col gap-1.5 rounded-[8px] p-2",
+          dark ? "bg-[#161618]" : "bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.05)]",
+        )}
+      >
+        <span className={cn("h-2 w-1/2 rounded-full", dark ? "bg-[#ededef]" : "bg-[#0a0a0a]")} />
+        <span className={cn("h-1.5 w-5/6 rounded-full", dark ? "bg-[#3a3a3f]" : "bg-[#d4d4d4]")} />
+        <span className={cn("h-1.5 w-2/3 rounded-full", dark ? "bg-[#3a3a3f]" : "bg-[#d4d4d4]")} />
+        <span className="mt-auto h-3 w-8 self-end rounded-full bg-[#ff6a13]" />
+      </span>
+    </span>
   );
 }
 

@@ -98,7 +98,7 @@ export function TopNav({
             title="Minimizar a barra lateral"
             tabIndex={sidebarCollapsed ? -1 : 0}
             className={cn(
-              "-mr-2 ml-auto hidden h-9 w-9 shrink-0 items-center justify-center rounded-[12px] text-[#8a8a8a] outline-none transition-[opacity,background-color,color,transform] duration-200 ease-clyro hover:bg-black/[0.04] hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand active:scale-95 lg:flex",
+              "-mr-2 ml-auto hidden h-9 w-9 shrink-0 items-center justify-center rounded-[12px] text-ink-faint outline-none transition-[opacity,background-color,color,transform] duration-200 ease-clyro hover:bg-foreground/[0.04] hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand active:scale-95 lg:flex",
               sidebarCollapsed && "pointer-events-none opacity-0",
             )}
           >
@@ -124,10 +124,10 @@ export function TopNav({
         >
           Workspace
         </button>
-        <Link to="/" className={cn(NAV_ITEM, "text-[#737373] hover:text-foreground")}>
+        <Link to="/" className={cn(NAV_ITEM, "text-muted-foreground hover:text-foreground")}>
           Descobrir
         </Link>
-        <Link to="/buscar" className={cn(NAV_ITEM, "text-[#737373] hover:text-foreground")}>
+        <Link to="/buscar" className={cn(NAV_ITEM, "text-muted-foreground hover:text-foreground")}>
           Buscar
         </Link>
       </nav>

@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { ClyroApp } from "@/components/clyro/app";
 import { ClyroWordmark } from "@/components/clyro/primitives";
+import { useApplyTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app")({
   ssr: false,
@@ -27,6 +28,9 @@ export const Route = createFileRoute("/app")({
 function AppPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  // Aqui e não dentro do app: cobre a tela de carregamento e sai junto com a
+  // rota, inclusive quando quem não entrou é mandado para o login.
+  useApplyTheme();
 
   useEffect(() => {
     if (!loading && !user) void navigate({ to: "/auth" });

@@ -47,7 +47,7 @@ const FILTERS: { id: Filter; label: string }[] = [
 ];
 
 const ICON_BUTTON =
-  "flex h-8 w-8 items-center justify-center rounded-full text-[#737373] outline-none transition-[background-color,color,transform] duration-200 ease-clyro hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand active:scale-95 data-[state=open]:bg-secondary data-[state=open]:text-foreground";
+  "flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground outline-none transition-[background-color,color,transform] duration-200 ease-clyro hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand active:scale-95 data-[state=open]:bg-secondary data-[state=open]:text-foreground";
 
 const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
@@ -314,7 +314,7 @@ export function ConversationList({
             }}
             placeholder="Buscar pessoas e conversas"
             aria-label="Buscar pessoas e conversas"
-            className="h-9 w-full rounded-[12px] border border-black/[0.08] bg-card pl-9 pr-9 text-[13.5px] outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground focus:border-brand/50 focus:ring-2 focus:ring-brand/15"
+            className="h-9 w-full rounded-[12px] border border-foreground/[0.08] bg-card pl-9 pr-9 text-[13.5px] outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground focus:border-brand/50 focus:ring-2 focus:ring-brand/15"
           />
           <button
             type="button"
@@ -332,7 +332,7 @@ export function ConversationList({
         <button
           type="button"
           onClick={() => setInviteOpen(true)}
-          className="group mx-3 mb-2 flex h-11 shrink-0 items-center gap-2.5 rounded-[12px] bg-[#f4f4f5] px-2 text-left text-[13.5px] font-medium tracking-[-0.01em] text-[#525252] outline-none transition-[background-color,transform] duration-200 ease-clyro hover:bg-[#ececee] focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.99]"
+          className="group mx-3 mb-2 flex h-11 shrink-0 items-center gap-2.5 rounded-[12px] bg-secondary px-2 text-left text-[13.5px] font-medium tracking-[-0.01em] text-ink-2 outline-none transition-[background-color,transform] duration-200 ease-clyro hover:bg-secondary-hover focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.99]"
         >
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card shadow-[0_1px_2px_rgb(0_0_0/0.08)]">
             <UserAdd size={15} color="currentColor" />
@@ -401,7 +401,7 @@ export function ConversationList({
               {pending > 0 && <Count value={pending} label="pedidos de amizade" />}
             </RowButton>
 
-            <div className="mx-3 my-1.5 h-px bg-black/[0.06]" />
+            <div className="mx-3 my-1.5 h-px bg-foreground/[0.06]" />
 
             {visible.map((r) => (
               <ConversationRow
@@ -466,9 +466,9 @@ function RowButton({
       className={cn(
         "flex w-full items-center gap-3 rounded-[14px] px-2.5 py-2 text-left outline-none transition-colors duration-150 ease-clyro focus-visible:ring-2 focus-visible:ring-brand",
         !active
-          ? "hover:bg-[#f5f5f5]"
+          ? "hover:bg-secondary"
           : desktopOnly
-            ? "hover:bg-[#f5f5f5] md:bg-brand-soft md:hover:bg-brand-soft"
+            ? "hover:bg-secondary md:bg-brand-soft md:hover:bg-brand-soft"
             : "bg-brand-soft",
       )}
     >
@@ -481,7 +481,7 @@ function Count({ value, label }: { value: number; label: string }) {
   return (
     <span
       aria-label={`${value} ${label}`}
-      className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[#c2410c] px-1.5 text-[11px] font-semibold tabular-nums text-white"
+      className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-deep px-1.5 text-[11px] font-semibold tabular-nums text-white"
     >
       {value > 99 ? "99+" : value}
     </span>
@@ -526,7 +526,7 @@ function ConversationRow({
           <span
             className={cn(
               "min-w-0 flex-1 truncate text-[14px] font-medium tracking-[-0.01em]",
-              active && "text-[#9a3a00]",
+              active && "text-brand-ink",
             )}
           >
             {title}
@@ -535,7 +535,7 @@ function ConversationRow({
             <span
               className={cn(
                 "shrink-0 text-[12px] tabular-nums",
-                unread > 0 ? "font-medium text-[#c2410c]" : "text-[#8a8a8a]",
+                unread > 0 ? "font-medium text-brand-text" : "text-ink-faint",
               )}
             >
               {listStamp(last.created_at)}
@@ -546,7 +546,7 @@ function ConversationRow({
           <span
             className={cn(
               "min-w-0 flex-1 truncate text-[13px]",
-              unread > 0 ? "font-medium text-foreground" : "text-[#737373]",
+              unread > 0 ? "font-medium text-foreground" : "text-muted-foreground",
             )}
           >
             {last ? (
@@ -648,7 +648,7 @@ function GroupDialog({
                     }
                     className={cn(
                       "flex w-full items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition-colors",
-                      on ? "bg-brand-soft" : "hover:bg-[#f5f5f5]",
+                      on ? "bg-brand-soft" : "hover:bg-secondary",
                     )}
                   >
                     <UserAvatar profile={friend} size={28} showStatus={false} />

@@ -201,7 +201,7 @@ function VoiceLobby({
 }) {
   return (
     <section className="clyro-fade-in flex min-h-0 flex-1 flex-col bg-card text-foreground">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-black/[0.06] px-4">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-foreground/[0.06] px-4">
         <Volume2 size={16} />
         <span className="truncate text-sm font-semibold">{title}</span>
         {subtitle && <span className="truncate text-xs text-muted-foreground">/ {subtitle}</span>}
@@ -475,7 +475,7 @@ function ConnectedStage({
     : undefined;
 
   const status = rtc.error ? (
-    <span className="text-[#ff8a80]">{rtc.error}</span>
+    <span className="text-destructive">{rtc.error}</span>
   ) : rtc.connecting ? (
     "Conectando…"
   ) : (
@@ -500,7 +500,7 @@ function ConnectedStage({
             onClick={onBack}
             aria-label="Voltar para as salas"
             title="Voltar para as salas"
-            className="clyro-in-drop flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#525252] transition-colors hover:bg-black/[0.05] hover:text-foreground"
+            className="clyro-in-drop flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
           >
             <ArrowLeft size={18} />
           </button>
@@ -511,7 +511,7 @@ function ConnectedStage({
             {title}
             {subtitle ? ` / ${subtitle}` : ""}, {status}
           </h2>
-          {rtc.error && <p className="truncate text-[12.5px] text-[#d93025]">{rtc.error}</p>}
+          {rtc.error && <p className="truncate text-[12.5px] text-destructive">{rtc.error}</p>}
         </div>
         <div className="clyro-in-drop flex shrink-0 items-center gap-1" style={delay(110)}>
           {onInvite && (
@@ -601,14 +601,14 @@ function ConnectedStage({
                     <button
                       type="button"
                       onClick={onInvite}
-                      className="flex h-full min-w-[220px] shrink-0 items-center gap-3 rounded-[16px] border border-dashed border-black/15 px-4 text-left transition-colors hover:border-black/25 hover:bg-[#fafafa]"
+                      className="flex h-full min-w-[220px] shrink-0 items-center gap-3 rounded-[16px] border border-dashed border-foreground/15 px-4 text-left transition-colors hover:border-foreground/25 hover:bg-surface-1"
                     >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f5f5f6]">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary">
                         <UserPlus size={18} />
                       </span>
                       <span>
                         <span className="block text-[13.5px] font-medium">Chame o time</span>
-                        <span className="block text-[12px] text-[#737373]">
+                        <span className="block text-[12px] text-muted-foreground">
                           Copie o link da sala
                         </span>
                       </span>
@@ -671,7 +671,7 @@ function ConnectedStage({
               // sozinha; no modo normal ela fica embaixo, fora da imagem.
               screenId && immersive
                 ? cn(
-                    "call-screen-controls absolute inset-x-0 z-20 mx-auto w-fit max-w-full rounded-full border border-black/10 bg-card/95 p-2 shadow-lg backdrop-blur-md sm:px-3",
+                    "call-screen-controls absolute inset-x-0 z-20 mx-auto w-fit max-w-full rounded-full border border-foreground/10 bg-card/95 p-2 shadow-lg backdrop-blur-md sm:px-3",
                     hasTray ? (trayOpen ? "bottom-[124px]" : "bottom-16") : "bottom-4",
                   )
                 : "h-[72px]",
@@ -679,7 +679,7 @@ function ConnectedStage({
           >
             <span
               className={cn(
-                "clyro-in-rise hidden items-center gap-2 text-[13px] font-medium tabular-nums text-[#525252] sm:flex",
+                "clyro-in-rise hidden items-center gap-2 text-[13px] font-medium tabular-nums text-ink-2 sm:flex",
                 screenId && immersive ? "mr-2 pl-2" : "w-[84px]",
               )}
               style={delay(320)}
@@ -758,14 +758,14 @@ function ConnectedStage({
         {hasSide && (
           <aside
             className={cn(
-              "min-h-0 w-[300px] shrink-0 flex-col border-l border-black/[0.06] xl:w-[320px]",
+              "min-h-0 w-[300px] shrink-0 flex-col border-l border-foreground/[0.06] xl:w-[320px]",
               sideOpen && !immersive
                 ? "clyro-in-slide absolute inset-x-0 bottom-0 top-[72px] z-20 flex w-auto border-l-0 bg-card lg:static lg:w-[300px] lg:border-l"
                 : "hidden",
             )}
           >
             {participants}
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-black/[0.06]">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-foreground/[0.06]">
               <div className="flex h-12 shrink-0 items-center justify-between pl-4 pr-2">
                 <span className="text-[14px] font-semibold">Conversa</span>
                 {sideOpen && (
@@ -773,7 +773,7 @@ function ConnectedStage({
                     type="button"
                     onClick={() => setSideOpen(false)}
                     aria-label="Fechar o painel"
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-[#737373] transition-colors hover:bg-black/[0.05] hover:text-foreground"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
                   >
                     <X size={16} />
                   </button>
@@ -849,14 +849,14 @@ function AudioStage({
         <div className="relative">
           <span
             aria-hidden="true"
-            className="clyro-in-badge absolute -left-3 -top-3 z-30 flex h-9 w-9 items-center justify-center gap-[2.5px] rounded-full bg-[#1c1c1c] shadow-[0_4px_12px_-4px_rgb(0_0_0/0.35)] sm:-left-3.5 sm:-top-3.5 sm:h-11 sm:w-11"
+            className="clyro-in-badge absolute -left-3 -top-3 z-30 flex h-9 w-9 items-center justify-center gap-[2.5px] rounded-full bg-primary shadow-[0_4px_12px_-4px_rgb(0_0_0/0.35)] sm:-left-3.5 sm:-top-3.5 sm:h-11 sm:w-11"
             style={delay(after + 60)}
           >
             <VoiceMeter read={readBands} live={live} />
           </span>
 
           <div
-            className="clyro-in-pill flex items-center rounded-full border border-black/[0.06] bg-white p-[5px] shadow-[0_12px_30px_-12px_rgb(0_0_0/0.2)]"
+            className="clyro-in-pill flex items-center rounded-full border border-foreground/[0.06] bg-card p-[5px] shadow-[0_12px_30px_-12px_rgb(0_0_0/0.2)]"
             style={delay(80)}
           >
             {stable.map((tile) => {
@@ -866,7 +866,7 @@ function AudioStage({
                   key={tile.id}
                   title={tile.self ? `${tile.name} (você)` : tile.name}
                   className={cn(
-                    "clyro-in-pop relative shrink-0 rounded-full ring-[2.5px] ring-white transition-[scale,margin] duration-300 ease-clyro",
+                    "clyro-in-pop relative shrink-0 rounded-full ring-[2.5px] ring-card transition-[scale,margin] duration-300 ease-clyro",
                     avatarSize,
                     rank > 0 && "-ml-2.5",
                     tile.speaking && "scale-[1.05]",
@@ -889,8 +889,8 @@ function AudioStage({
                     className="speaking-halo pointer-events-none absolute inset-0 rounded-full"
                   />
                   {(tile.hand || tile.muted) && (
-                    <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[10px] shadow-[0_1px_3px_rgb(0_0_0/0.15)]">
-                      {tile.hand ? "✋" : <MicOff size={10} className="text-[#737373]" />}
+                    <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-card text-[10px] shadow-[0_1px_3px_rgb(0_0_0/0.15)]">
+                      {tile.hand ? "✋" : <MicOff size={10} className="text-muted-foreground" />}
                     </span>
                   )}
                   {tile.reaction && (
@@ -909,7 +909,7 @@ function AudioStage({
                 aria-label="Copiar link da sala para chamar alguém"
                 title="Copiar link da sala"
                 className={cn(
-                  "clyro-in-pop order-last ml-1 flex shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-black/15 text-[#a3a3a3] transition-colors hover:border-brand/50 hover:bg-brand-soft hover:text-[#c2410c]",
+                  "clyro-in-pop order-last ml-1 flex shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-foreground/15 text-ink-ghost transition-colors hover:border-brand/50 hover:bg-brand-soft hover:text-brand-text",
                   avatarSize,
                 )}
                 style={delay(after)}
@@ -925,8 +925,8 @@ function AudioStage({
                     type="button"
                     aria-label={`Ver mais ${rest.length} pessoas`}
                     className={cn(
-                      "clyro-in-pop order-last ml-0.5 flex h-12 items-center gap-0.5 rounded-full pl-3 pr-3.5 text-[17px] tabular-nums text-[#8a8a8a] transition-colors hover:bg-[#f5f5f5] hover:text-[#525252] data-[state=open]:bg-[#f5f5f5] sm:h-16 sm:text-[20px]",
-                      rest.some((tile) => tile.speaking) && "text-[#15803d]",
+                      "clyro-in-pop order-last ml-0.5 flex h-12 items-center gap-0.5 rounded-full pl-3 pr-3.5 text-[17px] tabular-nums text-ink-faint transition-colors hover:bg-secondary hover:text-ink-2 data-[state=open]:bg-secondary sm:h-16 sm:text-[20px]",
+                      rest.some((tile) => tile.speaking) && "text-success-ink",
                     )}
                     style={delay(intro ? after : 0)}
                   >
@@ -954,7 +954,7 @@ function AudioStage({
                         {tile.self ? `${tile.name} (você)` : tile.name}
                       </span>
                       {tile.speaking && (
-                        <span className="text-[12px] font-medium text-[#15803d]">falando</span>
+                        <span className="text-[12px] font-medium text-success-ink">falando</span>
                       )}
                     </div>
                   ))}
@@ -965,7 +965,7 @@ function AudioStage({
         </div>
 
         <p
-          className="clyro-in-rise mt-4 whitespace-nowrap text-[13.5px] text-[#8a8a8a]"
+          className="clyro-in-rise mt-4 whitespace-nowrap text-[13.5px] text-ink-faint"
           style={delay(intro ? after + 140 : 0)}
           aria-live="polite"
         >
@@ -1029,7 +1029,7 @@ function VoiceMeter({
             barsRef.current[index] = node;
           }}
           className={cn(
-            "h-4 w-[2.5px] origin-center rounded-full bg-white sm:h-[18px]",
+            "h-4 w-[2.5px] origin-center rounded-full bg-primary-foreground sm:h-[18px]",
             // Sem o medidor (fora da call), a onda genérica ainda marca quem fala.
             !read && live && "clyro-eq",
           )}
@@ -1063,8 +1063,8 @@ function HeaderButton({
       className={cn(
         "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
         active
-          ? "bg-black/[0.07] text-foreground"
-          : "text-[#525252] hover:bg-black/[0.05] hover:text-foreground",
+          ? "bg-foreground/[0.07] text-foreground"
+          : "text-ink-2 hover:bg-foreground/[0.05] hover:text-foreground",
       )}
     >
       {children}
@@ -1110,7 +1110,7 @@ function FeaturedTile({
   return (
     <div
       key={tile.id}
-      className="clyro-fade-in relative flex min-h-[180px] flex-1 items-center justify-center overflow-hidden rounded-[18px] bg-[#f5f5f6]"
+      className="clyro-fade-in relative flex min-h-[180px] flex-1 items-center justify-center overflow-hidden rounded-[18px] bg-secondary"
     >
       <span
         aria-hidden="true"
@@ -1131,7 +1131,7 @@ function FeaturedTile({
             showStatus={false}
           />
           {tile.muted && (
-            <span className="flex items-center gap-1.5 text-[12.5px] text-[#737373]">
+            <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
               <MicOff size={13} /> Microfone desligado
             </span>
           )}
@@ -1143,7 +1143,7 @@ function FeaturedTile({
           "absolute left-3 top-3 z-10 flex h-8 max-w-[70%] items-center gap-2 rounded-full pl-1 pr-3 text-[12.5px] font-medium",
           tile.stream
             ? "bg-black/45 text-white backdrop-blur-md"
-            : "border border-black/[0.06] bg-white text-foreground",
+            : "border border-foreground/[0.06] bg-card text-foreground",
         )}
       >
         <UserAvatar profile={tile.profile} size={24} showStatus={false} />
@@ -1162,7 +1162,7 @@ function FeaturedTile({
           "absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition-colors",
           pinned
             ? "bg-brand text-white"
-            : "bg-white/90 text-[#525252] shadow-[0_1px_3px_rgb(0_0_0/0.12)] hover:bg-white",
+            : "bg-card/90 text-ink-2 shadow-[0_1px_3px_rgb(0_0_0/0.12)] hover:bg-card",
         )}
       >
         <Pin size={16} />
@@ -1238,7 +1238,7 @@ function ScreenTile({
             "clyro-fade-in relative overflow-hidden",
             immersive || previewHidden ? "h-full w-full" : "max-h-full",
             !immersive && "rounded-[18px]",
-            previewHidden ? "bg-[#f5f5f6]" : immersive ? "bg-transparent" : "bg-black",
+            previewHidden ? "bg-secondary" : immersive ? "bg-transparent" : "bg-black",
           )}
           style={
             !immersive && !previewHidden
@@ -1248,7 +1248,7 @@ function ScreenTile({
         >
           {previewHidden ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 px-4 py-12 text-center">
-              <span className="clyro-in-pop hidden size-12 shrink-0 place-items-center rounded-full bg-white text-foreground shadow-sm sm:grid">
+              <span className="clyro-in-pop hidden size-12 shrink-0 place-items-center rounded-full bg-card text-foreground shadow-sm sm:grid">
                 <MonitorUp size={22} />
               </span>
               <div>
@@ -1261,7 +1261,7 @@ function ScreenTile({
                 <button
                   type="button"
                   onClick={() => setPreview(true)}
-                  className="h-9 rounded-full border border-black/10 bg-white px-3.5 text-[13px] font-medium transition-colors hover:bg-muted"
+                  className="h-9 rounded-full border border-foreground/10 bg-card px-3.5 text-[13px] font-medium transition-colors hover:bg-muted"
                 >
                   Ver prévia
                 </button>
@@ -1385,14 +1385,14 @@ function ScreenVolumeMenu({
       <ContextMenuPrimitive.Portal container={container ?? undefined}>
         <ContextMenuPrimitive.Content
           collisionPadding={12}
-          className="z-50 w-[264px] rounded-[16px] border border-black/[0.06] bg-white p-1.5 text-foreground shadow-[0_24px_60px_-20px_rgb(0_0_0/0.28)] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+          className="z-50 w-[264px] rounded-[16px] border border-foreground/[0.06] bg-popover p-1.5 text-popover-foreground shadow-[0_24px_60px_-20px_rgb(0_0_0/0.28)] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
         >
           <div className="px-2.5 pb-3 pt-2">
             <div className="flex items-baseline justify-between gap-3">
               <p className="min-w-0 truncate text-[13px] font-medium">Volume da transmissão</p>
-              <span className="shrink-0 text-[12.5px] tabular-nums text-[#737373]">{volume}%</span>
+              <span className="shrink-0 text-[12.5px] tabular-nums text-muted-foreground">{volume}%</span>
             </div>
-            <p className="mt-0.5 truncate text-[12px] text-[#8a8a8a]">Som da tela de {name}</p>
+            <p className="mt-0.5 truncate text-[12px] text-ink-faint">Som da tela de {name}</p>
             {/* As setas mexem no volume, não navegam pelo menu. */}
             <div className="mt-3.5" onKeyDown={(event) => event.stopPropagation()}>
               <Slider
@@ -1403,20 +1403,20 @@ function ScreenVolumeMenu({
                 onValueChange={([next]) => setScreenVolume(userId, next ?? SCREEN_VOLUME_DEFAULT)}
                 aria-label={`Volume da transmissão de ${name}`}
               />
-              <div className="mt-1.5 flex justify-between text-[11px] tabular-nums text-[#a3a3a3]">
+              <div className="mt-1.5 flex justify-between text-[11px] tabular-nums text-ink-ghost">
                 <span>0%</span>
                 <span>100%</span>
                 <span>200%</span>
               </div>
             </div>
           </div>
-          <div className="my-1 h-px bg-black/[0.06]" />
+          <div className="my-1 h-px bg-foreground/[0.06]" />
           <ContextMenuPrimitive.Item
             onSelect={(event) => {
               event.preventDefault();
               setScreenVolume(userId, muted ? SCREEN_VOLUME_DEFAULT : 0);
             }}
-            className="flex h-9 cursor-default select-none items-center gap-2.5 rounded-[10px] px-2.5 text-[13px] outline-none data-[highlighted]:bg-[#f4f4f5]"
+            className="flex h-9 cursor-default select-none items-center gap-2.5 rounded-[10px] px-2.5 text-[13px] outline-none data-[highlighted]:bg-secondary"
           >
             {muted ? <Volume2 size={16} /> : <HeadphoneOff size={16} />}
             {muted ? "Ativar som da transmissão" : "Silenciar transmissão"}
@@ -1427,7 +1427,7 @@ function ScreenVolumeMenu({
               event.preventDefault();
               setScreenVolume(userId, SCREEN_VOLUME_DEFAULT);
             }}
-            className="flex h-9 cursor-default select-none items-center rounded-[10px] px-2.5 text-[13px] outline-none data-[disabled]:opacity-40 data-[highlighted]:bg-[#f4f4f5]"
+            className="flex h-9 cursor-default select-none items-center rounded-[10px] px-2.5 text-[13px] outline-none data-[disabled]:opacity-40 data-[highlighted]:bg-secondary"
           >
             Voltar para 100%
           </ContextMenuPrimitive.Item>
@@ -1519,8 +1519,8 @@ function StripTile({
           </span>
         )}
         {(tile.hand || tile.muted) && (
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-[12px] shadow-sm ring-2 ring-[#111214]">
-            {tile.hand ? "✋" : <MicOff size={12} className="text-[#737373]" />}
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-card text-[12px] shadow-sm ring-2 ring-[#111214]">
+            {tile.hand ? "✋" : <MicOff size={12} className="text-muted-foreground" />}
           </span>
         )}
       </button>
@@ -1539,8 +1539,8 @@ function StripTile({
       >
         <UserAvatar profile={tile.profile} size={64} speaking={tile.speaking} showStatus={false} />
         {(tile.hand || tile.muted) && (
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-[12px] shadow-sm ring-2 ring-white">
-            {tile.hand ? "✋" : <MicOff size={12} className="text-[#737373]" />}
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-card text-[12px] shadow-sm ring-2 ring-card">
+            {tile.hand ? "✋" : <MicOff size={12} className="text-muted-foreground" />}
           </span>
         )}
       </button>
@@ -1552,7 +1552,7 @@ function StripTile({
       type="button"
       onClick={onSelect}
       aria-label={`Pôr ${label} em destaque`}
-      className="clyro-enter group relative h-full w-[132px] shrink-0 overflow-hidden rounded-[16px] bg-[#f5f5f6] sm:w-[160px]"
+      className="clyro-enter group relative h-full w-[132px] shrink-0 overflow-hidden rounded-[16px] bg-secondary sm:w-[160px]"
       style={style}
     >
       <span
@@ -1611,18 +1611,18 @@ function ParticipantsCard({
               />
               <span className="min-w-0 flex-1 truncate text-[13px] text-foreground/85">
                 {tile.name}
-                {tile.self && <span className="text-[#8a8a8a]"> (você)</span>}
-                {host && <span className="text-[#c2410c]"> (criou a sala)</span>}
+                {tile.self && <span className="text-ink-faint"> (você)</span>}
+                {host && <span className="text-brand-text"> (criou a sala)</span>}
               </span>
               {tile.hand && <span title="Mão levantada">✋</span>}
               <span
                 className={cn(
                   "shrink-0",
                   tile.muted
-                    ? "text-[#a3a3a3]"
+                    ? "text-ink-ghost"
                     : tile.speaking
-                      ? "text-[#15803d]"
-                      : "text-[#a3a3a3]",
+                      ? "text-success-ink"
+                      : "text-ink-ghost",
                 )}
                 aria-label={tile.muted ? "Microfone desligado" : "Microfone ligado"}
               >
@@ -1636,7 +1636,7 @@ function ParticipantsCard({
         <button
           type="button"
           onClick={onToggleAll}
-          className="mt-1 flex h-8 w-full items-center justify-center gap-1.5 rounded-[10px] text-[12.5px] text-[#737373] transition-colors hover:bg-black/[0.04] hover:text-foreground"
+          className="mt-1 flex h-8 w-full items-center justify-center gap-1.5 rounded-[10px] text-[12.5px] text-muted-foreground transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
         >
           {showAll
             ? "Mostrar menos"
@@ -1668,7 +1668,7 @@ function MoreMenu({
           type="button"
           aria-label="Mais opções"
           title="Mais opções"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f4f5] text-[#525252] transition-colors hover:bg-[#ebebed] data-[state=open]:bg-[#ebebed]"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-ink-2 transition-colors hover:bg-secondary-hover data-[state=open]:bg-secondary-hover"
         >
           <MoreHorizontal size={18} />
         </button>
@@ -1730,7 +1730,7 @@ function ScreenQualityMenu({
           type="button"
           aria-label="Qualidade da transmissão"
           title="Qualidade da transmissão"
-          className="absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-foreground text-background ring-2 ring-white transition-transform hover:scale-110"
+          className="absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-foreground text-background ring-2 ring-card transition-transform hover:scale-110"
         >
           <ChevronUp size={11} />
         </button>
@@ -1858,7 +1858,7 @@ function ShareSheet({
           type="button"
           aria-label="Compartilhar tela"
           title="Compartilhar tela"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f4f5] text-[#737373] transition-colors hover:bg-[#ebebed] hover:text-foreground data-[state=open]:bg-[#ebebed] data-[state=open]:text-foreground"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-secondary-hover hover:text-foreground data-[state=open]:bg-secondary-hover data-[state=open]:text-foreground"
         >
           <MonitorUp size={18} />
         </button>
@@ -1869,11 +1869,11 @@ function ShareSheet({
         align="center"
         sideOffset={14}
         collisionPadding={12}
-        className="w-[352px] max-w-[calc(100vw-24px)] rounded-[22px] border-black/[0.06] bg-white p-0 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.28)]"
+        className="w-[352px] max-w-[calc(100vw-24px)] rounded-[22px] border-foreground/[0.06] bg-card p-0 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.28)]"
       >
         <div className="px-4 pb-3 pt-4">
           <p className="text-[15px] font-medium tracking-[-0.01em]">Compartilhar tela</p>
-          <p className="mt-0.5 text-[12.5px] text-[#8a8a8a]">
+          <p className="mt-0.5 text-[12.5px] text-ink-faint">
             {supported
               ? "Escolha o que o time vai ver."
               : "Este navegador não compartilha tela. Entre pelo computador para mostrar a sua."}
@@ -1900,14 +1900,14 @@ function ShareSheet({
                       "group flex flex-col items-center gap-2 rounded-[14px] border px-1 pb-2.5 pt-3 transition-[background-color,border-color,box-shadow] duration-200 ease-clyro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
                       on
                         ? "border-brand/60 bg-brand-soft/60 shadow-[0_0_0_1px_var(--brand)]"
-                        : "border-black/[0.07] hover:border-black/15 hover:bg-[#fafafa]",
+                        : "border-foreground/[0.07] hover:border-foreground/15 hover:bg-surface-1",
                     )}
                   >
                     <SurfaceArt surface={item.id} on={on} />
                     <span
                       className={cn(
                         "text-[12.5px] leading-none",
-                        on ? "font-medium text-foreground" : "text-[#525252]",
+                        on ? "font-medium text-foreground" : "text-ink-2",
                       )}
                     >
                       {item.label}
@@ -1918,11 +1918,11 @@ function ShareSheet({
             </div>
 
             <div className="mt-4 px-4">
-              <p className="text-[12px] font-medium text-[#737373]">Qualidade</p>
+              <p className="text-[12px] font-medium text-muted-foreground">Qualidade</p>
               <div
                 role="radiogroup"
                 aria-label="Qualidade da transmissão"
-                className="mt-1.5 grid grid-cols-3 gap-1 rounded-full bg-[#f4f4f5] p-1"
+                className="mt-1.5 grid grid-cols-3 gap-1 rounded-full bg-secondary p-1"
               >
                 {SHARE_PRESETS.map((item) => {
                   const on = preset?.id === item.id;
@@ -1939,8 +1939,8 @@ function ShareSheet({
                       className={cn(
                         "h-8 rounded-full text-[12.5px] transition-[background-color,color,box-shadow] duration-200 ease-clyro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
                         on
-                          ? "bg-white font-medium text-foreground shadow-[0_1px_3px_rgb(0_0_0/0.12)]"
-                          : "text-[#737373] hover:text-foreground",
+                          ? "bg-card font-medium text-foreground shadow-[0_1px_3px_rgb(0_0_0/0.12)]"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                     >
                       {item.label}
@@ -1948,23 +1948,23 @@ function ShareSheet({
                   );
                 })}
               </div>
-              <p className="mt-1.5 text-[12px] tabular-nums text-[#8a8a8a]">
+              <p className="mt-1.5 text-[12px] tabular-nums text-ink-faint">
                 {settings.screenResolution}p · {settings.screenFps} fps
                 {preset ? ` · ${preset.hint}` : " · personalizada"}
               </p>
             </div>
 
-            <label className="mx-4 mt-3 flex items-center gap-3 border-t border-black/[0.06] pt-3">
+            <label className="mx-4 mt-3 flex items-center gap-3 border-t border-foreground/[0.06] pt-3">
               <span className="min-w-0 flex-1">
                 <span
                   className={cn(
                     "block text-[13.5px]",
-                    audioBlocked ? "text-[#a3a3a3]" : "text-foreground",
+                    audioBlocked ? "text-ink-ghost" : "text-foreground",
                   )}
                 >
                   Levar o som junto
                 </span>
-                <span className="block text-[12px] text-[#8a8a8a]">
+                <span className="block text-[12px] text-ink-faint">
                   {audioBlocked
                     ? "Janela não leva som. Escolha uma aba para o time ouvir."
                     : surface === "browser"
@@ -1977,7 +1977,7 @@ function ShareSheet({
                 disabled={audioBlocked}
                 onCheckedChange={setAudio}
                 aria-label="Levar o som junto"
-                className="data-[state=checked]:bg-[#15803d]"
+                className="data-[state=checked]:bg-success-ink"
               />
             </label>
 
@@ -1990,7 +1990,7 @@ function ShareSheet({
                 <MonitorUp size={17} />
                 {choice?.action}
               </button>
-              <p className="mt-2 text-center text-[11.5px] text-[#a3a3a3]">
+              <p className="mt-2 text-center text-[11.5px] text-ink-ghost">
                 O navegador confirma. A aba da chamada fica de fora.
               </p>
             </div>
@@ -2003,19 +2003,19 @@ function ShareSheet({
 
 /** Os desenhos dos três cartões: uma aba, uma janela e um monitor, em miniatura. */
 function SurfaceArt({ surface, on }: { surface: ShareSurface; on: boolean }) {
-  const accent = on ? "bg-brand" : "bg-[#d4d4d8]";
-  const line = on ? "bg-brand/30" : "bg-[#e4e4e7]";
+  const accent = on ? "bg-brand" : "bg-ink-ghost";
+  const line = on ? "bg-brand/30" : "bg-secondary-hover";
 
   if (surface === "browser") {
     return (
-      <span className="flex h-[46px] w-[68px] flex-col overflow-hidden rounded-[7px] border border-black/[0.08] bg-white shadow-[0_2px_6px_-3px_rgb(0_0_0/0.2)] transition-transform duration-200 ease-clyro group-hover:-translate-y-px">
-        <span className="flex h-[11px] items-end gap-[2px] bg-[#efeff1] px-[4px]">
-          <span className="h-[7px] w-[22px] rounded-t-[3px] bg-white">
+      <span className="flex h-[46px] w-[68px] flex-col overflow-hidden rounded-[7px] border border-foreground/[0.08] bg-card shadow-[0_2px_6px_-3px_rgb(0_0_0/0.2)] transition-transform duration-200 ease-clyro group-hover:-translate-y-px">
+        <span className="flex h-[11px] items-end gap-[2px] bg-secondary px-[4px]">
+          <span className="h-[7px] w-[22px] rounded-t-[3px] bg-card">
             <span
               className={cn("ml-[3px] mt-[2.5px] block h-[2px] w-[12px] rounded-full", accent)}
             />
           </span>
-          <span className="h-[7px] w-[16px] rounded-t-[3px] bg-[#e2e2e5]" />
+          <span className="h-[7px] w-[16px] rounded-t-[3px] bg-secondary-hover" />
         </span>
         <span className="flex flex-1 flex-col gap-[3px] px-[6px] pt-[5px]">
           <span className={cn("h-[3px] w-[34px] rounded-full", accent)} />
@@ -2029,15 +2029,15 @@ function SurfaceArt({ surface, on }: { surface: ShareSurface; on: boolean }) {
   if (surface === "window") {
     return (
       <span className="relative h-[46px] w-[68px] transition-transform duration-200 ease-clyro group-hover:-translate-y-px">
-        <span className="absolute left-[10px] top-0 h-[34px] w-[54px] rounded-[6px] border border-black/[0.06] bg-[#f4f4f5]" />
-        <span className="absolute bottom-0 left-0 flex h-[36px] w-[56px] flex-col overflow-hidden rounded-[6px] border border-black/[0.08] bg-white shadow-[0_2px_6px_-3px_rgb(0_0_0/0.25)]">
-          <span className="flex h-[9px] items-center gap-[2px] border-b border-black/[0.05] px-[4px]">
+        <span className="absolute left-[10px] top-0 h-[34px] w-[54px] rounded-[6px] border border-foreground/[0.06] bg-secondary" />
+        <span className="absolute bottom-0 left-0 flex h-[36px] w-[56px] flex-col overflow-hidden rounded-[6px] border border-foreground/[0.08] bg-card shadow-[0_2px_6px_-3px_rgb(0_0_0/0.25)]">
+          <span className="flex h-[9px] items-center gap-[2px] border-b border-foreground/[0.05] px-[4px]">
             <span className="h-[3px] w-[3px] rounded-full bg-[#fca5a5]" />
             <span className="h-[3px] w-[3px] rounded-full bg-[#fcd34d]" />
             <span className="h-[3px] w-[3px] rounded-full bg-[#86efac]" />
           </span>
           <span className="flex flex-1 gap-[4px] p-[4px]">
-            <span className="w-[12px] rounded-[2px] bg-[#f1f1f3]" />
+            <span className="w-[12px] rounded-[2px] bg-secondary" />
             <span className="flex flex-1 flex-col gap-[3px] pt-[1px]">
               <span className={cn("h-[3px] w-full rounded-full", accent)} />
               <span className={cn("h-[3px] w-3/4 rounded-full", line)} />
@@ -2050,7 +2050,7 @@ function SurfaceArt({ surface, on }: { surface: ShareSurface; on: boolean }) {
 
   return (
     <span className="flex h-[46px] w-[68px] flex-col items-center transition-transform duration-200 ease-clyro group-hover:-translate-y-px">
-      <span className="flex h-[36px] w-[62px] items-stretch rounded-[5px] border-[2.5px] border-[#3f3f46] bg-white">
+      <span className="flex h-[36px] w-[62px] items-stretch rounded-[5px] border-[2.5px] border-ink-2 bg-card">
         <span className="flex flex-1 flex-col gap-[3px] p-[4px]">
           <span className={cn("h-[3px] w-[26px] rounded-full", accent)} />
           <span className="flex flex-1 gap-[3px]">
@@ -2059,8 +2059,8 @@ function SurfaceArt({ surface, on }: { surface: ShareSurface; on: boolean }) {
           </span>
         </span>
       </span>
-      <span className="h-[5px] w-[6px] bg-[#3f3f46]" />
-      <span className="h-[2.5px] w-[22px] rounded-full bg-[#3f3f46]" />
+      <span className="h-[5px] w-[6px] bg-ink-2" />
+      <span className="h-[2.5px] w-[22px] rounded-full bg-ink-2" />
     </span>
   );
 }
@@ -2093,8 +2093,8 @@ function StageButton({
       className={cn(
         "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
         on
-          ? "bg-[#f4f4f5] text-[#15803d] hover:bg-[#ebebed]"
-          : "bg-[#f4f4f5] text-[#737373] hover:bg-[#ebebed] hover:text-foreground",
+          ? "bg-secondary text-success-ink hover:bg-secondary-hover"
+          : "bg-secondary text-muted-foreground hover:bg-secondary-hover hover:text-foreground",
         animation,
       )}
     >

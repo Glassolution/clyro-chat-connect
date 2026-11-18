@@ -175,7 +175,7 @@ export function ProfilePanel({
         <button
           type="button"
           onClick={() => void copyHandle()}
-          className="mt-5 flex h-11 w-full items-center gap-3 rounded-[14px] border border-black/[0.08] px-4 transition-colors hover:bg-card"
+          className="mt-5 flex h-11 w-full items-center gap-3 rounded-[14px] border border-foreground/[0.08] px-4 transition-colors hover:bg-card"
         >
           <Link21 size={18} color="currentColor" className="shrink-0" />
           <span className="min-w-0 flex-1 truncate text-center text-[14px] font-medium underline decoration-foreground/40 underline-offset-4">

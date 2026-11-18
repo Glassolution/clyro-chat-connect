@@ -23,16 +23,16 @@ const TONE: Record<Tone, { text: string; code: string; mention: string; link: st
   },
   incoming: {
     text: "text-[14px] leading-[1.5] text-foreground",
-    code: "bg-[#f4f4f5] text-foreground",
-    mention: "bg-brand-soft text-[#9a3a00]",
-    link: "text-[#c2410c] decoration-[#c2410c]/40 hover:decoration-[#c2410c]",
+    code: "bg-secondary text-foreground",
+    mention: "bg-brand-soft text-brand-ink",
+    link: "text-brand-text decoration-brand-text/40 hover:decoration-brand-text",
   },
   /* O chat ao lado da call: o balão branco, num tamanho menor. */
   stage: {
     text: "text-[13px] leading-[1.45] text-foreground",
-    code: "bg-[#f4f4f5] text-foreground",
-    mention: "bg-brand-soft text-[#9a3a00]",
-    link: "text-[#c2410c] decoration-[#c2410c]/40 hover:decoration-[#c2410c]",
+    code: "bg-secondary text-foreground",
+    mention: "bg-brand-soft text-brand-ink",
+    link: "text-brand-text decoration-brand-text/40 hover:decoration-brand-text",
   },
   outgoing: {
     text: "text-[14px] leading-[1.5] text-white",

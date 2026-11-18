@@ -7,20 +7,29 @@ import {
   Edit,
   Key,
   Logout,
+  Monitor,
+  Moon,
   ProfileCircle,
   Setting2,
+  Sun1,
   TickCircle,
 } from "iconsax-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { inviteLink } from "@/lib/invite-link";
 import { cn } from "@/lib/utils";
+import { useTheme, type ThemeChoice } from "@/lib/theme";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Profile, Server } from "@/lib/clyro-types";
@@ -28,6 +37,12 @@ import { UserAvatar } from "@/components/clyro/primitives";
 import { WorkspaceIcon } from "./workspace-sidebar";
 
 const MENU_ITEM = "h-9 gap-2.5 rounded-[10px] px-2.5 text-[13.5px]";
+
+const THEME_OPTIONS: { id: ThemeChoice; label: string; Icon: typeof Sun1 }[] = [
+  { id: "light", label: "Claro", Icon: Sun1 },
+  { id: "dark", label: "Escuro", Icon: Moon },
+  { id: "system", label: "Do sistema", Icon: Monitor },
+];
 
 /**
  * A sua conta, no canto superior direito: a pílula com a sua foto abre o menu
@@ -66,6 +81,8 @@ export function ProfileMenu({
   const qc = useQueryClient();
   const { signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
+  const theme = useTheme();
+  const ThemeIcon = theme.resolved === "dark" ? Moon : Sun1;
   const name = profile?.display_name || profile?.username || "Você";
 
   const copyCode = async () => {
@@ -112,7 +129,7 @@ export function ProfileMenu({
           type="button"
           aria-label="Sua conta e workspaces"
           className={cn(
-            "group flex h-11 max-w-[260px] items-center gap-2.5 rounded-full border border-black/[0.06] bg-white py-1 pl-1 pr-1.5 text-left outline-none transition-colors duration-200 ease-clyro hover:bg-[#f7f7f7] focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:bg-[#f5f5f5] sm:pr-3",
+            "group flex h-11 max-w-[260px] items-center gap-2.5 rounded-full border border-foreground/[0.06] bg-card py-1 pl-1 pr-1.5 text-left outline-none transition-colors duration-200 ease-clyro hover:bg-surface-1 focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:bg-secondary sm:pr-3",
             profileActive && "border-brand/30 bg-brand-soft hover:bg-brand-soft",
           )}
         >
@@ -122,7 +139,7 @@ export function ProfileMenu({
               {name}
             </span>
             {workspace && (
-              <span className="block truncate text-[11.5px] leading-tight text-[#8a8a8a]">
+              <span className="block truncate text-[11.5px] leading-tight text-ink-faint">
                 {workspace.name}
               </span>
             )}
@@ -130,7 +147,7 @@ export function ProfileMenu({
           <ArrowDown2
             size={14}
             color="currentColor"
-            className="hidden shrink-0 text-[#a3a3a3] transition-transform duration-200 ease-clyro group-data-[state=open]:rotate-180 sm:block"
+            className="hidden shrink-0 text-ink-ghost transition-transform duration-200 ease-clyro group-data-[state=open]:rotate-180 sm:block"
           />
         </button>
       </DropdownMenuTrigger>
@@ -175,7 +192,7 @@ export function ProfileMenu({
           );
         })}
         <DropdownMenuItem onSelect={onCreateWorkspace} className={MENU_ITEM}>
-          <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#a8a8a8] text-white">
+          <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-ink-ghost text-white">
             <Add size={15} color="currentColor" />
           </span>
           Novo workspace
@@ -207,6 +224,32 @@ export function ProfileMenu({
         )}
 
         <DropdownMenuSeparator />
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className={cn(MENU_ITEM, "[&>svg:last-child]:ml-0")}>
+            <ThemeIcon size={16} color="currentColor" /> Tema
+            <span className="ml-auto text-[12px] text-muted-foreground">
+              {THEME_OPTIONS.find((option) => option.id === theme.choice)?.label}
+            </span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent sideOffset={6} className="w-44 rounded-[14px] p-1.5">
+            <DropdownMenuRadioGroup
+              value={theme.choice}
+              onValueChange={(value) => theme.setChoice(value as ThemeChoice)}
+            >
+              {THEME_OPTIONS.map(({ id, label, Icon }) => (
+                <DropdownMenuRadioItem
+                  key={id}
+                  value={id}
+                  // Sem fechar o menu: dá para comparar os temas na hora.
+                  onSelect={(event) => event.preventDefault()}
+                  className="h-9 gap-2.5 rounded-[10px] text-[13.5px]"
+                >
+                  <Icon size={16} color="currentColor" /> {label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
         <DropdownMenuItem onSelect={onSettings} className={MENU_ITEM}>
           <Setting2 size={16} color="currentColor" /> Configurações
         </DropdownMenuItem>
