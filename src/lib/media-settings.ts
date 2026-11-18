@@ -152,6 +152,10 @@ export function displayConstraints(
           autoGainControl: false,
           channelCount: { ideal: 2 },
           sampleRate: { ideal: 48000 },
+          // Tira do som capturado o que o próprio Clyro toca — as vozes da call.
+          // Sem isso, quem compartilha a tela inteira devolve a voz de cada um
+          // para a sala, e a pessoa se escuta na transmissão.
+          restrictOwnAudio: true,
         }
       : false,
     // A aba da própria chamada fica fora da lista: compartilhar o Clyro vira
@@ -161,7 +165,7 @@ export function displayConstraints(
     systemAudio: withAudio ? "include" : "exclude",
     monitorTypeSurfaces: "include",
   };
-  return request;
+  return request as DisplayMediaStreamOptions;
 }
 
 /** O que a pessoa escolheu no painel de compartilhar, antes do seletor do navegador. */
@@ -172,7 +176,8 @@ export type ShareOptions = { surface?: ShareSurface; audio?: boolean };
  * Opções do seletor que o Chromium entende e o TypeScript ainda não tipa.
  * Os outros navegadores ignoram o que não conhecem.
  */
-type ChromiumDisplayOptions = DisplayMediaStreamOptions & {
+type ChromiumDisplayOptions = Omit<DisplayMediaStreamOptions, "audio"> & {
+  audio?: boolean | (MediaTrackConstraints & { restrictOwnAudio?: boolean });
   selfBrowserSurface?: "include" | "exclude";
   surfaceSwitching?: "include" | "exclude";
   systemAudio?: "include" | "exclude";

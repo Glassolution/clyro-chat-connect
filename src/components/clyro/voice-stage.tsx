@@ -37,9 +37,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import {
+  SCREEN_VOLUME_DEFAULT,
+  SCREEN_VOLUME_MAX,
+  setScreenVolume,
+  useScreenVolume,
+} from "@/lib/screen-volume";
 import {
   canShareScreen,
   setMediaSetting,
@@ -457,7 +465,13 @@ function ConnectedStage({
   };
 
   const screenView = screenId
-    ? { expanded, full, onExpand: expandScreen, onFullscreen: () => void toggleFullscreen() }
+    ? {
+        expanded,
+        full,
+        menuContainer,
+        onExpand: expandScreen,
+        onFullscreen: () => void toggleFullscreen(),
+      }
     : undefined;
 
   const status = rtc.error ? (
@@ -1061,6 +1075,8 @@ function HeaderButton({
 type ScreenView = {
   expanded: boolean;
   full: boolean;
+  /** Em tela cheia, menus precisam abrir dentro dela para aparecer. */
+  menuContainer?: HTMLElement | null | undefined;
   onExpand: () => void;
   onFullscreen: () => void;
 };
@@ -1212,122 +1228,128 @@ function ScreenTile({
 
   return (
     <div className="relative flex min-h-0 flex-1 items-center justify-center [container-type:size]">
-      <div
-        className={cn(
-          "clyro-fade-in relative overflow-hidden",
-          immersive || previewHidden ? "h-full w-full" : "max-h-full",
-          !immersive && "rounded-[18px]",
-          previewHidden ? "bg-[#f5f5f6]" : immersive ? "bg-transparent" : "bg-black",
-        )}
-        style={
-          !immersive && !previewHidden
-            ? { aspectRatio: ratio, width: `min(100cqw, calc(100cqh * ${ratio}))` }
-            : undefined
-        }
+      <ScreenVolumeMenu
+        userId={tile.self ? null : tile.userId}
+        name={tile.name}
+        container={view.menuContainer}
       >
-        {previewHidden ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 py-12 text-center">
-            <span className="clyro-in-pop hidden size-12 shrink-0 place-items-center rounded-full bg-white text-foreground shadow-sm sm:grid">
-              <MonitorUp size={22} />
-            </span>
-            <div>
-              <p className="text-base font-medium">Você está apresentando a tela inteira</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                A prévia fica oculta para evitar o efeito espelho.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPreview(true)}
-                className="h-9 rounded-full border border-black/10 bg-white px-3.5 text-[13px] font-medium transition-colors hover:bg-muted"
-              >
-                Ver prévia
-              </button>
-              {onStopShare && (
+        <div
+          className={cn(
+            "clyro-fade-in relative overflow-hidden",
+            immersive || previewHidden ? "h-full w-full" : "max-h-full",
+            !immersive && "rounded-[18px]",
+            previewHidden ? "bg-[#f5f5f6]" : immersive ? "bg-transparent" : "bg-black",
+          )}
+          style={
+            !immersive && !previewHidden
+              ? { aspectRatio: ratio, width: `min(100cqw, calc(100cqh * ${ratio}))` }
+              : undefined
+          }
+        >
+          {previewHidden ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-4 py-12 text-center">
+              <span className="clyro-in-pop hidden size-12 shrink-0 place-items-center rounded-full bg-white text-foreground shadow-sm sm:grid">
+                <MonitorUp size={22} />
+              </span>
+              <div>
+                <p className="text-base font-medium">Você está apresentando a tela inteira</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  A prévia fica oculta para evitar o efeito espelho.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
-                  onClick={onStopShare}
-                  className="flex h-9 items-center gap-1.5 rounded-full bg-destructive px-3.5 text-[13px] font-medium text-white transition-colors hover:bg-destructive/90"
+                  onClick={() => setPreview(true)}
+                  className="h-9 rounded-full border border-black/10 bg-white px-3.5 text-[13px] font-medium transition-colors hover:bg-muted"
                 >
-                  <MonitorX size={15} />
-                  Parar de apresentar
+                  Ver prévia
                 </button>
-              )}
+                {onStopShare && (
+                  <button
+                    type="button"
+                    onClick={onStopShare}
+                    className="flex h-9 items-center gap-1.5 rounded-full bg-destructive px-3.5 text-[13px] font-medium text-white transition-colors hover:bg-destructive/90"
+                  >
+                    <MonitorX size={15} />
+                    Parar de apresentar
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label={view.expanded ? "Voltar à visualização padrão" : "Ampliar transmissão"}
-            title={view.expanded ? undefined : "Clique para ampliar"}
-            onClick={onStreamClick}
-            onDoubleClick={onStreamDoubleClick}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                view.onExpand();
-              }
-            }}
-            className={cn(
-              "h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
-              view.expanded ? "cursor-default" : "cursor-zoom-in",
-            )}
-          >
-            <StreamVideo stream={tile.stream} onAspect={setRatio} />
-          </div>
-        )}
-        <span
-          aria-hidden="true"
-          data-speaking={tile.speaking}
-          className="speaking-halo pointer-events-none absolute inset-0 z-10 rounded-[inherit]"
-        />
-
-        {/* Ampliada, o nome fica embaixo à esquerda, sempre à vista, como no Discord. */}
-        {immersive && !previewHidden && (
-          <span className="pointer-events-none absolute bottom-3 left-3 z-20 flex h-8 max-w-[60%] items-center gap-2 rounded-[8px] bg-black/60 px-2.5 text-[13px] font-medium text-white backdrop-blur-sm">
-            <MonitorUp size={15} />
-            <span className="truncate">{tile.self ? `${tile.name} (você)` : tile.name}</span>
-          </span>
-        )}
-
-        {/* Nome e controles presos aos cantos da própria imagem, não da área toda. */}
-        <div className="call-screen-controls absolute inset-x-2 top-2 z-20 flex items-center justify-between gap-2 sm:inset-x-3 sm:top-3">
-          {immersive ? (
-            <span />
           ) : (
-            <span className="flex h-8 min-w-0 items-center gap-2 rounded-full bg-black/70 py-1 pl-1 pr-2.5 text-xs font-medium text-white backdrop-blur-md">
-              <UserAvatar profile={tile.profile} size={24} showStatus={false} />
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label={view.expanded ? "Voltar à visualização padrão" : "Ampliar transmissão"}
+              title={view.expanded ? undefined : "Clique para ampliar"}
+              onClick={onStreamClick}
+              onDoubleClick={onStreamDoubleClick}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  view.onExpand();
+                }
+              }}
+              className={cn(
+                "h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
+                view.expanded ? "cursor-default" : "cursor-zoom-in",
+              )}
+            >
+              <StreamVideo stream={tile.stream} onAspect={setRatio} />
+            </div>
+          )}
+          <span
+            aria-hidden="true"
+            data-speaking={tile.speaking}
+            className="speaking-halo pointer-events-none absolute inset-0 z-10 rounded-[inherit]"
+          />
+
+          {/* Ampliada, o nome fica embaixo à esquerda, sempre à vista, como no Discord. */}
+          {immersive && !previewHidden && (
+            <span className="pointer-events-none absolute bottom-3 left-3 z-20 flex h-8 max-w-[60%] items-center gap-2 rounded-[8px] bg-black/60 px-2.5 text-[13px] font-medium text-white backdrop-blur-sm">
+              <MonitorUp size={15} />
               <span className="truncate">{tile.self ? `${tile.name} (você)` : tile.name}</span>
             </span>
           )}
-          <div className="flex shrink-0 items-center gap-1 rounded-full bg-black/75 p-1 text-white shadow-sm backdrop-blur-md">
-            {mirror && preview && (
-              <button
-                type="button"
-                onClick={() => setPreview(false)}
-                className="h-8 rounded-full px-2 text-xs font-medium transition-colors hover:bg-white/20"
-              >
-                Ocultar prévia
-              </button>
+
+          {/* Nome e controles presos aos cantos da própria imagem, não da área toda. */}
+          <div className="call-screen-controls absolute inset-x-2 top-2 z-20 flex items-center justify-between gap-2 sm:inset-x-3 sm:top-3">
+            {immersive ? (
+              <span />
+            ) : (
+              <span className="flex h-8 min-w-0 items-center gap-2 rounded-full bg-black/70 py-1 pl-1 pr-2.5 text-xs font-medium text-white backdrop-blur-md">
+                <UserAvatar profile={tile.profile} size={24} showStatus={false} />
+                <span className="truncate">{tile.self ? `${tile.name} (você)` : tile.name}</span>
+              </span>
             )}
-            {!immersive && (
-              <ScreenViewButton label={pinLabel} onClick={onTogglePin} active={pinned}>
-                <Pin size={16} />
+            <div className="flex shrink-0 items-center gap-1 rounded-full bg-black/75 p-1 text-white shadow-sm backdrop-blur-md">
+              {mirror && preview && (
+                <button
+                  type="button"
+                  onClick={() => setPreview(false)}
+                  className="h-8 rounded-full px-2 text-xs font-medium transition-colors hover:bg-white/20"
+                >
+                  Ocultar prévia
+                </button>
+              )}
+              {!immersive && (
+                <ScreenViewButton label={pinLabel} onClick={onTogglePin} active={pinned}>
+                  <Pin size={16} />
+                </ScreenViewButton>
+              )}
+              {!view.full && (
+                <ScreenViewButton label={expandLabel} onClick={view.onExpand}>
+                  {view.expanded ? <LayoutGrid size={17} /> : <MonitorUp size={17} />}
+                </ScreenViewButton>
+              )}
+              <ScreenViewButton label={fullLabel} onClick={toggleFullscreen}>
+                {view.full ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
               </ScreenViewButton>
-            )}
-            {!view.full && (
-              <ScreenViewButton label={expandLabel} onClick={view.onExpand}>
-                {view.expanded ? <LayoutGrid size={17} /> : <MonitorUp size={17} />}
-              </ScreenViewButton>
-            )}
-            <ScreenViewButton label={fullLabel} onClick={toggleFullscreen}>
-              {view.full ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
-            </ScreenViewButton>
+            </div>
           </div>
         </div>
-      </div>
+      </ScreenVolumeMenu>
 
       {tile.reaction && (
         <span className="clyro-pop-in pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-6xl">
@@ -1335,6 +1357,83 @@ function ScreenTile({
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * Botão direito na tela de alguém: volume do som que essa pessoa transmite,
+ * de 0 a 200%. Mexe só no que você ouve, e fica lembrado para a próxima call.
+ * Na sua própria tela não há o que ajustar — o menu do navegador segue normal.
+ */
+function ScreenVolumeMenu({
+  userId,
+  name,
+  container,
+  children,
+}: {
+  userId: string | null;
+  name: string;
+  container?: HTMLElement | null | undefined;
+  children: ReactNode;
+}) {
+  const volume = useScreenVolume(userId);
+  if (!userId) return <>{children}</>;
+  const muted = volume === 0;
+  return (
+    <ContextMenuPrimitive.Root>
+      <ContextMenuPrimitive.Trigger asChild>{children}</ContextMenuPrimitive.Trigger>
+      <ContextMenuPrimitive.Portal container={container ?? undefined}>
+        <ContextMenuPrimitive.Content
+          collisionPadding={12}
+          className="z-50 w-[264px] rounded-[16px] border border-black/[0.06] bg-white p-1.5 text-foreground shadow-[0_24px_60px_-20px_rgb(0_0_0/0.28)] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+        >
+          <div className="px-2.5 pb-3 pt-2">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="min-w-0 truncate text-[13px] font-medium">Volume da transmissão</p>
+              <span className="shrink-0 text-[12.5px] tabular-nums text-[#737373]">{volume}%</span>
+            </div>
+            <p className="mt-0.5 truncate text-[12px] text-[#8a8a8a]">Som da tela de {name}</p>
+            {/* As setas mexem no volume, não navegam pelo menu. */}
+            <div className="mt-3.5" onKeyDown={(event) => event.stopPropagation()}>
+              <Slider
+                min={0}
+                max={SCREEN_VOLUME_MAX}
+                step={1}
+                value={[volume]}
+                onValueChange={([next]) => setScreenVolume(userId, next ?? SCREEN_VOLUME_DEFAULT)}
+                aria-label={`Volume da transmissão de ${name}`}
+              />
+              <div className="mt-1.5 flex justify-between text-[11px] tabular-nums text-[#a3a3a3]">
+                <span>0%</span>
+                <span>100%</span>
+                <span>200%</span>
+              </div>
+            </div>
+          </div>
+          <div className="my-1 h-px bg-black/[0.06]" />
+          <ContextMenuPrimitive.Item
+            onSelect={(event) => {
+              event.preventDefault();
+              setScreenVolume(userId, muted ? SCREEN_VOLUME_DEFAULT : 0);
+            }}
+            className="flex h-9 cursor-default select-none items-center gap-2.5 rounded-[10px] px-2.5 text-[13px] outline-none data-[highlighted]:bg-[#f4f4f5]"
+          >
+            {muted ? <Volume2 size={16} /> : <HeadphoneOff size={16} />}
+            {muted ? "Ativar som da transmissão" : "Silenciar transmissão"}
+          </ContextMenuPrimitive.Item>
+          <ContextMenuPrimitive.Item
+            disabled={volume === SCREEN_VOLUME_DEFAULT}
+            onSelect={(event) => {
+              event.preventDefault();
+              setScreenVolume(userId, SCREEN_VOLUME_DEFAULT);
+            }}
+            className="flex h-9 cursor-default select-none items-center rounded-[10px] px-2.5 text-[13px] outline-none data-[disabled]:opacity-40 data-[highlighted]:bg-[#f4f4f5]"
+          >
+            Voltar para 100%
+          </ContextMenuPrimitive.Item>
+        </ContextMenuPrimitive.Content>
+      </ContextMenuPrimitive.Portal>
+    </ContextMenuPrimitive.Root>
   );
 }
 

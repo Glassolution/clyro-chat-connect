@@ -39,6 +39,11 @@ export type RemotePeer = {
   stream: MediaStream;
   speaking: boolean;
   hasVideo: boolean;
+  /**
+   * A faixa da voz. Qualquer outra faixa de áudio no stream é o som da tela que
+   * a pessoa compartilha — e essa tem volume próprio para quem assiste.
+   */
+  voiceTrackId?: string | undefined;
 };
 
 /** Qualidade estimada do enlace, para o indicador da barra de voz. */
@@ -878,6 +883,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
             stream: remoteStream,
             speaking: prev[peerId]?.speaking ?? false,
             hasVideo: remoteStream.getVideoTracks().some((t) => t.readyState === "live"),
+            voiceTrackId: voiceTrackRef.current.get(peerId)?.id,
           },
         }));
       };
@@ -1873,7 +1879,23 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         }
         track.contentHint = screenHint(preferences);
         track.onended = stopSharing;
-        const audioTrack = display.getAudioTracks()[0];
+        let audioTrack = display.getAudioTracks()[0];
+        /*
+         * O som do sistema traz junto o que o Clyro toca, ou seja, a voz de todo
+         * mundo, que volta para a sala como eco. O `restrictOwnAudio` pede para
+         * o navegador tirar isso; se ele não confirmar, o som do sistema fica de
+         * fora. Uma aba nunca é a do Clyro (ela sai da lista), então pode seguir.
+         */
+        if (audioTrack && track.getSettings().displaySurface !== "browser") {
+          const own = audioTrack.getSettings() as MediaTrackSettings & {
+            restrictOwnAudio?: boolean;
+          };
+          if (own.restrictOwnAudio !== true) {
+            audioTrack.stop();
+            display.removeTrack(audioTrack);
+            audioTrack = undefined;
+          }
+        }
         if (audioTrack) {
           // Se o som da aba parar (troca de aba, por exemplo), o vídeo continua.
           audioTrack.onended = () => removeExtraTrack("screen-audio");

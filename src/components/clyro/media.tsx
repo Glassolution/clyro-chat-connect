@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type React from "react";
 import { cn } from "@/lib/utils";
 import { useMediaSettings } from "@/lib/media-settings";
+import { useScreenVolume } from "@/lib/screen-volume";
 
 export function StreamVideo({
   stream,
@@ -65,38 +67,45 @@ export function StreamVideo({
  * faixas, e o Chrome toca só uma faixa de áudio por elemento — o som da tela
  * sumia mesmo com "compartilhar áudio" ligado. Cada faixa ganha o seu.
  */
-export function StreamAudio({ stream, deafened }: { stream: MediaStream; deafened: boolean }) {
+export function StreamAudio({
+  stream,
+  deafened,
+  userId,
+  voiceTrackId,
+}: {
+  stream: MediaStream;
+  deafened: boolean;
+  userId: string;
+  voiceTrackId?: string | undefined;
+}) {
+  const screenVolume = useScreenVolume(userId);
   // O stream é o mesmo objeto a vida toda; o participante é recriado a cada
   // faixa que entra ou sai, e isso já renderiza de novo.
   const tracks = stream.getAudioTracks().filter((t) => t.readyState === "live");
   return (
     <>
-      {tracks.map((track) => (
-        <TrackAudio key={track.id} track={track} deafened={deafened} />
-      ))}
+      {tracks.map((track) =>
+        // Enquanto a voz não foi identificada, tudo toca como voz: melhor do que
+        // mexer no volume da pessoa errada.
+        !voiceTrackId || track.id === voiceTrackId ? (
+          <TrackAudio key={track.id} track={track} deafened={deafened} />
+        ) : (
+          <ScreenTrackAudio
+            key={track.id}
+            track={track}
+            deafened={deafened}
+            volume={screenVolume}
+          />
+        ),
+      )}
     </>
   );
 }
 
-function TrackAudio({ track, deafened }: { track: MediaStreamTrack; deafened: boolean }) {
-  const ref = useRef<HTMLAudioElement>(null);
+/** Manda o som para o fone escolhido nas configurações; vazio é o padrão do sistema. */
+function useOutputDevice(ref: React.RefObject<HTMLAudioElement | null>, stream: MediaStream) {
   const { outputDeviceId } = useMediaSettings();
-  const stream = useMemo(() => new MediaStream([track]), [track]);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.srcObject = stream;
-    void el.play().catch(() => {
-      /* autoplay bloqueado; o clique do usuário resolve */
-    });
-  }, [stream]);
-  useEffect(() => {
-    if (ref.current) ref.current.muted = deafened;
-  }, [deafened]);
-
-  // Manda o som para o fone escolhido nas configurações; vazio devolve ao
-  // padrão do sistema. Firefox e Safari ainda não têm `setSinkId`.
+  // Firefox e Safari ainda não têm `setSinkId`.
   useEffect(() => {
     const el = ref.current as
       (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
@@ -104,9 +113,103 @@ function TrackAudio({ track, deafened }: { track: MediaStreamTrack; deafened: bo
     void el.setSinkId(outputDeviceId).catch(() => {
       /* o dispositivo pode ter sido desconectado: fica no padrão */
     });
-  }, [outputDeviceId, stream]);
+  }, [ref, outputDeviceId, stream]);
+}
+
+function playInto(el: HTMLAudioElement | null, stream: MediaStream) {
+  if (!el) return;
+  el.srcObject = stream;
+  void el.play().catch(() => {
+    /* autoplay bloqueado; o clique do usuário resolve */
+  });
+}
+
+function TrackAudio({ track, deafened }: { track: MediaStreamTrack; deafened: boolean }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  const stream = useMemo(() => new MediaStream([track]), [track]);
+
+  useEffect(() => playInto(ref.current, stream), [stream]);
+  useEffect(() => {
+    if (ref.current) ref.current.muted = deafened;
+  }, [deafened]);
+  useOutputDevice(ref, stream);
 
   return <audio ref={ref} autoPlay />;
+}
+
+let screenAudioContext: AudioContext | null = null;
+function sharedAudioContext() {
+  if (typeof AudioContext === "undefined") return null;
+  if (!screenAudioContext || screenAudioContext.state === "closed") {
+    screenAudioContext = new AudioContext({ latencyHint: "interactive" });
+  }
+  if (screenAudioContext.state === "suspended") void screenAudioContext.resume().catch(() => {});
+  return screenAudioContext;
+}
+
+/**
+ * Som da tela com volume de 0 a 200%. O `volume` do elemento para em 100%,
+ * então o ganho passa por um nó de áudio. O elemento mudo com a faixa original
+ * fica porque o Chrome só entrega o som de uma faixa remota ao Web Audio
+ * enquanto ela também estiver presa a um elemento de mídia.
+ */
+function ScreenTrackAudio({
+  track,
+  deafened,
+  volume,
+}: {
+  track: MediaStreamTrack;
+  deafened: boolean;
+  volume: number;
+}) {
+  const pullRef = useRef<HTMLAudioElement>(null);
+  const ref = useRef<HTMLAudioElement>(null);
+  const gainRef = useRef<GainNode | null>(null);
+  const source = useMemo(() => new MediaStream([track]), [track]);
+  const [output, setOutput] = useState<MediaStream | null>(null);
+
+  useEffect(() => {
+    const ctx = sharedAudioContext();
+    if (!ctx) {
+      // Sem Web Audio, toca direto e o volume para em 100%.
+      setOutput(source);
+      return;
+    }
+    const input = ctx.createMediaStreamSource(source);
+    const gain = ctx.createGain();
+    const destination = ctx.createMediaStreamDestination();
+    input.connect(gain).connect(destination);
+    gainRef.current = gain;
+    setOutput(destination.stream);
+    return () => {
+      input.disconnect();
+      gain.disconnect();
+      gainRef.current = null;
+    };
+  }, [source]);
+
+  useEffect(() => playInto(pullRef.current, source), [source]);
+  useEffect(() => {
+    if (output) playInto(ref.current, output);
+  }, [output]);
+
+  useEffect(() => {
+    const gain = gainRef.current;
+    const level = volume / 100;
+    if (gain) gain.gain.setTargetAtTime(level, gain.context.currentTime, 0.02);
+    else if (ref.current) ref.current.volume = Math.min(1, level);
+  }, [volume, output]);
+  useEffect(() => {
+    if (ref.current) ref.current.muted = deafened;
+  }, [deafened]);
+  useOutputDevice(ref, output ?? source);
+
+  return (
+    <>
+      <audio ref={pullRef} autoPlay muted />
+      <audio ref={ref} autoPlay />
+    </>
+  );
 }
 
 /**
@@ -118,13 +221,19 @@ export function VoiceAudio({
   peers,
   deafened,
 }: {
-  peers: { id: string; stream: MediaStream }[];
+  peers: { id: string; userId: string; stream: MediaStream; voiceTrackId?: string | undefined }[];
   deafened: boolean;
 }) {
   return (
     <>
       {peers.map((peer) => (
-        <StreamAudio key={peer.id} stream={peer.stream} deafened={deafened} />
+        <StreamAudio
+          key={peer.id}
+          stream={peer.stream}
+          deafened={deafened}
+          userId={peer.userId}
+          voiceTrackId={peer.voiceTrackId}
+        />
       ))}
     </>
   );
