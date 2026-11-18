@@ -401,7 +401,9 @@ function ConnectedStage({
     tiles[1] ??
     tiles[0]!;
   const isPinned = featured.id === pinned;
-  const strip = tiles.filter((tile) => tile.id !== featured.id);
+  // Quem transmite continua na fileira, com o selo de ao vivo: a tela em
+  // destaque é a transmissão, e a fileira mostra quem está por trás dela.
+  const strip = tiles.filter((tile) => tile.id !== featured.id || featured.sharing);
   const visibleStrip = strip.length > STRIP_LIMIT ? strip.slice(0, STRIP_LIMIT - 1) : strip;
   const hidden = strip.length - visibleStrip.length;
   const hasSide = chat !== undefined && chat !== null;
@@ -598,7 +600,8 @@ function ConnectedStage({
                       +{hidden}
                     </button>
                   )}
-                  {strip.length === 0 && onInvite && (
+                  {/* Sozinho na call (mesmo transmitindo), o convite aparece. */}
+                  {strip.every((tile) => tile.id === featured.id) && onInvite && (
                     <button
                       type="button"
                       onClick={onInvite}
@@ -678,21 +681,28 @@ function ConnectedStage({
                 : "h-[72px]",
             )}
           >
-            <span
-              className={cn(
-                "clyro-in-rise hidden items-center gap-2 text-[13px] font-medium tabular-nums text-ink-2 sm:flex",
-                screenId && immersive ? "mr-2 pl-2" : "w-[84px]",
-              )}
-              style={delay(320)}
-            >
-              <span aria-hidden="true" className="relative flex h-2.5 w-2.5">
-                <span className="absolute inset-0 animate-ping rounded-full bg-brand/60 motion-reduce:animate-none" />
-                <span className="relative h-2.5 w-2.5 rounded-full bg-brand" />
+            {/*
+             * Embaixo da call, os controles ficam no centro exato, alinhados com
+             * a tela e as fotos: o cronômetro e o "sair" moram em colunas de
+             * mesma largura, cada uma de um lado.
+             */}
+            <div className={cn("flex items-center", !(screenId && immersive) && "flex-1 basis-0")}>
+              <span
+                className={cn(
+                  "clyro-in-rise hidden items-center gap-2 text-[13px] font-medium tabular-nums text-ink-2 sm:flex",
+                  screenId && immersive && "mr-2 pl-2",
+                )}
+                style={delay(320)}
+              >
+                <span aria-hidden="true" className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-brand/60 motion-reduce:animate-none" />
+                  <span className="relative h-2.5 w-2.5 rounded-full bg-brand" />
+                </span>
+                {rtc.connecting ? "--:--" : timer}
               </span>
-              {rtc.connecting ? "--:--" : timer}
-            </span>
+            </div>
 
-            <div className="flex flex-1 items-center justify-center gap-2">
+            <div className="flex shrink-0 items-center justify-center gap-2">
               <span className="clyro-in-rise flex" style={delay(360)}>
                 <StageButton
                   on={rtc.cameraOn}
@@ -739,20 +749,27 @@ function ConnectedStage({
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={onLeave}
-              aria-label="Sair da chamada"
-              title="Sair da chamada"
-              style={delay(560)}
+            <div
               className={cn(
-                "clyro-in-rise flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-destructive text-[13.5px] font-medium text-white transition-[transform,filter] hover:brightness-110 active:scale-95",
-                screenId ? "w-10" : "px-3 sm:px-4",
+                "flex items-center justify-end",
+                !(screenId && immersive) && "flex-1 basis-0",
               )}
             >
-              <PhoneOff size={17} />
-              {!screenId && <span className="hidden sm:inline">Sair da chamada</span>}
-            </button>
+              <button
+                type="button"
+                onClick={onLeave}
+                aria-label="Sair da chamada"
+                title="Sair da chamada"
+                style={delay(560)}
+                className={cn(
+                  "clyro-in-rise flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-destructive text-[13.5px] font-medium text-white transition-[transform,filter] hover:brightness-110 active:scale-95",
+                  screenId ? "w-10" : "px-3 sm:px-4",
+                )}
+              >
+                <PhoneOff size={17} />
+                {!screenId && <span className="hidden sm:inline">Sair da chamada</span>}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1530,17 +1547,23 @@ function StripTile({
     );
   }
 
-  if (!tile.stream) {
+  // Sem câmera, ou transmitindo a tela (a imagem já está em destaque): a foto.
+  if (!tile.stream || tile.sharing) {
     return (
       <button
         type="button"
         onClick={onSelect}
-        title={`${label} · pôr em destaque`}
-        aria-label={`Pôr ${label} em destaque`}
+        title={tile.sharing ? `${label} · compartilhando a tela` : `${label} · pôr em destaque`}
+        aria-label={tile.sharing ? `${label}, compartilhando a tela` : `Pôr ${label} em destaque`}
         className="clyro-enter relative shrink-0 rounded-full transition-transform hover:scale-105 active:scale-95"
         style={style}
       >
         <UserAvatar profile={tile.profile} size={64} speaking={tile.speaking} showStatus={false} />
+        {tile.sharing && (
+          <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-[4px] bg-[#da373c] px-1 text-[9px] font-bold uppercase leading-[14px] tracking-wide text-white ring-2 ring-card">
+            Ao vivo
+          </span>
+        )}
         {(tile.hand || tile.muted) && (
           <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-card text-[12px] shadow-sm ring-2 ring-card">
             {tile.hand ? "✋" : <MicOff size={12} className="text-muted-foreground" />}

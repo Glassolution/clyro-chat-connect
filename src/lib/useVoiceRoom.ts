@@ -246,7 +246,14 @@ function tuneSender(pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: 
     // Sob aperto de CPU ou de banda o navegador prefere baixar a resolução —
     // é o que fazia o 4K chegar borrado do outro lado. A resolução fica; a 60
     // fps quem pediu fluidez é a taxa de quadros, então é ela que se segura.
-    params.degradationPreference = fps >= 50 ? "maintain-framerate" : "maintain-resolution";
+    //
+    // Em movimento a 30 fps (vídeo, jogo) segurar a resolução custava quadros:
+    // num aperto de rede o codificador parava de mandar imagem e a tela
+    // travava. "balanced" cede um pouco dos dois e a imagem não congela. O
+    // modo de texto parado (15 fps, "detail") segue segurando a nitidez.
+    const hint = track.contentHint;
+    params.degradationPreference =
+      fps >= 50 ? "maintain-framerate" : hint === "detail" ? "maintain-resolution" : "balanced";
   }
   params.encodings = params.encodings.map((e) => ({
     ...e,
@@ -344,6 +351,15 @@ function preferVideoCodecs(
  * H.264). Só a 15 fps, quando a escolha já foi por texto parado, o modo de tela
  * vale a pena.
  */
+/**
+ * Folga de reprodução da tela de quem compartilha, em ms. A voz segue sem
+ * folga nenhuma; a tela ganha um colchão para que um pacote atrasado na rede
+ * não vire uma parada na imagem — as travadas de meio segundo que apareciam de
+ * tempos em tempos vinham daí. O som da tela recebe a mesma folga, para seguir
+ * junto com a imagem.
+ */
+const SCREEN_JITTER_MS = 150;
+
 function screenHint(settings: MediaSettings) {
   return settings.screenFps <= 15 ? "detail" : "motion";
 }
@@ -438,6 +454,10 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   // Cada faixa extra viaja dentro do próprio MediaStream: o outro lado recebe o
   // vídeo já agrupado e o player sabe que há algo novo para exibir.
   const extraStreamRef = useRef<Map<string, MediaStream>>(new Map());
+  /** Do outro lado: quais streams de cada pessoa são a tela (imagem e som). */
+  const remoteScreenStreamsRef = useRef<Map<string, string[]>>(new Map());
+  /** Do outro lado: de que stream veio cada faixa recebida. */
+  const remoteTrackStreamRef = useRef<Map<string, string>>(new Map());
   const audioCtxRef = useRef<AudioContext | null>(null);
   /**
    * Grafo do microfone: a fonte crua alimenta a medição e, por um atraso curto,
@@ -494,6 +514,33 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
 
   const send = useCallback((event: string, payload: object) => {
     void channelRef.current?.send({ type: "broadcast", event, payload });
+  }, []);
+
+  /** Os streams da sua tela (imagem e som), para quem assiste saber quais são. */
+  const ownScreenStreams = useCallback(
+    () =>
+      ["screen", "screen-audio"]
+        .map((key) => extraStreamRef.current.get(key)?.id)
+        .filter((id): id is string => !!id),
+    [],
+  );
+
+  /** Dá a folga de reprodução às faixas da tela de uma pessoa; voz e câmera ficam como estão. */
+  const applyScreenBuffer = useCallback((peerId: string) => {
+    const pc = pcsRef.current.get(peerId);
+    const screens = remoteScreenStreamsRef.current.get(peerId);
+    if (!pc || !screens?.length) return;
+    pc.getReceivers().forEach((receiver) => {
+      const stream = remoteTrackStreamRef.current.get(receiver.track.id);
+      if (!stream || !screens.includes(stream)) return;
+      const tunable = receiver as RTCRtpReceiver & { jitterBufferTarget?: number | null };
+      if (!("jitterBufferTarget" in tunable)) return;
+      try {
+        tunable.jitterBufferTarget = SCREEN_JITTER_MS;
+      } catch {
+        /* navegador sem suporte: segue com a folga padrão */
+      }
+    });
   }, []);
 
   /**
@@ -911,6 +958,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
 
       pc.ontrack = (event) => {
         const track = event.track;
+        const streamId = event.streams[0]?.id;
+        if (streamId) remoteTrackStreamRef.current.set(track.id, streamId);
         event.streams[0]?.getTracks().forEach((t) => {
           if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
         });
@@ -929,6 +978,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
           }
         }
         syncPeer();
+        applyScreenBuffer(peerId);
 
         /*
          * Parar de compartilhar não encerra a faixa do outro lado: ela apenas
@@ -986,7 +1036,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       void polite;
       return pc;
     },
-    [send, attachAnalyser, negotiatePeer],
+    [send, attachAnalyser, negotiatePeer, applyScreenBuffer],
   );
 
   const removePeer = useCallback((peerId: string) => {
@@ -1108,15 +1158,24 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         setSharingPeers((prev) => prev.filter((id) => ids.includes(id)));
         // Quem entra depois precisa saber que já existe uma transmissão no ar.
         if (sharingScreenRef.current) {
-          send("screen-share", { from: selfId, sharing: true });
+          send("screen-share", { from: selfId, sharing: true, streams: ownScreenStreams() });
         }
       });
 
       // Aviso de "estou compartilhando tela" para a interface destacar o tile.
       channel.on("broadcast", { event: "screen-share" }, ({ payload }) => {
-        const data = payload as { from: string; sharing: boolean };
+        const data = payload as { from: string; sharing: boolean; streams?: unknown };
         if (!data || data.from === selfId) return;
         if (data.sharing) playScreenShareSound();
+        if (data.sharing && Array.isArray(data.streams)) {
+          remoteScreenStreamsRef.current.set(
+            data.from,
+            data.streams.filter((id): id is string => typeof id === "string"),
+          );
+          applyScreenBuffer(data.from);
+        } else if (!data.sharing) {
+          remoteScreenStreamsRef.current.delete(data.from);
+        }
         setSharingPeers((prev) => {
           const has = prev.includes(data.from);
           if (data.sharing && !has) return [...prev, data.from];
@@ -1316,6 +1375,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       sharingScreenRef.current = false;
       setSharingPeers([]);
       setCameraOn(false);
+      remoteScreenStreamsRef.current.clear();
+      remoteTrackStreamRef.current.clear();
     };
   }, [
     roomKey,
@@ -1326,6 +1387,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     attachAnalyser,
     buildMicPipeline,
     negotiatePeer,
+    applyScreenBuffer,
+    ownScreenStreams,
   ]);
 
   /**
@@ -1945,12 +2008,16 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         setSharingScreen(true);
         sharingScreenRef.current = true;
         playScreenShareSound();
-        send("screen-share", { from: selfIdRef.current ?? "", sharing: true });
+        send("screen-share", {
+          from: selfIdRef.current ?? "",
+          sharing: true,
+          streams: ownScreenStreams(),
+        });
       } catch {
         /* user cancelled */
       }
     },
-    [sharingScreen, addExtraTrack, removeExtraTrack, stopSharing, send],
+    [sharingScreen, addExtraTrack, removeExtraTrack, stopSharing, send, ownScreenStreams],
   );
 
   const toggleCamera = useCallback(async () => {
