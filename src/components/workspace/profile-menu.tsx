@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Add,
+  Apple,
   ArrowDown2,
   Edit,
   Key,
@@ -13,7 +14,9 @@ import {
   Setting2,
   Sun1,
   TickCircle,
+  Windows,
 } from "iconsax-react";
+import { useDesktopDownload } from "@/lib/download-app";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { inviteLink } from "@/lib/invite-link";
@@ -78,6 +81,7 @@ export function ProfileMenu({
   onEditProject: () => void;
   onLeft: () => void;
 }) {
+  const download = useDesktopDownload();
   const qc = useQueryClient();
   const { signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
@@ -253,6 +257,19 @@ export function ProfileMenu({
         <DropdownMenuItem onSelect={onSettings} className={MENU_ITEM}>
           <Setting2 size={16} color="currentColor" /> Configurações
         </DropdownMenuItem>
+        {download && (
+          <DropdownMenuItem asChild className={MENU_ITEM}>
+            {/* Calls com menos atraso e tela mais lisa: o app não é segurado em segundo plano. */}
+            <a href={download.url}>
+              {download.os === "mac" ? (
+                <Apple size={16} color="currentColor" />
+              ) : (
+                <Windows size={16} color="currentColor" />
+              )}
+              Baixar o app para {download.label}
+            </a>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onSelect={() => void leaveAccount()}
           disabled={signingOut}

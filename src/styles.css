@@ -1392,3 +1392,46 @@ html:active-view-transition-type(catalogo)::view-transition-new(root) {
     transition: none;
   }
 }
+
+/*
+ * Aplicativo de computador (Electron, pasta desktop/). No Mac a janela não tem
+ * barra de título nativa: uma faixa de 32px no topo segura os botões do
+ * sistema e serve para arrastar a janela; as telas de altura cheia descontam
+ * essa faixa.
+ */
+.clyro-titlebar {
+  display: none;
+}
+
+html.clyro-desktop-darwin {
+  --titlebar-h: 32px;
+}
+
+html.clyro-desktop-darwin .clyro-titlebar {
+  display: block;
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 60;
+  height: var(--titlebar-h);
+  background: var(--app-bg);
+  -webkit-app-region: drag;
+}
+
+html.clyro-desktop-darwin body {
+  padding-top: var(--titlebar-h);
+  background: var(--app-bg);
+}
+
+html.clyro-desktop-darwin .h-dvh,
+html.clyro-desktop-darwin .h-screen {
+  height: calc(100dvh - var(--titlebar-h));
+}
+
+html.clyro-desktop-darwin .min-h-screen {
+  min-height: calc(100dvh - var(--titlebar-h));
+}
+
+/* Barras grudadas no topo descem para baixo da faixa. */
+html.clyro-desktop-darwin .sticky.top-0 {
+  top: var(--titlebar-h);
+}

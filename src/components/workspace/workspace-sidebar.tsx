@@ -36,6 +36,8 @@ type SidebarProps = {
    */
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  /** No aplicativo o trilho não abre: some o botão de abrir a barra. */
+  locked?: boolean;
   selfProfile?: Profile | undefined;
   onOpenSelf?: () => void;
   onSettings?: () => void;
@@ -128,14 +130,19 @@ function RailButton({
  * de pendências num selo escuro. Embaixo, ajustes e a sua foto.
  */
 function SidebarRail(props: SidebarProps & { onToggleCollapsed: () => void }) {
-  const { section, onSection, badges, profileActive, onToggleCollapsed } = props;
+  const { section, onSection, badges, profileActive, onToggleCollapsed, locked } = props;
   return (
     <div className="flex w-full flex-1 flex-col items-center">
-      <RailButton label="Abrir a barra lateral" onClick={onToggleCollapsed}>
-        <HambergerMenu size={22} color="currentColor" />
-      </RailButton>
+      {!locked && (
+        <RailButton label="Abrir a barra lateral" onClick={onToggleCollapsed}>
+          <HambergerMenu size={22} color="currentColor" />
+        </RailButton>
+      )}
 
-      <nav aria-label="Seções" className="mt-5 flex flex-col items-center gap-2.5">
+      <nav
+        aria-label="Seções"
+        className={cn("flex flex-col items-center gap-2.5", locked ? "mt-2" : "mt-5")}
+      >
         {SECTIONS.map((s) => {
           const on = !profileActive && section === s.id;
           const badge = badges?.[s.id];

@@ -1,0 +1,77 @@
+{
+  "name": "clyro-desktop",
+  "productName": "Clyro",
+  "version": "0.1.0",
+  "description": "Clyro para computador: workspace, voz e tela compartilhada.",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "CLYRO_URL=http://localhost:8080 electron .",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "45.3.4",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "app.clyro.desktop",
+    "productName": "Clyro",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "build/icon.png"
+    ],
+    "mac": {
+      "category": "public.app-category.social-networking",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "O Clyro usa o microfone nas calls de voz.",
+        "NSCameraUsageDescription": "O Clyro usa a câmera nas calls de vídeo.",
+        "NSAudioCaptureUsageDescription": "O Clyro capta o som da tela que você compartilha."
+      },
+      "identity": "-",
+      "hardenedRuntime": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png"
+    },
+    "artifactName": "Clyro-${os}-${arch}.${ext}",
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "Clyro-windows-${arch}.${ext}"
+    },
+    "dmg": {
+      "artifactName": "Clyro-mac.${ext}"
+    }
+  }
+}

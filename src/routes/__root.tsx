@@ -15,6 +15,8 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { Toaster } from "@/components/ui/sonner";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
+import { DESKTOP_BOOT_SCRIPT } from "@/lib/desktop";
+import { DesktopShell } from "@/components/clyro/desktop-shell";
 
 function NotFoundComponent() {
   return (
@@ -116,6 +118,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: DESKTOP_BOOT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>
@@ -135,6 +138,7 @@ function RootComponent() {
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
         <Toaster position="top-center" />
+        <DesktopShell />
       </AuthProvider>
     </QueryClientProvider>
   );

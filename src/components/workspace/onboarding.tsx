@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { isDesktopApp } from "@/lib/desktop";
 import { useState } from "react";
 import { Check, X } from "@/components/icons";
 import { toast } from "sonner";
@@ -109,10 +110,10 @@ export function WelcomeScreen({ name, onCreate }: { name: string; onCreate: () =
       </p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Link
-          to="/"
+          to={isDesktopApp() ? "/buscar" : "/"}
           className="flex h-14 items-center rounded-full bg-brand px-8 text-base text-white shadow-violet"
         >
-          Descobrir projetos
+          {isDesktopApp() ? "Ver comunidades" : "Descobrir projetos"}
         </Link>
         <Button variant="outline" className="h-14 rounded-full px-8 text-base" onClick={onCreate}>
           Publicar meu projeto

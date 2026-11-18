@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, CloseCircle } from "iconsax-react";
+import { Apple, ArrowRight, CloseCircle, Windows } from "iconsax-react";
 import { cn } from "@/lib/utils";
 import type { Profile as UserProfile } from "@/lib/clyro-types";
 import { ClyroMark, UserAvatar } from "@/components/clyro/primitives";
 import { Mascot } from "@/components/workspace/mascot";
+import { useDesktopDownload } from "@/lib/download-app";
 
 /**
  * Faixa laranja do topo: o único bloco de cor cheia da página. Texto em mono,
@@ -135,6 +136,7 @@ export function SiteNav({
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <DownloadAppLink />
           {signedIn && profile ? (
             <Link
               to="/app"
@@ -155,6 +157,26 @@ export function SiteNav({
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * "Baixar para Mac" ou "Baixar para Windows", conforme o computador de quem
+ * abriu o site. Some no celular, no Linux e dentro do próprio app.
+ */
+function DownloadAppLink() {
+  const download = useDesktopDownload();
+  if (!download) return null;
+  const Icon = download.os === "mac" ? Apple : Windows;
+  return (
+    <a
+      href={download.url}
+      className={cn(pillClass(false), "hidden gap-1.5 lg:flex")}
+      title={`Baixar o Clyro para ${download.label}`}
+    >
+      <Icon size={17} color="currentColor" variant="Bold" />
+      Baixar para {download.label}
+    </a>
   );
 }
 

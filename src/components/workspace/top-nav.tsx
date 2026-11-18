@@ -25,6 +25,7 @@ export function TopNav({
   account,
   sidebarCollapsed = false,
   onToggleSidebar,
+  desktop = false,
 }: {
   section: Section;
   badges?: Partial<Record<Section, number>>;
@@ -41,7 +42,9 @@ export function TopNav({
   account?: ReactNode;
   /** Desktop: a sidebar está minimizada; a coluna da marca estreita junto. */
   sidebarCollapsed?: boolean;
-  onToggleSidebar?: () => void;
+  onToggleSidebar?: (() => void) | undefined;
+  /** No aplicativo: sem a vitrine, a busca vira "Comunidades". */
+  desktop?: boolean;
 }) {
   const current = SECTIONS.find((s) => s.id === section)?.label ?? "";
   const menuBadge = Object.values(badges ?? {}).reduce((n, v) => n + (v ?? 0), 0);
@@ -76,8 +79,8 @@ export function TopNav({
         )}
       >
         <Link
-          to="/"
-          aria-label="Clyro: descobrir projetos"
+          to={desktop ? "/app" : "/"}
+          aria-label={desktop ? "Clyro: workspace" : "Clyro: descobrir projetos"}
           className="flex shrink-0 items-center gap-2.5 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
           <ClyroMark className="h-7 w-7 shrink-0" />
@@ -124,11 +127,13 @@ export function TopNav({
         >
           Workspace
         </button>
-        <Link to="/" className={cn(NAV_ITEM, "text-muted-foreground hover:text-foreground")}>
-          Descobrir
-        </Link>
+        {!desktop && (
+          <Link to="/" className={cn(NAV_ITEM, "text-muted-foreground hover:text-foreground")}>
+            Descobrir
+          </Link>
+        )}
         <Link to="/buscar" className={cn(NAV_ITEM, "text-muted-foreground hover:text-foreground")}>
-          Buscar
+          {desktop ? "Comunidades" : "Buscar"}
         </Link>
       </nav>
 

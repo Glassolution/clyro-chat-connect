@@ -61,6 +61,7 @@ import { useProject, useProjectRequests } from "@/lib/project-queries";
 import { useNavigate } from "@tanstack/react-router";
 import { ComingSoon, IncomingInvites, WelcomeScreen } from "@/components/workspace/onboarding";
 import { PageFrame } from "@/components/workspace/page-frame";
+import { isDesktopApp } from "@/lib/desktop";
 
 const SIDEBAR_KEY = "clyro.sidebar.collapsed";
 
@@ -98,7 +99,10 @@ export function ClyroApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editProjectOpen, setEditProjectOpen] = useState(false);
   // No desktop a sidebar pode virar um trilho de ícones; a escolha fica salva.
+  // No aplicativo a sidebar fica sempre como trilho de ícones, como no Discord.
+  const [desktop] = useState(() => isDesktopApp());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (isDesktopApp()) return true;
     try {
       return window.localStorage.getItem(SIDEBAR_KEY) === "1";
     } catch {
@@ -618,7 +622,8 @@ export function ClyroApp() {
               compact={inCall}
               account={account}
               sidebarCollapsed={sidebarCollapsed}
-              onToggleSidebar={toggleSidebar}
+              onToggleSidebar={desktop ? undefined : toggleSidebar}
+              desktop={desktop}
             />
 
             <div className="flex min-h-0 flex-1">
@@ -634,6 +639,7 @@ export function ClyroApp() {
                   {...sidebarProps}
                   collapsed={sidebarCollapsed}
                   onToggleCollapsed={toggleSidebar}
+                  locked={desktop}
                   selfProfile={profile ?? undefined}
                   onOpenSelf={() => {
                     if (userId) setProfilePageId(userId);
