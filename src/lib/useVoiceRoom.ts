@@ -1,3 +1,4 @@
+import type { RawPeerStats } from "./call-stats";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -121,17 +122,49 @@ function tuneOpus(sdp: string | undefined, settings: MediaSettings) {
 
   const fmtp = new RegExp(`a=fmtp:${payload} ([^\r\n]*)`);
   const existing = fmtp.exec(sdp);
+  let out: string;
   if (existing) {
     const kept = (existing[1] ?? "")
       .split(";")
       .map((part) => part.trim())
       .filter((part) => part.length > 0 && !((part.split("=")[0] ?? "") in wanted));
-    return sdp.replace(fmtp, `a=fmtp:${payload} ${[...kept, ...params].join(";")}`);
+    out = sdp.replace(fmtp, `a=fmtp:${payload} ${[...kept, ...params].join(";")}`);
+  } else {
+    out = sdp.replace(
+      new RegExp(`(a=rtpmap:${payload} opus/48000[^\r\n]*)`),
+      `$1\r\na=fmtp:${payload} ${params.join(";")}`,
+    );
   }
-  return sdp.replace(
-    new RegExp(`(a=rtpmap:${payload} opus/48000[^\r\n]*)`),
-    `$1\r\na=fmtp:${payload} ${params.join(";")}`,
-  );
+  return withVoicePtime(out);
+}
+
+/**
+ * Pacotes de voz de 10 ms em vez dos 20 ms padrão: o Opus espera juntar menos
+ * som antes de mandar, e o outro lado pode tocar antes. Medido ponta a ponta
+ * (microfone → WebRTC → quem ouve), a voz chegou ~6 ms mais cedo — 66 ms
+ * contra 72 ms, sem rede no meio. O custo é o dobro de pacotes, uns 16 kbps a
+ * mais de cabeçalho, nada perto do teto da voz.
+ *
+ * O Chrome lê o `a=ptime` da descrição que recebe para montar o codificador,
+ * e cada lado manda a sua: com os dois ajustados, as duas vozes vão em 10 ms.
+ * Vale para a seção de áudio inteira (som da tela incluso).
+ */
+const VOICE_PTIME_MS = 10;
+
+function withVoicePtime(sdp: string) {
+  return sdp
+    .split(/(?=\r?\nm=)/)
+    .map((section) => {
+      if (!/^\r?\n?m=audio/.test(section)) return section;
+      if (/\r?\na=ptime:\d+/.test(section)) {
+        return section.replace(/(\r?\na=ptime:)\d+/, `$1${VOICE_PTIME_MS}`);
+      }
+      return section.replace(
+        /(\r?\na=rtpmap:\d+ opus\/48000[^\r\n]*)/i,
+        `$1\r\na=ptime:${VOICE_PTIME_MS}`,
+      );
+    })
+    .join("");
 }
 
 /**
@@ -2070,8 +2103,25 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     [send],
   );
 
+  /** Tudo o que o WebRTC sabe de cada conexão agora, para o painel de estatísticas. */
+  const readCallStats = useCallback(async (): Promise<RawPeerStats[]> => {
+    const screenTrackId = extraTrackRef.current.get("screen")?.id ?? null;
+    const entries = [...pcsRef.current.entries()];
+    const results = await Promise.all(
+      entries.map(async ([peerId, pc]) => {
+        try {
+          return { peerId, report: await pc.getStats(), screenTrackId };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return results.filter((r): r is RawPeerStats => r !== null);
+  }, []);
+
   return {
     peers: Object.values(peers),
+    readCallStats,
     quality,
     reactions,
     sendReaction,

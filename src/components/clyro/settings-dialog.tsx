@@ -976,12 +976,12 @@ const NOISE_MODES: { value: NoiseMode; label: string; body: string }[] = [
   {
     value: "strong",
     label: "Forte",
-    body: "Tira teclado, ventilador, TV e vozes ao fundo, mesmo enquanto você fala.",
+    body: "Tira teclado, ventilador, TV e vozes ao fundo, mesmo enquanto você fala. Soma uns 30 ms à voz.",
   },
   {
     value: "standard",
     label: "Leve",
-    body: "Filtra menos e deixa a voz com mais agudos. Bom para sala silenciosa.",
+    body: "Filtra menos e deixa a voz com mais agudos. Uns 15 ms mais rápido que o forte.",
   },
   {
     value: "browser",
@@ -991,7 +991,7 @@ const NOISE_MODES: { value: NoiseMode; label: string; body: string }[] = [
   {
     value: "off",
     label: "Desligada",
-    body: "Sua voz sai sem tratamento. Para microfone bom em sala silenciosa.",
+    body: "Sua voz sai sem tratamento e sem atraso nenhum. Para microfone bom em sala silenciosa.",
   },
 ];
 

@@ -64,6 +64,9 @@ import type { Profile } from "@/lib/clyro-types";
 import type { LinkQuality, RemotePeer } from "@/lib/useVoiceRoom";
 import { UserAvatar } from "./primitives";
 import { StreamVideo } from "./media";
+import { CallStatsPanel } from "./call-stats-panel";
+import type { RawPeerStats } from "@/lib/call-stats";
+import { Activity } from "lucide-react";
 
 export type VoiceControls = {
   peers: RemotePeer[];
@@ -92,6 +95,8 @@ export type VoiceControls = {
   toggleCamera: () => void | Promise<void>;
   /** As faixas da voz de quem fala mais alto, para o medidor (ver useVoiceRoom). */
   readVoiceBands?: (out: number[]) => number;
+  /** O que o WebRTC sabe de cada conexão, para o painel de estatísticas. */
+  readCallStats?: () => Promise<RawPeerStats[]>;
 };
 
 type StageTile = {
@@ -293,6 +298,7 @@ function ConnectedStage({
   const timer = useCallTimer(!rtc.connecting);
   const total = rtc.peers.length + 1;
   const [pinned, setPinned] = useState<string | null>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [lastSpeaker, setLastSpeaker] = useState<string | null>(null);
   const [sideOpen, setSideOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -403,6 +409,8 @@ function ConnectedStage({
     tiles[1] ??
     tiles[0]!;
   const isPinned = featured.id === pinned;
+  const nameOfPeer = (peerId: string) =>
+    tiles.find((tile) => tile.id === peerId)?.name ?? "Participante";
   // Quem transmite continua na fileira, com o selo de ao vivo: a tela em
   // destaque é a transmissão, e a fileira mostra quem está por trás dela.
   const strip = tiles.filter((tile) => tile.id !== featured.id || featured.sharing);
@@ -557,6 +565,13 @@ function ConnectedStage({
             expanded && !full ? "clyro-fade-in absolute inset-0 z-30 bg-[#111214]" : "relative",
           )}
         >
+          {statsOpen && rtc.readCallStats && (
+            <CallStatsPanel
+              read={rtc.readCallStats}
+              nameOf={nameOfPeer}
+              onClose={() => setStatsOpen(false)}
+            />
+          )}
           {audioOnly ? (
             <AudioStage tiles={byRecency} onInvite={onInvite} readBands={rtc.readVoiceBands} />
           ) : (
@@ -747,7 +762,15 @@ function ConnectedStage({
                 )}
               </span>
               <span className="clyro-in-rise flex" style={delay(510)}>
-                <MoreMenu rtc={rtc} onInvite={onInvite} portalContainer={menuContainer} />
+                <MoreMenu
+                  rtc={rtc}
+                  onInvite={onInvite}
+                  portalContainer={menuContainer}
+                  statsOpen={statsOpen}
+                  onToggleStats={
+                    rtc.readCallStats ? () => setStatsOpen((open) => !open) : undefined
+                  }
+                />
               </span>
             </div>
 
@@ -1697,10 +1720,14 @@ function MoreMenu({
   rtc,
   onInvite,
   portalContainer,
+  onToggleStats,
+  statsOpen = false,
 }: {
   rtc: VoiceControls;
   onInvite?: (() => void) | undefined;
   portalContainer?: HTMLElement | null | undefined;
+  onToggleStats?: (() => void) | undefined;
+  statsOpen?: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -1742,6 +1769,12 @@ function MoreMenu({
           {rtc.deafened ? <Headphones size={16} /> : <HeadphoneOff size={16} />}
           {rtc.deafened ? "Ouvir de novo" : "Silenciar o som da call"}
         </DropdownMenuItem>
+        {onToggleStats && (
+          <DropdownMenuItem onSelect={onToggleStats} className="h-9 gap-2.5 rounded-[10px]">
+            <Activity size={16} />
+            {statsOpen ? "Fechar estatísticas" : "Estatísticas da call"}
+          </DropdownMenuItem>
+        )}
         {onInvite && (
           <DropdownMenuItem onSelect={onInvite} className="h-9 gap-2.5 rounded-[10px]">
             <Copy size={16} /> Copiar link da sala
