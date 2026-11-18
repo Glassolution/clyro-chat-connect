@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { inviteLink } from "@/lib/invite-link";
-import { HambergerMenu, Setting2, UserAdd } from "iconsax-react";
+import { Apple, HambergerMenu, Setting2, UserAdd, Windows } from "iconsax-react";
+import { useDesktopDownload, type DesktopOs } from "@/lib/download-app";
 import { X } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { useChannels } from "@/lib/clyro-queries";
@@ -10,7 +11,7 @@ import { initialsOf, type Profile, type Server } from "@/lib/clyro-types";
 import type { Team, WorkspaceMember } from "@/lib/workspace-queries";
 import { MediaImage, UserAvatar } from "@/components/clyro/primitives";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Mascot } from "./mascot";
+import { Mascot, type MascotPose } from "./mascot";
 import { SECTIONS, type Section } from "./sections";
 import { emptyRooms, isCreatedRoom, useRooms } from "@/lib/room-queries";
 
@@ -248,7 +249,11 @@ function ExpandedSidebar(props: SidebarProps) {
       {/* Embaixo, presos ao pé da coluna: o convite e você. */}
       <div className="mt-auto flex flex-col gap-3 pt-6">
         {workspace && (
-          <InviteCard workspace={workspace} canManage={props.canManage} onInvite={props.onInvite} />
+          <SidebarCards
+            workspace={workspace}
+            canManage={props.canManage}
+            onInvite={props.onInvite}
+          />
         )}
         {props.account}
       </div>
@@ -561,8 +566,21 @@ function readDismissed(id: string) {
   }
 }
 
-/** O cartão pastel do convite: some quando você fecha, por workspace. */
-function InviteCard({
+const APP_CARD_KEY = "clyro:app-card";
+
+function saveDismissed(key: string) {
+  try {
+    window.localStorage.setItem(key, "1");
+  } catch {
+    /* sem armazenamento, o cartão volta no próximo carregamento */
+  }
+}
+
+/**
+ * A pilha de cartões do pé da sidebar: o convite na frente e, atrás dele, o
+ * do aplicativo de computador. Fechar o da frente traz o de trás.
+ */
+function SidebarCards({
   workspace,
   canManage,
   onInvite,
@@ -571,20 +589,83 @@ function InviteCard({
   canManage: boolean;
   onInvite: () => void;
 }) {
-  const [dismissed, setDismissed] = useState(false);
-  useEffect(() => setDismissed(readDismissed(workspace.id)), [workspace.id]);
-  const [copied, setCopied] = useState(false);
-
-  if (dismissed) return null;
-
-  const dismiss = () => {
-    setDismissed(true);
+  const download = useDesktopDownload();
+  const [inviteDismissed, setInviteDismissed] = useState(false);
+  const [appDismissed, setAppDismissed] = useState(false);
+  useEffect(() => setInviteDismissed(readDismissed(workspace.id)), [workspace.id]);
+  useEffect(() => {
     try {
-      window.localStorage.setItem(`clyro:invite-card:${workspace.id}`, "1");
+      setAppDismissed(window.localStorage.getItem(APP_CARD_KEY) === "1");
     } catch {
-      /* sem armazenamento, o cartão volta no próximo carregamento */
+      /* sem armazenamento: o cartão aparece */
     }
-  };
+  }, []);
+
+  const showApp = !!download && !appDismissed;
+  const [appFront, setAppFront] = useState(false);
+
+  const invite = !inviteDismissed ? (
+    <InviteCard
+      workspace={workspace}
+      canManage={canManage}
+      onInvite={onInvite}
+      onDismiss={() => {
+        setInviteDismissed(true);
+        saveDismissed(`clyro:invite-card:${workspace.id}`);
+      }}
+    />
+  ) : null;
+  const app =
+    showApp && download ? (
+      <AppCard
+        os={download.os}
+        label={download.label}
+        url={download.url}
+        onDismiss={() => {
+          setAppDismissed(true);
+          setAppFront(false);
+          saveDismissed(APP_CARD_KEY);
+        }}
+      />
+    ) : null;
+
+  const cards = appFront ? [app, invite] : [invite, app];
+  const front = cards[0] ?? cards[1];
+  const back = cards[0] && cards[1] ? cards[1] : null;
+  if (!front) return null;
+  const backLabel = back === app && download ? `Clyro para ${download.label}` : "Convide seu time";
+
+  return (
+    <div className={cn("relative", back && "pt-[22px]")}>
+      {/* O cartão de trás aparece pela borda, com o nome: tocar traz ele para a frente. */}
+      {back && (
+        <button
+          type="button"
+          onClick={() => setAppFront((was) => !was)}
+          className="absolute inset-x-3 top-0 flex h-9 justify-center rounded-t-[14px] border border-foreground/[0.07] bg-card pt-[3px] text-[11.5px] font-medium text-muted-foreground outline-none transition-colors duration-200 ease-clyro hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          {backLabel}
+        </button>
+      )}
+      <div className="relative">{front}</div>
+    </div>
+  );
+}
+
+/** O cartão do convite: fecha por workspace. */
+function InviteCard({
+  workspace,
+  canManage,
+  onInvite,
+  onDismiss,
+}: {
+  workspace: Server;
+  canManage: boolean;
+  onInvite: () => void;
+  onDismiss: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const dismiss = onDismiss;
 
   const copy = async () => {
     await navigator.clipboard.writeText(inviteLink(workspace.invite_code));
@@ -593,12 +674,7 @@ function InviteCard({
   };
 
   return (
-    <div className="relative pt-2">
-      {/* Um segundo cartão aparece atrás, como uma pilha. */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-3 top-0 h-6 rounded-t-[14px] border border-foreground/[0.07] bg-card"
-      />
+    <div className="relative">
       <section className="group/card relative overflow-hidden rounded-[16px] border border-foreground/[0.08] bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_6px_14px_-10px_rgb(0_0_0/0.14)]">
         <button
           type="button"
@@ -633,10 +709,64 @@ function InviteCard({
 }
 
 /**
+ * O cartão do aplicativo de computador, no mesmo desenho do convite: o
+ * quadriculado com o ícone do sistema no ladrilho do meio. Leva direto ao
+ * download do sistema de quem está vendo.
+ */
+function AppCard({
+  os,
+  label,
+  url,
+  onDismiss,
+}: {
+  os: DesktopOs;
+  label: string;
+  url: string;
+  onDismiss: () => void;
+}) {
+  const Icon = os === "mac" ? Apple : Windows;
+  return (
+    <section className="group/card clyro-enter relative overflow-hidden rounded-[16px] border border-foreground/[0.08] bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_6px_14px_-10px_rgb(0_0_0/0.14)]">
+      <a
+        href={url}
+        className="block w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+      >
+        <TileGrid
+          center={<Icon size={24} color="var(--brand)" variant="Bold" />}
+          poses={["energia", "brincando"]}
+        />
+        <span className="block px-3.5 pb-3.5 pt-3">
+          <span className="block text-[13.5px] font-medium tracking-[-0.01em] text-foreground">
+            Clyro para {label}
+          </span>
+          <span className="mt-1 block text-[12.5px] leading-[1.45] text-muted-foreground">
+            Calls com menos atraso e tela compartilhada mais lisa. Toque para baixar.
+          </span>
+        </span>
+      </a>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Fechar aviso do aplicativo"
+        className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-[color,background-color,transform] duration-200 ease-clyro hover:bg-foreground/[0.04] hover:text-foreground active:scale-90"
+      >
+        <X size={15} />
+      </button>
+    </section>
+  );
+}
+
+/**
  * O quadriculado do topo do cartão: três ladrilhos brancos na diagonal, o do
  * meio com o convite em laranja, e duas casas hachuradas atrás dele.
  */
-function TileGrid() {
+function TileGrid({
+  center = <UserAdd size={24} color="var(--brand)" variant="Bold" />,
+  poses = ["estrela", "sorte"],
+}: {
+  center?: React.ReactNode;
+  poses?: [MascotPose, MascotPose];
+} = {}) {
   return (
     <span
       aria-hidden="true"
@@ -644,13 +774,11 @@ function TileGrid() {
     >
       <span className="absolute left-1/4 top-[52px] h-[52px] w-1/2 [background-image:repeating-linear-gradient(135deg,rgb(var(--line)/0.06)_0_1px,transparent_1px_6px)]" />
       <Tile className="left-[calc(25%-2px)] top-[-14px]">
-        <Mascot pose="estrela" size={30} />
+        <Mascot pose={poses[0]} size={30} />
       </Tile>
-      <Tile className="left-[calc(50%-22px)] top-[30px] z-10">
-        <UserAdd size={24} color="var(--brand)" variant="Bold" />
-      </Tile>
+      <Tile className="left-[calc(50%-22px)] top-[30px] z-10">{center}</Tile>
       <Tile className="left-[calc(75%-30px)] top-[76px]">
-        <Mascot pose="sorte" size={30} />
+        <Mascot pose={poses[1]} size={30} />
       </Tile>
     </span>
   );

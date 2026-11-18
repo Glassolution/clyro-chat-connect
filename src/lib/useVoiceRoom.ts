@@ -247,13 +247,14 @@ function tuneSender(pc: RTCPeerConnection, track: MediaStreamTrack, maxBitrate: 
     // é o que fazia o 4K chegar borrado do outro lado. A resolução fica; a 60
     // fps quem pediu fluidez é a taxa de quadros, então é ela que se segura.
     //
-    // Em movimento a 30 fps (vídeo, jogo) segurar a resolução custava quadros:
-    // num aperto de rede o codificador parava de mandar imagem e a tela
-    // travava. "balanced" cede um pouco dos dois e a imagem não congela. O
-    // modo de texto parado (15 fps, "detail") segue segurando a nitidez.
-    const hint = track.contentHint;
+    // Em movimento (vídeo, jogo, a 30 ou 60 fps) a fluidez vem primeiro: num
+    // aperto de rede ou de CPU segurar a resolução custava quadros, e a tela
+    // travava. "balanced" também cortava quadros nas resoluções altas — medido
+    // pela pessoa: mais nítido, porém travando mais. Agora a taxa de quadros
+    // se segura e, no aperto, a resolução cede um pouco. Só o modo de texto
+    // parado (15 fps, "detail") segue segurando a nitidez.
     params.degradationPreference =
-      fps >= 50 ? "maintain-framerate" : hint === "detail" ? "maintain-resolution" : "balanced";
+      track.contentHint === "detail" ? "maintain-resolution" : "maintain-framerate";
   }
   params.encodings = params.encodings.map((e) => ({
     ...e,
@@ -943,6 +944,13 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
 
       /** Reflete no estado o que o stream do peer tem agora. */
       const syncPeer = () => {
+        /*
+         * Conexão que já saiu não volta para a lista. Fechar a conexão velha de
+         * quem reconectou dispara "faixa encerrada" e "mudo" nela, e cada um
+         * desses eventos regravava a pessoa no estado — por isso ela aparecia
+         * duas vezes na call, uma delas um fantasma sem som.
+         */
+        if (pcsRef.current.get(peerId) !== pc) return;
         setPeers((prev) => ({
           ...prev,
           [peerId]: {

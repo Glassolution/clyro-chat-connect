@@ -348,7 +348,9 @@ function ConnectedStage({
       hand: rtc.handRaised,
       reaction: rtc.reactions.find((r) => r.userId === selfProfile?.id)?.emoji ?? null,
     },
-    ...rtc.peers.map((peer) => {
+    // Uma pessoa, um lugar: se a mesma pessoa aparecer em duas conexões por um
+    // instante (reconexão), fica a que transmite ou tem vídeo.
+    ...dedupeByUser(rtc.peers, rtc.sharingPeers).map((peer) => {
       const profile = profiles?.get(peer.userId);
       const sharing = rtc.sharingPeers.includes(peer.id);
       return {
@@ -804,6 +806,19 @@ function ConnectedStage({
       </div>
     </section>
   );
+}
+
+function dedupeByUser<P extends { id: string; userId: string; hasVideo: boolean }>(
+  peers: P[],
+  sharing: string[],
+) {
+  const score = (peer: P) => (sharing.includes(peer.id) ? 2 : 0) + (peer.hasVideo ? 1 : 0);
+  const best = new Map<string, P>();
+  peers.forEach((peer) => {
+    const current = best.get(peer.userId);
+    if (!current || score(peer) > score(current)) best.set(peer.userId, peer);
+  });
+  return peers.filter((peer) => best.get(peer.userId) === peer);
 }
 
 /** Quantas fotos cabem na barra antes do "+N". */

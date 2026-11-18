@@ -1,5 +1,14 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Brush2, Monitor, Moon, ProfileCircle, Sun1 } from "iconsax-react";
+import {
+  Apple,
+  Brush2,
+  DocumentDownload,
+  Monitor,
+  Moon,
+  ProfileCircle,
+  Sun1,
+  Windows,
+} from "iconsax-react";
 import { ChevronDown, Mic, MonitorUp, Settings, Upload, X } from "@/components/icons";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,6 +47,8 @@ import {
   type ScreenResolution,
 } from "@/lib/media-settings";
 import { uploadProfileImage } from "@/lib/profile-media";
+import { DESKTOP_DOWNLOADS, detectDesktopOs, type DesktopOs } from "@/lib/download-app";
+import { desktopBridge } from "@/lib/desktop";
 import { MediaImage, UserAvatar } from "./primitives";
 
 const BIO_LIMIT = 280;
@@ -212,6 +223,9 @@ export function SettingsDialog({
             </TabsTrigger>
             <TabsTrigger value="appearance" className={SETTINGS_TAB}>
               <Brush2 size={18} color="currentColor" aria-hidden="true" /> Aparência
+            </TabsTrigger>
+            <TabsTrigger value="app" className={SETTINGS_TAB}>
+              <DocumentDownload size={18} color="currentColor" aria-hidden="true" /> Aplicativo
             </TabsTrigger>
           </TabsList>
 
@@ -439,9 +453,84 @@ export function SettingsDialog({
               <AppearanceSettings />
             </div>
           </TabsContent>
+
+          <TabsContent value="app" className={cn("mt-0 focus-visible:ring-inset", SETTINGS_SCROLL)}>
+            <div className={SETTINGS_CONTENT}>
+              <DesktopAppSettings />
+            </div>
+          </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * O Clyro para computador: o download do seu sistema em destaque e o do
+ * outro logo abaixo. Dentro do próprio app, diz a versão em uso.
+ */
+function DesktopAppSettings() {
+  const [os, setOs] = useState<DesktopOs | null>(null);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  useEffect(() => {
+    setOs(detectDesktopOs());
+    const bridge = desktopBridge();
+    if (bridge) setAppVersion(bridge.version || "");
+  }, []);
+  const order: DesktopOs[] = os === "windows" ? ["windows", "mac"] : ["mac", "windows"];
+
+  return (
+    <section aria-labelledby="settings-app-heading" className="max-w-2xl space-y-4">
+      <div>
+        <h2 id="settings-app-heading" className="text-lg font-semibold tracking-tight">
+          Clyro para computador
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {appVersion !== null
+            ? `Você já está no aplicativo${appVersion ? ` (versão ${appVersion})` : ""}. Para instalar em outro computador, baixe abaixo.`
+            : "No aplicativo a call não desacelera com a janela atrás de outra: menos atraso na voz e tela compartilhada mais lisa. Mac e Windows entram nas mesmas calls."}
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {order.map((id) => {
+          const item = DESKTOP_DOWNLOADS[id];
+          const Icon = id === "mac" ? Apple : Windows;
+          const mine = id === os;
+          return (
+            <a
+              key={id}
+              href={item.url}
+              className={cn(
+                "flex items-center gap-3 rounded-[16px] border p-4 outline-none transition-[border-color,box-shadow,transform] duration-200 ease-clyro focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.99]",
+                mine
+                  ? "border-brand shadow-[0_0_0_1px_var(--brand)]"
+                  : "border-border hover:border-foreground/20",
+              )}
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] bg-secondary">
+                <Icon size={22} color={mine ? "var(--brand)" : "currentColor"} variant="Bold" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[14.5px] font-medium">Baixar para {item.label}</span>
+                <span className="block text-[12.5px] text-muted-foreground">
+                  {mine
+                    ? "Recomendado para este computador"
+                    : id === "mac"
+                      ? "Intel e Apple Silicon"
+                      : "Windows 10 e 11, 64 bits"}
+                </span>
+              </span>
+            </a>
+          );
+        })}
+      </div>
+
+      <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+        Na primeira abertura o sistema pede um passo a mais. No Mac: clique direito no Clyro ›
+        Abrir. No Windows: “Mais informações” › “Executar assim mesmo”.
+      </p>
+    </section>
   );
 }
 
