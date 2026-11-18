@@ -6,6 +6,7 @@ import {
   type VoiceFilterModel,
   type VoiceFilterNode,
 } from "@/lib/voice-filter";
+import { createEchoGuard, type EchoGuard } from "@/lib/echo-guard";
 import {
   playPeerJoinSound,
   playPeerLeaveSound,
@@ -454,6 +455,10 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     gain: GainNode;
     destination: MediaStreamAudioDestinationNode;
   } | null>(null);
+  /** Segunda camada contra eco, depois do cancelamento do navegador (ver echo-guard). */
+  const echoGuardRef = useRef<EchoGuard | null>(null);
+  /** A voz de cada participante no grafo: é a referência do que vai virar eco. */
+  const remoteSourcesRef = useRef<Map<string, MediaStreamAudioSourceNode>>(new Map());
   /** Captura crua do microfone; `localStreamRef` guarda o que é enviado. */
   const rawStreamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -528,6 +533,13 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         analyser.fftSize = 256;
         source.connect(analyser);
         analysersRef.current.set(id, analyser);
+        if (id !== "__self") {
+          // A mesma voz que toca no alto-falante vira referência para a guarda.
+          const previous = remoteSourcesRef.current.get(id);
+          if (previous && previous !== source) previous.disconnect();
+          remoteSourcesRef.current.set(id, source);
+          if (echoGuardRef.current) source.connect(echoGuardRef.current.far);
+        }
       } catch {
         /* speaking detection is best-effort */
       }
@@ -690,7 +702,16 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         gain.gain.value = mediaSettingsRef.current.noiseGate ? 0 : 1;
         const destination = ctx.createMediaStreamDestination();
 
-        gain.connect(destination);
+        // O que sobra de eco depois do navegador é voz, e o filtro deixa passar:
+        // a guarda corta o microfone quando ele só traz o alto-falante de volta.
+        const guard = await createEchoGuard(ctx, gain, mediaSettingsRef.current.echoCancellation);
+        if (guard) {
+          gain.connect(guard.duck).connect(destination);
+          echoGuardRef.current = guard;
+          remoteSourcesRef.current.forEach((remote) => remote.connect(guard.far));
+        } else {
+          gain.connect(destination);
+        }
 
         /*
          * O medidor escuta depois do filtro, não a captura crua. É o que faz a
@@ -976,6 +997,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     negotiatingRef.current.delete(peerId);
     analysersRef.current.delete(peerId);
     voiceTrackRef.current.delete(peerId);
+    remoteSourcesRef.current.get(peerId)?.disconnect();
+    remoteSourcesRef.current.delete(peerId);
     setPeers((prev) => {
       const next = { ...prev };
       delete next[peerId];
@@ -1274,6 +1297,15 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
         });
         micGraphRef.current = null;
       }
+      echoGuardRef.current = null;
+      remoteSourcesRef.current.forEach((remote) => {
+        try {
+          remote.disconnect();
+        } catch {
+          /* contexto já fechado */
+        }
+      });
+      remoteSourcesRef.current.clear();
       setLocalStream(null);
       extraTrackRef.current.forEach((t) => t.stop());
       extraTrackRef.current.clear();
@@ -1724,6 +1756,11 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     wireGate();
     applyGate(!mediaSettings.noiseGate);
   }, [mediaSettings.noiseGate, applyGate, wireGate]);
+
+  // Desligar o cancelamento de eco nas configurações desliga a guarda junto.
+  useEffect(() => {
+    echoGuardRef.current?.setEnabled(mediaSettings.echoCancellation);
+  }, [mediaSettings.echoCancellation]);
 
   // O filtro entra, sai ou troca de modelo sem reabrir o microfone.
   useEffect(() => {
