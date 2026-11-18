@@ -1,6 +1,6 @@
 # Clyro para computador
 
-App em Electron que abre o Clyro publicado (https://clyro-chat-connect.lovable.app) já no
+App em Electron que abre o Clyro publicado (https://clyro-chat-connect.vercel.app) já no
 workspace. Toda atualização do site chega no app sem reinstalar.
 
 No app aparecem só o login, as comunidades (`/buscar`, `/p/…`, convites) e o workspace,

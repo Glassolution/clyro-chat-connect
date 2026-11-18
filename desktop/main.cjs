@@ -1,7 +1,7 @@
 /*
  * Clyro para computador.
  *
- * O app carrega o próprio site do Clyro (o mesmo deploy do Lovable), então
+ * O app carrega o próprio site do Clyro (o deploy de produção da Vercel), então
  * toda atualização do site chega no app sem reinstalar. O que o app acrescenta
  * é o que o navegador não deixa um site fazer:
  *
@@ -27,7 +27,7 @@ const {
 } = require("electron");
 const path = require("node:path");
 
-const APP_URL = (process.env.CLYRO_URL || "https://clyro-chat-connect.lovable.app").replace(
+const APP_URL = (process.env.CLYRO_URL || "https://clyro-chat-connect.vercel.app").replace(
   /\/+$/,
   "",
 );
@@ -59,6 +59,9 @@ function isAppUrl(raw) {
     return false;
   }
 }
+
+// Para testar ao lado do app instalado: outra pasta de dados, outra instância.
+if (process.env.CLYRO_USER_DATA) app.setPath("userData", process.env.CLYRO_USER_DATA);
 
 // Uma janela por vez: abrir o Clyro de novo traz a que já existe para a frente.
 if (!app.requestSingleInstanceLock()) {

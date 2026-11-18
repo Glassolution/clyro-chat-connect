@@ -1,7 +1,7 @@
 {
   "name": "clyro-desktop",
   "productName": "Clyro",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Clyro para computador: workspace, voz e tela compartilhada.",
   "private": true,
   "main": "main.cjs",
