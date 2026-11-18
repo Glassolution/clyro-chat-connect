@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useMediaSettings } from "@/lib/media-settings";
 
@@ -59,12 +59,37 @@ export function StreamVideo({
   );
 }
 
+/**
+ * Toca todo o som de uma pessoa: voz e, quando ela compartilha a tela com
+ * áudio, o som da aba ou do sistema. O stream do participante junta as duas
+ * faixas, e o Chrome toca só uma faixa de áudio por elemento — o som da tela
+ * sumia mesmo com "compartilhar áudio" ligado. Cada faixa ganha o seu.
+ */
 export function StreamAudio({ stream, deafened }: { stream: MediaStream; deafened: boolean }) {
+  // O stream é o mesmo objeto a vida toda; o participante é recriado a cada
+  // faixa que entra ou sai, e isso já renderiza de novo.
+  const tracks = stream.getAudioTracks().filter((t) => t.readyState === "live");
+  return (
+    <>
+      {tracks.map((track) => (
+        <TrackAudio key={track.id} track={track} deafened={deafened} />
+      ))}
+    </>
+  );
+}
+
+function TrackAudio({ track, deafened }: { track: MediaStreamTrack; deafened: boolean }) {
   const ref = useRef<HTMLAudioElement>(null);
   const { outputDeviceId } = useMediaSettings();
+  const stream = useMemo(() => new MediaStream([track]), [track]);
 
   useEffect(() => {
-    if (ref.current) ref.current.srcObject = stream;
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = stream;
+    void el.play().catch(() => {
+      /* autoplay bloqueado; o clique do usuário resolve */
+    });
   }, [stream]);
   useEffect(() => {
     if (ref.current) ref.current.muted = deafened;

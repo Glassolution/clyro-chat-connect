@@ -453,6 +453,8 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
   const rawStreamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
+  /** A faixa de voz de cada participante — a que o anel de "falando" escuta. */
+  const voiceTrackRef = useRef<Map<string, MediaStreamTrack>>(new Map());
   /**
    * Quanto cada um está falando agora, de 0 a 1, já descontado o ruído da sala.
    * Fica num ref e não no estado: o medidor da call lê a cada quadro sem fazer
@@ -886,7 +888,19 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
           if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
         });
         if (!remoteStream.getTracks().includes(track)) remoteStream.addTrack(track);
-        attachAnalyser(peerId, remoteStream);
+        /*
+         * O anel de "falando" escuta só a voz. Com o som da tela no mesmo
+         * stream, o analisador pegava uma das duas faixas ao acaso e a pessoa
+         * aparecia falando o tempo todo enquanto passava um vídeo. A voz é a
+         * primeira faixa de áudio a chegar: ela entra na conexão antes da tela.
+         */
+        if (track.kind === "audio") {
+          const voice = voiceTrackRef.current.get(peerId);
+          if (!voice || voice.readyState === "ended") {
+            voiceTrackRef.current.set(peerId, track);
+            attachAnalyser(peerId, new MediaStream([track]));
+          }
+        }
         syncPeer();
 
         /*
@@ -955,6 +969,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
     negotiationPendingRef.current.delete(peerId);
     negotiatingRef.current.delete(peerId);
     analysersRef.current.delete(peerId);
+    voiceTrackRef.current.delete(peerId);
     setPeers((prev) => {
       const next = { ...prev };
       delete next[peerId];
@@ -1209,6 +1224,7 @@ export function useVoiceRoom(roomKey: string | null, userId: string | null) {
       negotiationPendingRef.current.clear();
       negotiatingRef.current.clear();
       analysersRef.current.clear();
+      voiceTrackRef.current.clear();
       setPeers({});
       selfIdRef.current = null;
       syncedRef.current = false;
